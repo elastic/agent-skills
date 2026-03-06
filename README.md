@@ -32,32 +32,59 @@ For more background on the Agent Skills standard, see [agentskills.io](http://ag
 
 ### npx (recommended)
 
-The fastest way to install skills is with the `skills` CLI:
+The fastest way to install skills is with the [`skills`](https://github.com/vercel-labs/skills) CLI. No need to clone
+this repository — just run:
 
 ```sh
-npx skills add -a <agent>
+npx skills add elastic/agent-skills
 ```
 
-Replace `<agent>` with your agent runtime (e.g. `claude-code`, `cursor`, `codex`, `windsurf`, `roo`, `cline`,
-`github-copilot`, `gemini-cli`, `opencode`). This copies the skill folders into the correct location for the agent to
-discover.
+This launches an interactive prompt to select skills and target agents. The CLI copies each skill folder into the correct
+location for the agent to discover.
 
-Install specific skills by name:
+Install a specific skill by name:
 
 ```sh
-npx skills add -a cursor elasticsearch-esql
+npx skills add elastic/agent-skills --skill elasticsearch-esql
 ```
 
-Install to multiple agents at once:
+Or use the `@` shorthand:
 
 ```sh
-npx skills add -a cursor -a claude-code
+npx skills add elastic/agent-skills@elasticsearch-esql
 ```
 
-### Bash script (npx not available)
+Install to specific agents:
 
-For environments without Node.js or npx, the repository includes a standalone bash installer at
-[`scripts/install-skills.sh`](scripts/install-skills.sh). Clone this repo and run:
+```sh
+npx skills add elastic/agent-skills -a cursor -a claude-code
+```
+
+List available skills without installing:
+
+```sh
+npx skills add elastic/agent-skills --list
+```
+
+Install all skills to all agents (non-interactive):
+
+```sh
+npx skills add elastic/agent-skills --all
+```
+
+| Flag              | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `-a, --agent`     | Target specific agent(s)                          |
+| `-s, --skill`     | Install specific skill(s) by name                 |
+| `-g, --global`    | Install to user home instead of project directory  |
+| `-y, --yes`       | Skip confirmation prompts                         |
+| `--all`           | Install all skills to all agents without prompts  |
+| `--list`          | List available skills without installing           |
+
+### Local clone
+
+If you prefer to work from a local checkout, or your environment does not have Node.js / npx, clone the repository and
+use the bundled bash installer:
 
 ```sh
 git clone https://github.com/elastic/agent-skills.git
@@ -66,8 +93,6 @@ cd agent-skills
 ```
 
 The script requires only bash 3.2+ and standard Unix utilities (`awk`, `find`, `cp`, `rm`, `mkdir`).
-
-Common options:
 
 | Flag              | Description                           |
 | ----------------- | ------------------------------------- |
