@@ -16,7 +16,7 @@ This repository contains curated skills that help AI agents work with the Elasti
 Logstash, Beats, Fleet, APM, Elastic Security, Elastic Observability, and more. Skills are folders of instructions,
 scripts, and resources that agents load dynamically to improve performance on specialized tasks.
 
-## What Are Skills?
+## What are skills?
 
 Skills are self-contained packages that give AI agents the knowledge and tools to complete specific tasks in a repeatable
 way. Each skill lives in its own folder with a `SKILL.md` file containing metadata and instructions the agent follows.
@@ -28,7 +28,7 @@ For more background on the Agent Skills standard, see [agentskills.io](http://ag
 
 ## Installation
 
-### npx (recommended)
+### npx (Recommended)
 
 The fastest way to install skills is with the [`skills`](https://github.com/vercel-labs/skills) CLI. No need to clone
 this repository — just run:
@@ -72,8 +72,8 @@ npx skills add elastic/agent-skills --all
 
 | Flag              | Description                                       |
 | ----------------- | ------------------------------------------------- |
-| `-a, --agent`     | Target specific agent(s)                          |
-| `-s, --skill`     | Install specific skill(s) by name                 |
+| `-a, --agent`     | Target specific agents                          |
+| `-s, --skill`     | Install specific skills by name                 |
 | `-g, --global`    | Install to user home instead of project directory  |
 | `-y, --yes`       | Skip confirmation prompts                         |
 | `--all`           | Install all skills to all agents without prompts  |
@@ -90,12 +90,12 @@ cd agent-skills
 ./scripts/install-skills.sh add -a <agent>
 ```
 
-The script requires only bash 3.2+ and standard Unix utilities (`awk`, `find`, `cp`, `rm`, `mkdir`).
+The script requires bash 3.2+ and standard Unix utilities (`awk`, `find`, `cp`, `rm`, `mkdir`).
 
 | Flag              | Description                           |
 | ----------------- | ------------------------------------- |
 | `-a, --agent`     | Target agent (repeatable)             |
-| `-s, --skill`     | Install specific skill(s) by name     |
+| `-s, --skill`     | Install specific skills by name     |
 | `-f, --force`     | Overwrite already-installed skills    |
 | `-y, --yes`       | Skip confirmation prompts             |
 
@@ -119,7 +119,7 @@ List all available skills:
 | github-copilot  | `.agents/skills`          |
 | gemini-cli      | `.agents/skills`          |
 
-## Keeping Skills Up to Date
+## Keeping skills up to date
 
 Skills are copied into your project (or home directory) at install time. When this repository is updated — new
 instructions, bug fixes, additional resources — those changes are **not** automatically synced to your local copies.
@@ -142,7 +142,7 @@ npx skills update
 The CLI tracks each skill's source repository and a content hash in a lock file. `check` compares your local hashes
 against GitHub; `update` re-downloads anything that has drifted.
 
-> **Tip:** The default npx install uses symlinks, so every agent points to a single canonical copy. Updating once
+> **Tip:** The default npx installation uses symlinks, so every agent points to a single canonical copy. Updating once
 > refreshes all agents at the same time.
 
 ### Local clone
@@ -156,7 +156,7 @@ git pull
 
 Without `--force` the script skips skills that are already installed.
 
-## Skill Format
+## Skill format
 
 Every skill folder contains a `SKILL.md` with YAML frontmatter and markdown instructions:
 
