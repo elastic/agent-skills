@@ -1,0 +1,40 @@
+name: Improve Existing Skill
+description: Suggest an improvement to an existing skill.
+labels: ["improvement"]
+body:
+  - type: input
+    id: skill-name
+    attributes:
+      label: Skill name
+      description: The name of the skill to improve (nested under `skills/<folder>/<skill-name>/`).
+      placeholder: index-management
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: What needs improvement?
+      options:
+        - label: Description / trigger quality (too vague, too broad, too narrow)
+        - label: Instructions clarity (ambiguous steps, missing context)
+        - label: Missing or weak examples
+        - label: Missing or weak guidelines
+        - label: Scope is too broad or too narrow
+        - label: Reference material needed
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Describe the specific improvement and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any other details, links, or agent runtime observations.
+    validations:
+      required: false
