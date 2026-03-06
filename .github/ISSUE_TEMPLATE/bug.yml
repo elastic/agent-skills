@@ -1,0 +1,40 @@
+name: Bug Report
+description: Report a problem with a skill or the installation process.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can someone else see this problem?
+      placeholder: |
+        1. Install skill with `npx skills add -a cursor`
+        2. Open agent and ask "..."
+        3. See unexpected behavior "..."
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Agent runtime, OS, or other relevant details (optional).
+      placeholder: "Cursor 1.x on macOS 15, Claude Sonnet 4"
+    validations:
+      required: false

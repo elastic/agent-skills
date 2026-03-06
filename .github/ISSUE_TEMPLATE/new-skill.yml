@@ -1,0 +1,64 @@
+name: New Skill
+description: Suggest a new Elastic skill for this repository.
+labels: ["new-skill"]
+body:
+  - type: input
+    id: folder
+    attributes:
+      label: Folder
+      description: Grouping subfolder under `skills/` (e.g. `elasticsearch`, `kibana`, `security`).
+      placeholder: elasticsearch
+    validations:
+      required: true
+
+  - type: input
+    id: skill-name
+    attributes:
+      label: Skill name
+      description: Kebab-case identifier (e.g. `query-authoring`, `index-management`).
+      placeholder: my-skill-name
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: >
+        What the skill does AND when an agent should activate it. This becomes the frontmatter `description` — the sole
+        trigger mechanism for agent runtimes. Minimum 20 words.
+      placeholder: |
+        Guides the agent through ... Use when the task involves ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Elastic product scope
+      description: Which Elastic product APIs, features, or workflows does this skill cover?
+      placeholder: |
+        - Elasticsearch _search API (bool queries, aggregations)
+        - Kibana saved objects API
+        - Fleet agent policies and integrations
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example tasks
+      description: 2-3 concrete tasks an agent should be able to handle with this skill.
+      placeholder: |
+        1. "Write a bool query that filters by status and sorts by timestamp"
+        2. "Add a runtime field that calculates order total from line items"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any other details, links, or references that would help.
+    validations:
+      required: false
