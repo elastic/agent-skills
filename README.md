@@ -119,6 +119,43 @@ List all available skills:
 | github-copilot  | `.agents/skills`          |
 | gemini-cli      | `.agents/skills`          |
 
+## Keeping Skills Up to Date
+
+Skills are copied into your project (or home directory) at install time. When this repository is updated — new
+instructions, bug fixes, additional resources — those changes are **not** automatically synced to your local copies.
+You need to update manually.
+
+### npx
+
+Check whether any installed skills have changed upstream:
+
+```sh
+npx skills check
+```
+
+Pull the latest versions of all installed skills:
+
+```sh
+npx skills update
+```
+
+The CLI tracks each skill's source repository and a content hash in a lock file. `check` compares your local hashes
+against GitHub; `update` re-downloads anything that has drifted.
+
+> **Tip:** The default npx install uses symlinks, so every agent points to a single canonical copy. Updating once
+> refreshes all agents at the same time.
+
+### Local clone
+
+Re-run the installer with `--force` to overwrite existing skills:
+
+```sh
+git pull
+./scripts/install-skills.sh add -a <agent> --force
+```
+
+Without `--force` the script skips skills that are already installed.
+
 ## Skill Format
 
 Every skill folder contains a `SKILL.md` with YAML frontmatter and markdown instructions:
