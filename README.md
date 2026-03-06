@@ -23,10 +23,8 @@ way. Each skill lives in its own folder with a `SKILL.md` file containing metada
 
 For more background on the Agent Skills standard, see [agentskills.io](http://agentskills.io/).
 
-<!-- vale off -->
 <!-- BEGIN-SKILL-TABLE -->
 <!-- END-SKILL-TABLE -->
-<!-- vale on -->
 
 ## Installation
 
