@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'release/skills-sync' &&
+      contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout merged code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
+
+      - name: Extract release metadata
+        id: extract
+        run: |
+          output=$(uv run scripts/release.py \
+            --plugin-json .claude-plugin/plugin.json \
+            --changelog CHANGELOG.md)
+
+          echo "$output" | jq -r '.version' | xargs -I{} echo "version={}" >> "$GITHUB_OUTPUT"
+          echo "$output" | jq -r '.tag' | xargs -I{} echo "tag={}" >> "$GITHUB_OUTPUT"
+          echo "$output" | jq -r '.release_notes' > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create git tag (idempotent)
+        run: |
+          tag="${{ steps.extract.outputs.tag }}"
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists — skipping creation"
+          else
+            git tag -a "$tag" -m "Release $tag"
+            git push origin "$tag"
+            echo "Created and pushed tag $tag"
+          fi
+
+      - name: Create GitHub Release (idempotent)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.extract.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists — skipping creation"
+          else
+            gh release create "$tag" \
+              --verify-tag \
+              --title "$tag" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+            echo "Created release $tag"
+          fi
+
+      - name: Swap labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="${{ github.event.pull_request.number }}"
+          gh pr edit "$pr_number" --remove-label "autorelease: pending" || true
+          gh pr edit "$pr_number" --add-label "autorelease: tagged"
