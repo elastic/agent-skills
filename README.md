@@ -28,6 +28,8 @@ For more background on the Agent Skills standard, see [agentskills.io](http://ag
 
 ## Installation
 
+You can install Elastic skills using the `skills` CLI with `npx`, or by cloning this repository and running the bundled installer script. The `npx` method requires `Node.js` with `npx` available in your environment.
+
 ### npx (Recommended)
 
 The fastest way to install skills is with the [`skills`](https://github.com/vercel-labs/skills) CLI. No need to clone
@@ -46,7 +48,7 @@ Install a specific skill by name:
 npx skills add elastic/agent-skills --skill elasticsearch-esql
 ```
 
-Or use the `@` shorthand:
+Or use the `@` shorthand to specify the skill directly as `repo@skill` (equivalent to `--skill`):
 
 ```sh
 npx skills add elastic/agent-skills@elasticsearch-esql
@@ -119,11 +121,13 @@ List all available skills:
 | github-copilot  | `.agents/skills`          |
 | gemini-cli      | `.agents/skills`          |
 
-## Keeping skills up to date
+## Updating skills
 
 Skills are copied into your project (or home directory) at install time. When this repository is updated — new
 instructions, bug fixes, additional resources — those changes are **not** automatically synced to your local copies.
 You need to update manually.
+
+The update process depends on how the skills were installed (`npx` or a local clone).
 
 ### npx
 
