@@ -36,7 +36,7 @@ jobs:
 
       - name: Validate release artifacts
         run: |
-          uv run scripts/release.py \
+          uv run --project scripts/release release \
             --plugin-json .claude-plugin/plugin.json \
             --changelog CHANGELOG.md \
             --validate \

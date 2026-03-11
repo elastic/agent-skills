@@ -27,7 +27,7 @@ jobs:
       - name: Extract release metadata
         id: extract
         run: |
-          output=$(uv run scripts/release.py \
+          output=$(uv run --project scripts/release release \
             --plugin-json .claude-plugin/plugin.json \
             --changelog CHANGELOG.md)
 
