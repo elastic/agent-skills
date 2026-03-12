@@ -1,0 +1,48 @@
+# Pre-merge validation for release PRs.
+#
+# Runs on every push to an open release PR and validates that all release
+# artifacts are consistent: .release-manifest.json contains a valid semver
+# version, CHANGELOG.md has a matching entry, the target tag does not already
+# exist, and plugin.json / marketplace.json versions match the manifest.
+# Posts a human-readable summary to the GitHub Actions job summary so
+# reviewers can see exactly what will be released.
+
+name: Release Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  INITIAL_VERSION: "1.0.0"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event.pull_request.head.ref == 'release/skills-sync'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
+
+      - name: Fetch existing tags
+        run: git tag --list 'v*' > "$RUNNER_TEMP/existing-tags.txt"
+
+      - name: Validate release artifacts
+        run: |
+          uv run --project scripts/release release \
+            --manifest .github/.release-manifest.json \
+            --changelog CHANGELOG.md \
+            --validate \
+            --plugin-json .claude-plugin/plugin.json \
+            --marketplace-json .claude-plugin/marketplace.json \
+            --existing-tags-file "$RUNNER_TEMP/existing-tags.txt" \
+            --initial-version "$INITIAL_VERSION" \
+            | tee "$GITHUB_STEP_SUMMARY"
