@@ -8,7 +8,7 @@
 
 # Agent Skills
 
-Official Elastic skills for AI agent runtimes, built on the [Agent Skills](https://agentskills.io/) open standard.
+Elastic Agent Skills — built by the people who built Elastic — deliver native platform expertise directly to your AI coding agent. This is the official Agent Skills library, compatible with agentic IDEs such as Cursor, GitHub Copilot, Windsurf, Gemini CLI, and more. Skills follow the [Agent Skills](https://agentskills.io/) open standard.
 
 > [!NOTE]
 > **Technical Preview**
@@ -18,35 +18,36 @@ Official Elastic skills for AI agent runtimes, built on the [Agent Skills](https
 
 ## About
 
-This repository contains curated skills that help AI agents work with the Elastic stack — Elasticsearch, Kibana,
-Logstash, Beats, Fleet, APM, Elastic Security, Elastic Observability, and more. Skills are folders of instructions,
-scripts, and resources that agents load dynamically to improve performance on specialized tasks.
+This repository contains curated skills that are packages of instructions, context, and tooling that teach any AI agent how to correctly work with Elasticsearch, Kibana, Elastic Observability, and Elastic Security. Drop them into the agent runtime you already use, and your assistant stops using outdated patterns and starts getting it right.
 
 ## What are skills?
 
-Skills are self-contained packages that give AI agents the knowledge and tools to complete specific tasks in a repeatable
-way. Each skill lives in its own folder with a `SKILL.md` file containing metadata and instructions the agent follows.
+Skills are self-contained packages that give AI agents the knowledge and tools to complete specific tasks in a repeatable way. Each skill lives in its own folder with a `SKILL.md` file containing metadata and instructions the agent follows.
 
 For more background on the Agent Skills standard, see [agentskills.io](http://agentskills.io/).
 
-<!-- BEGIN-SKILL-TABLE -->
-<!-- END-SKILL-TABLE -->
+## Scope
 
-## Installation
+Skills in this repository focus on:
+
+- Interacting with Elasticsearch APIs (search, indexing, cluster management)
+- Building and managing Kibana dashboards, saved objects, and visualizations
+- Configuring Fleet policies, Elastic Agent integrations, and Beats pipelines
+- Patterns for Elastic Observability, Elastic Security, and APM workflows
+
+## Getting started
 
 You can install Elastic skills using the `skills` CLI with `npx`, or by cloning this repository and running the bundled installer script. The `npx` method requires `Node.js` with `npx` available in your environment.
 
 ### npx (Recommended)
 
-The fastest way to install skills is with the [`skills`](https://github.com/vercel-labs/skills) CLI. No need to clone
-this repository — just run:
+The fastest way to install skills is with the [`skills`](https://github.com/vercel-labs/skills) CLI. No need to clone this repository — just run:
 
 ```sh
 npx skills add elastic/agent-skills
 ```
 
-This launches an interactive prompt to select skills and target agents. The CLI copies each skill folder into the correct
-location for the agent to discover.
+This launches an interactive prompt to select skills and target agents. The CLI copies each skill folder into the correct location for the agent to discover.
 
 Install a specific skill by name:
 
@@ -80,17 +81,16 @@ npx skills add elastic/agent-skills --all
 
 | Flag              | Description                                       |
 | ----------------- | ------------------------------------------------- |
-| `-a, --agent`     | Target specific agents                          |
-| `-s, --skill`     | Install specific skills by name                 |
-| `-g, --global`    | Install to user home instead of project directory  |
+| `-a, --agent`     | Target specific agents                            |
+| `-s, --skill`     | Install specific skills by name                   |
+| `-g, --global`    | Install to user home instead of project directory |
 | `-y, --yes`       | Skip confirmation prompts                         |
 | `--all`           | Install all skills to all agents without prompts  |
-| `--list`          | List available skills without installing           |
+| `--list`          | List available skills without installing          |
 
 ### Local clone
 
-If you prefer to work from a local checkout, or your environment does not have Node.js / npx, clone the repository and
-use the bundled bash installer:
+If you prefer to work from a local checkout, or your environment does not have Node.js / npx, clone the repository and use the bundled bash installer:
 
 ```sh
 git clone https://github.com/elastic/agent-skills.git
@@ -103,7 +103,7 @@ The script requires bash 3.2+ and standard Unix utilities (`awk`, `find`, `cp`, 
 | Flag              | Description                           |
 | ----------------- | ------------------------------------- |
 | `-a, --agent`     | Target agent (repeatable)             |
-| `-s, --skill`     | Install specific skills by name     |
+| `-s, --skill`     | Install specific skills by name       |
 | `-f, --force`     | Overwrite already-installed skills    |
 | `-y, --yes`       | Skip confirmation prompts             |
 
@@ -129,9 +129,7 @@ List all available skills:
 
 ## Updating skills
 
-Skills are copied into your project (or home directory) at install time. When this repository is updated — new
-instructions, bug fixes, additional resources — those changes are **not** automatically synced to your local copies.
-You need to update manually.
+Skills are copied into your project (or home directory) at install time. When this repository is updated — new instructions, bug fixes, additional resources — those changes are **not** automatically synced to your local copies. You need to update manually.
 
 The update process depends on how the skills were installed (`npx` or a local clone).
 
@@ -149,11 +147,9 @@ Pull the latest versions of all installed skills:
 npx skills update
 ```
 
-The CLI tracks each skill's source repository and a content hash in a lock file. `check` compares your local hashes
-against GitHub; `update` re-downloads anything that has drifted.
+The CLI tracks each skill's source repository and a content hash in a lock file. `check` compares your local hashes against GitHub; `update` re-downloads anything that has drifted.
 
-> **Tip:** The default npx installation uses symlinks, so every agent points to a single canonical copy. Updating once
-> refreshes all agents at the same time.
+> **Tip:** The default npx installation uses symlinks, so every agent points to a single canonical copy. Updating once refreshes all agents at the same time.
 
 ### Local clone
 
@@ -185,28 +181,12 @@ metadata:
 [Instructions that the agent follows when this skill is active]
 ```
 
-The `description` field is the sole trigger mechanism — agent runtimes read it to decide when to load a skill. For the
-full format specification, see [agentskills.io/specification](https://agentskills.io/specification).
-
-## Scope
-
-Skills in this repository focus on Elastic products and the Elastic stack:
-
-- Interacting with Elasticsearch APIs (search, indexing, cluster management)
-- Building and managing Kibana dashboards, saved objects, and visualizations
-- Configuring Fleet policies, Elastic Agent integrations, and Beats pipelines
-- Patterns for Elastic Observability, Elastic Security, and APM workflows
+The `description` field is the sole trigger mechanism — agent runtimes read it to decide when to load a skill. For the full format specification, see [agentskills.io/specification](https://agentskills.io/specification).
 
 ## Issues
 
-Found a problem or have a suggestion? [Open an issue](https://github.com/elastic/agent-skills/issues/new) and we will
-review it.
+Found a problem or have a suggestion? [Open an issue](https://github.com/elastic/agent-skills/issues/new) and we will review it.
 
 ## Disclaimer
 
-These skills are provided as-is. Always test skills thoroughly in your own environment before relying on them for
-critical tasks.
-
-## Ownership
-
-This repository is maintained by the **Developer Tools Team** at Elastic.
+These skills are provided as-is. Always test skills thoroughly in your own environment before relying on them for critical tasks.
