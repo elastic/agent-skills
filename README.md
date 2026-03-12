@@ -31,9 +31,8 @@ For more background on the Agent Skills standard, see [agentskills.io](http://ag
 Skills in this repository focus on:
 
 - Interacting with Elasticsearch APIs (search, indexing, cluster management)
-- Building and managing Kibana dashboards, saved objects, and visualizations
-- Configuring Fleet policies, Elastic Agent integrations, and Beats pipelines
-- Patterns for Elastic Observability, Elastic Security, and APM workflows
+- Building and managing Kibana content such as alerts, connectors, and more
+- Patterns for Elastic Observability, Elastic Security, and Agent Builder
 
 ## Getting started
 
