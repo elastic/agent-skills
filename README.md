@@ -11,7 +11,7 @@
 Official Elastic skills for AI agent runtimes, built on the [Agent Skills](https://agentskills.io/) open standard.
 
 > [!NOTE]
-> **Early Release — Technical Preview**
+> **Technical Preview**
 >
 > These skills are in early release and under active development. Expect changes as skills are codified with robust
 > evaluations and as the model landscape evolves. Check back frequently for updates.
