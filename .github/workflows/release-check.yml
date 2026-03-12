@@ -14,7 +14,7 @@ on:
     types: [opened, synchronize, reopened]
 
 env:
-  INITIAL_VERSION: "1.0.0"
+  INITIAL_VERSION: "0.1.0"
 
 permissions:
   contents: read
