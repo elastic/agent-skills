@@ -6,7 +6,7 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-blue"></a>
 </p>
 
-# Agent Skills
+# Elastic Agent Skills
 
 Elastic Agent Skills — built by the people who built Elastic — deliver native platform expertise directly to your AI coding agent. This is the official Agent Skills library, compatible with agentic IDEs such as Cursor, GitHub Copilot, Windsurf, Gemini CLI, and more. Skills follow the [Agent Skills](https://agentskills.io/) open standard.
 
