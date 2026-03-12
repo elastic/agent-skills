@@ -1,10 +1,11 @@
 # Pre-merge validation for release PRs.
 #
 # Runs on every push to an open release PR and validates that all release
-# artifacts are consistent: plugin.json contains a valid semver version,
-# CHANGELOG.md has a matching entry, and the target tag does not already
-# exist. Posts a human-readable summary to the GitHub Actions job summary
-# so reviewers can see exactly what will be released.
+# artifacts are consistent: .release-manifest.json contains a valid semver
+# version, CHANGELOG.md has a matching entry, the target tag does not already
+# exist, and plugin.json / marketplace.json versions match the manifest.
+# Posts a human-readable summary to the GitHub Actions job summary so
+# reviewers can see exactly what will be released.
 
 name: Release Check
 
@@ -37,9 +38,11 @@ jobs:
       - name: Validate release artifacts
         run: |
           uv run --project scripts/release release \
-            --plugin-json .claude-plugin/plugin.json \
+            --manifest .github/.release-manifest.json \
             --changelog CHANGELOG.md \
             --validate \
+            --plugin-json .claude-plugin/plugin.json \
+            --marketplace-json .claude-plugin/marketplace.json \
             --existing-tags-file "$RUNNER_TEMP/existing-tags.txt" \
             --initial-version "$INITIAL_VERSION" \
             | tee "$GITHUB_STEP_SUMMARY"

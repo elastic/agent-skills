@@ -7,10 +7,28 @@ from pathlib import Path
 
 
 @pytest.fixture()
+def manifest(tmp_path: Path) -> Path:
+    """Write a valid .release-manifest.json and return its path."""
+    path = tmp_path / ".release-manifest.json"
+    path.write_text(json.dumps({"version": "1.2.3"}))
+    return path
+
+
+@pytest.fixture()
 def plugin_json(tmp_path: Path) -> Path:
     """Write a valid plugin.json and return its path."""
     path = tmp_path / "plugin.json"
-    path.write_text(json.dumps({"version": "1.2.3"}))
+    path.write_text(json.dumps({"name": "agent-skills", "version": "1.2.3"}))
+    return path
+
+
+@pytest.fixture()
+def marketplace_json(tmp_path: Path) -> Path:
+    """Write a valid marketplace.json and return its path."""
+    path = tmp_path / "marketplace.json"
+    path.write_text(json.dumps({
+        "plugins": [{"name": "agent-skills", "version": "1.2.3"}],
+    }))
     return path
 
 

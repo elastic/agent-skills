@@ -1,0 +1,53 @@
+# Keep plugin.json and marketplace.json versions in sync with the release
+# manifest.  Runs on every push to the release branch that touches the
+# manifest, reads the authoritative version, updates the target files, and
+# commits back if anything changed.
+#
+# Commits made with GITHUB_TOKEN do not re-trigger workflows, so this
+# cannot create an infinite loop.
+
+name: Version Sync
+
+on:
+  push:
+    branches:
+      - release/skills-sync
+    paths:
+      - '.github/.release-manifest.json'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: release/skills-sync
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
+
+      - name: Sync versions from manifest
+        id: sync
+        run: |
+          output=$(uv run --project scripts/release release \
+            --manifest .github/.release-manifest.json \
+            --sync \
+            --plugin-json .claude-plugin/plugin.json \
+            --marketplace-json .claude-plugin/marketplace.json)
+
+          echo "$output"
+          count=$(echo "$output" | jq '.updated | length')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        if: steps.sync.outputs.count != '0'
+        run: |
+          git config user.name "Elastic Machine"
+          git config user.email "elasticmachine@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: sync versions from release manifest"
+          git push

@@ -12,27 +12,81 @@ CHANGELOG_HEADING_RE = re.compile(
 )
 
 
-def read_version(plugin_json: Path) -> str:
-    """Read and validate the semver version string from *plugin_json*."""
-    if not plugin_json.is_file():
-        raise SystemExit(f"error: {plugin_json} does not exist")
+def read_version(version_file: Path) -> str:
+    """Read and validate the semver version string from a JSON file.
+
+    The file must contain a top-level ``"version"`` field with a valid
+    semver string (MAJOR.MINOR.PATCH).  Works with any JSON file that
+    follows this convention — ``plugin.json``, ``.release-manifest.json``,
+    etc.
+    """
+    if not version_file.is_file():
+        raise SystemExit(f"error: {version_file} does not exist")
 
     try:
-        data = json.loads(plugin_json.read_text())
+        data = json.loads(version_file.read_text())
     except json.JSONDecodeError as exc:
-        raise SystemExit(f"error: {plugin_json} is not valid JSON: {exc}") from exc
+        raise SystemExit(f"error: {version_file} is not valid JSON: {exc}") from exc
 
     version = data.get("version")
     if not version:
-        raise SystemExit(f"error: {plugin_json} has no 'version' field")
+        raise SystemExit(f"error: {version_file} has no 'version' field")
 
     if not SEMVER_RE.match(version):
         raise SystemExit(
-            f"error: version '{version}' in {plugin_json} is not valid semver"
+            f"error: version '{version}' in {version_file} is not valid semver"
             " (expected MAJOR.MINOR.PATCH)"
         )
 
     return version
+
+
+def update_json_version(path: Path, version: str) -> bool:
+    """Set the top-level ``"version"`` field in a JSON file.
+
+    Returns ``True`` if the file was modified, ``False`` if it already
+    contained the target version.
+    """
+    if not path.is_file():
+        raise SystemExit(f"error: {path} does not exist")
+
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"error: {path} is not valid JSON: {exc}") from exc
+
+    if data.get("version") == version:
+        return False
+
+    data["version"] = version
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    return True
+
+
+def update_marketplace_version(path: Path, version: str) -> bool:
+    """Set ``plugins[0].version`` in a marketplace manifest.
+
+    Returns ``True`` if the file was modified, ``False`` if it already
+    contained the target version.
+    """
+    if not path.is_file():
+        raise SystemExit(f"error: {path} does not exist")
+
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"error: {path} is not valid JSON: {exc}") from exc
+
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list) or len(plugins) == 0:
+        raise SystemExit(f"error: {path} has no 'plugins' array or it is empty")
+
+    if plugins[0].get("version") == version:
+        return False
+
+    plugins[0]["version"] = version
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    return True
 
 
 def extract_changelog_entry(changelog: Path, version: str) -> str:
