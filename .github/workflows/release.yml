@@ -35,6 +35,11 @@ jobs:
           echo "$output" | jq -r '.tag' | xargs -I{} echo "tag={}" >> "$GITHUB_OUTPUT"
           echo "$output" | jq -r '.release_notes' > "$RUNNER_TEMP/release-notes.md"
 
+      - name: Configure git identity
+        run: |
+          git config user.name "Elastic Machine"
+          git config user.email "elasticmachine@users.noreply.github.com"
+
       - name: Create git tag (idempotent)
         run: |
           tag="${{ steps.extract.outputs.tag }}"
