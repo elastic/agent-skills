@@ -103,11 +103,11 @@ def run_sync(
     """
     updated: list[str] = []
 
-    if plugin_json is not None:
+    if plugin_json is not None and plugin_json.is_file():
         if update_json_version(plugin_json, version):
             updated.append(str(plugin_json))
 
-    if marketplace_json is not None:
+    if marketplace_json is not None and marketplace_json.is_file():
         if update_marketplace_version(marketplace_json, version):
             updated.append(str(marketplace_json))
 

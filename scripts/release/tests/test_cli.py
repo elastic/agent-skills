@@ -112,6 +112,26 @@ class TestRunSync:
         out = json.loads(capsys.readouterr().out)
         assert out["updated"] == []
 
+    def test_missing_plugin_json_skipped(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run_sync("2.0.0", tmp_path / "missing.json", None)
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["updated"] == []
+
+    def test_missing_marketplace_json_skipped(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run_sync("2.0.0", None, tmp_path / "missing.json")
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["updated"] == []
+
 
 # ---------------------------------------------------------------------------
 # main (end-to-end CLI)
