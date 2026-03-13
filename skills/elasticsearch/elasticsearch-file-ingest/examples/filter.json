@@ -1,0 +1,34 @@
+{
+  "bool": {
+    "must": [
+      {
+        "range": {
+          "@timestamp": {
+            "gte": "2024-01-01",
+            "lt": "2025-01-01"
+          }
+        }
+      }
+    ],
+    "must_not": [
+      {
+        "term": {
+          "status": "deleted"
+        }
+      }
+    ],
+    "should": [
+      {
+        "term": {
+          "level": "error"
+        }
+      },
+      {
+        "term": {
+          "level": "warning"
+        }
+      }
+    ],
+    "minimum_should_match": 1
+  }
+}

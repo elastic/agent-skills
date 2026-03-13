@@ -1,0 +1,260 @@
+{
+  "title": "Kibana as Code Demo Dashboard",
+  "panels": [
+    {
+      "type": "DASHBOARD_MARKDOWN",
+      "uid": "header",
+      "grid": { "x": 0, "y": 0, "w": 48, "h": 4 },
+      "config": {
+        "content": "# Kibana as Code Demo\n\nThis dashboard was created programmatically using the **kibana-dashboards** API. It demonstrates metrics, gauges, bar charts, area charts, heatmaps, and data tables using the `kibana_sample_data_logs` dataset."
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "total-requests",
+      "grid": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "config": {
+        "attributes": {
+          "title": "Total Requests",
+          "type": "metric",
+          "dataset": {
+            "type": "dataView",
+            "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+          },
+          "metrics": [
+            { "type": "primary", "operation": "count" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "avg-bytes",
+      "grid": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "config": {
+        "attributes": {
+          "title": "Average Bytes",
+          "type": "metric",
+          "dataset": {
+            "type": "dataView",
+            "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+          },
+          "metrics": [
+            { "type": "primary", "operation": "average", "field": "bytes" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "unique-ips",
+      "grid": { "x": 24, "y": 4, "w": 12, "h": 8 },
+      "config": {
+        "attributes": {
+          "title": "Unique Client IPs",
+          "type": "metric",
+          "dataset": {
+            "type": "dataView",
+            "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+          },
+          "metrics": [
+            { "type": "primary", "operation": "unique_count", "field": "clientip" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "max-bytes-gauge",
+      "grid": { "x": 36, "y": 4, "w": 12, "h": 8 },
+      "config": {
+        "attributes": {
+          "title": "Max Bytes",
+          "type": "gauge",
+          "dataset": {
+            "type": "dataView",
+            "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+          },
+          "metric": {
+            "operation": "max",
+            "field": "bytes"
+          }
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "requests-timeline",
+      "grid": { "x": 0, "y": 12, "w": 32, "h": 12 },
+      "config": {
+        "attributes": {
+          "title": "Requests Over Time",
+          "type": "xy",
+          "layers": [
+            {
+              "type": "area",
+              "dataset": {
+                "type": "dataView",
+                "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+              },
+              "x": {
+                "operation": "date_histogram",
+                "field": "@timestamp"
+              },
+              "y": [
+                { "operation": "count" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "response-codes",
+      "grid": { "x": 32, "y": 12, "w": 16, "h": 12 },
+      "config": {
+        "attributes": {
+          "title": "Response Codes",
+          "type": "xy",
+          "layers": [
+            {
+              "type": "bar_horizontal",
+              "dataset": {
+                "type": "dataView",
+                "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+              },
+              "x": {
+                "operation": "terms",
+                "fields": ["response.keyword"],
+                "size": 10
+              },
+              "y": [
+                { "operation": "count" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "traffic-heatmap",
+      "grid": { "x": 0, "y": 24, "w": 24, "h": 12 },
+      "config": {
+        "attributes": {
+          "title": "Traffic Heatmap",
+          "type": "heatmap",
+          "dataset": {
+            "type": "dataView",
+            "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+          },
+          "metric": {
+            "operation": "count"
+          },
+          "xAxis": {
+            "operation": "date_histogram",
+            "field": "@timestamp"
+          },
+          "yAxis": {
+            "operation": "terms",
+            "fields": ["response.keyword"],
+            "size": 10
+          }
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "top-urls-table",
+      "grid": { "x": 24, "y": 24, "w": 24, "h": 12 },
+      "config": {
+        "attributes": {
+          "title": "Top URLs",
+          "type": "datatable",
+          "dataset": {
+            "type": "dataView",
+            "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+          },
+          "metrics": [
+            { "operation": "count" },
+            { "operation": "sum", "field": "bytes" },
+            { "operation": "average", "field": "bytes" }
+          ],
+          "rows": [
+            {
+              "operation": "terms",
+              "fields": ["url.keyword"],
+              "size": 15,
+              "rank_by": {
+                "type": "column",
+                "metric": 0,
+                "direction": "desc"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "top-hosts",
+      "grid": { "x": 0, "y": 36, "w": 24, "h": 10 },
+      "config": {
+        "attributes": {
+          "title": "Top Hosts",
+          "type": "xy",
+          "layers": [
+            {
+              "type": "bar",
+              "dataset": {
+                "type": "dataView",
+                "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+              },
+              "x": {
+                "operation": "terms",
+                "fields": ["host.keyword"],
+                "size": 10
+              },
+              "y": [
+                { "operation": "count" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "traffic-by-country",
+      "grid": { "x": 24, "y": 36, "w": 24, "h": 10 },
+      "config": {
+        "attributes": {
+          "title": "Traffic by Country",
+          "type": "xy",
+          "layers": [
+            {
+              "type": "bar",
+              "dataset": {
+                "type": "dataView",
+                "id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+              },
+              "x": {
+                "operation": "terms",
+                "fields": ["geo.dest"],
+                "size": 10
+              },
+              "y": [
+                { "operation": "sum", "field": "bytes" }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "time_range": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

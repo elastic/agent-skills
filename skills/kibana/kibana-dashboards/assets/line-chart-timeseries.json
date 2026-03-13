@@ -1,0 +1,14 @@
+{
+  "type": "xy",
+  "layers": [
+    {
+      "type": "line",
+      "dataset": {
+        "type": "esql",
+        "query": "FROM kibana_sample_data_logs | STATS count = COUNT() BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
+      },
+      "x": { "operation": "value", "column": "bucket" },
+      "y": [{ "operation": "value", "column": "count" }]
+    }
+  ]
+}

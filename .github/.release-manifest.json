@@ -1,0 +1,111 @@
+{
+  "version": "0.1.0",
+  "source_repo": "elastic/agent-skills",
+  "sandbox_sha": "84f37e9ccd24cb4b966aedcdcb9c23e4cf6f92ca",
+  "skills": {
+    "skills/cloud/access-management": {
+      "name": "cloud-access-management",
+      "version": "0.1.0"
+    },
+    "skills/cloud/create-project": {
+      "name": "cloud-create-project",
+      "version": "0.1.0"
+    },
+    "skills/cloud/manage-project": {
+      "name": "cloud-manage-project",
+      "version": "0.1.0"
+    },
+    "skills/cloud/network-security": {
+      "name": "cloud-network-security",
+      "version": "0.1.0"
+    },
+    "skills/cloud/setup": {
+      "name": "cloud-setup",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-audit": {
+      "name": "elasticsearch-audit",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-authn": {
+      "name": "elasticsearch-authn",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-authz": {
+      "name": "elasticsearch-authz",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-esql": {
+      "name": "elasticsearch-esql",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-file-ingest": {
+      "name": "elasticsearch-file-ingest",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-security-troubleshooting": {
+      "name": "elasticsearch-security-troubleshooting",
+      "version": "0.1.0"
+    },
+    "skills/kibana/agent-builder": {
+      "name": "kibana-agent-builder",
+      "version": "0.2.0"
+    },
+    "skills/kibana/kibana-alerting-rules": {
+      "name": "kibana-alerting-rules",
+      "version": "0.1.0"
+    },
+    "skills/kibana/kibana-audit": {
+      "name": "kibana-audit",
+      "version": "0.1.0"
+    },
+    "skills/kibana/kibana-connectors": {
+      "name": "kibana-connectors",
+      "version": "0.1.1"
+    },
+    "skills/kibana/kibana-dashboards": {
+      "name": "kibana-dashboards",
+      "version": "0.1.0"
+    },
+    "skills/kibana/kibana-vega": {
+      "name": "kibana-vega",
+      "version": "0.1.0"
+    },
+    "skills/kibana/streams": {
+      "name": "kibana-streams",
+      "version": "0.1.0"
+    },
+    "skills/observability/llm-obs": {
+      "name": "observability-llm-obs",
+      "version": "0.1.0"
+    },
+    "skills/observability/logs-search": {
+      "name": "observability-logs-search",
+      "version": "0.2.0"
+    },
+    "skills/observability/manage-slos": {
+      "name": "observability-manage-slos",
+      "version": "0.2.0"
+    },
+    "skills/observability/service-health": {
+      "name": "observability-service-health",
+      "version": "0.1.0"
+    },
+    "skills/security/alert-triage": {
+      "name": "security-alert-triage",
+      "version": "0.1.0"
+    },
+    "skills/security/case-management": {
+      "name": "security-case-management",
+      "version": "0.1.0"
+    },
+    "skills/security/detection-rule-management": {
+      "name": "security-detection-rule-management",
+      "version": "0.1.0"
+    },
+    "skills/security/generate-security-sample-data": {
+      "name": "security-generate-security-sample-data",
+      "version": "0.1.0"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "elasticsearch-file-ingest",
+  "version": "0.0.1",
+  "description": "Agent skill for ingesting and transforming large data files (CSV/JSON) into Elasticsearch indices. Stream-based ingestion, cross-version migration (ES 8.x ↔ 9.x), and custom transformations.",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@elastic/elasticsearch": "^8.17.0",
+    "node-es-transformer": "^1.2.2"
+  }
+}

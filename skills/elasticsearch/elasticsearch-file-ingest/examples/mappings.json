@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "user": {
+      "properties": {
+        "id": { "type": "keyword" },
+        "name": { "type": "keyword" },
+        "email": { "type": "keyword" }
+      }
+    },
+    "message": {
+      "type": "text"
+    },
+    "level": {
+      "type": "keyword"
+    },
+    "tags": {
+      "type": "keyword"
+    }
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "title": "Dashboard with Lens Panels",
+  "panels": [
+    {
+      "type": "DASHBOARD_MARKDOWN",
+      "uid": "header",
+      "grid": { "x": 0, "y": 0, "w": 48, "h": 3 },
+      "config": {
+        "content": "# Log Analysis Dashboard"
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "total-count",
+      "grid": { "x": 0, "y": 3, "w": 12, "h": 8 },
+      "config": {
+        "attributes": {
+          "type": "metric",
+          "dataset": {
+            "type": "esql",
+            "query": "FROM kibana_sample_data_logs | STATS count = COUNT()"
+          },
+          "metrics": [
+            { "type": "primary", "operation": "value", "column": "count" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "avg-bytes",
+      "grid": { "x": 12, "y": 3, "w": 12, "h": 8 },
+      "config": {
+        "attributes": {
+          "type": "metric",
+          "dataset": {
+            "type": "esql",
+            "query": "FROM kibana_sample_data_logs | STATS avg_bytes = AVG(bytes)"
+          },
+          "metrics": [
+            { "type": "primary", "operation": "value", "column": "avg_bytes" }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "response-codes",
+      "grid": { "x": 24, "y": 3, "w": 24, "h": 8 },
+      "config": {
+        "attributes": {
+          "type": "xy",
+          "layers": [
+            {
+              "type": "bar",
+              "dataset": {
+                "type": "esql",
+                "query": "FROM kibana_sample_data_logs | STATS count = COUNT() BY response = TO_STRING(response)"
+              },
+              "x": { "operation": "value", "column": "response" },
+              "y": [{ "operation": "value", "column": "count" }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "timeline",
+      "grid": { "x": 0, "y": 11, "w": 48, "h": 12 },
+      "config": {
+        "attributes": {
+          "type": "xy",
+          "layers": [
+            {
+              "type": "line",
+              "dataset": {
+                "type": "esql",
+                "query": "FROM kibana_sample_data_logs | STATS count = COUNT() BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
+              },
+              "x": { "operation": "value", "column": "bucket" },
+              "y": [{ "operation": "value", "column": "count" }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "top-hosts",
+      "grid": { "x": 0, "y": 23, "w": 24, "h": 10 },
+      "config": {
+        "attributes": {
+          "type": "xy",
+          "layers": [
+            {
+              "type": "bar",
+              "dataset": {
+                "type": "esql",
+                "query": "FROM kibana_sample_data_logs | STATS count = COUNT() BY host = TO_STRING(host)"
+              },
+              "x": { "operation": "value", "column": "host" },
+              "y": [{ "operation": "value", "column": "count" }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "lens",
+      "uid": "bytes-by-os",
+      "grid": { "x": 24, "y": 23, "w": 24, "h": 10 },
+      "config": {
+        "attributes": {
+          "type": "datatable",
+          "dataset": {
+            "type": "esql",
+            "query": "FROM kibana_sample_data_logs | STATS count = COUNT(), total_bytes = SUM(bytes) BY os = TO_STRING(machine.os)"
+          },
+          "rows": [
+            { "operation": "value", "column": "os" }
+          ],
+          "metrics": [
+            { "operation": "value", "column": "count" },
+            { "operation": "value", "column": "total_bytes" }
+          ]
+        }
+      }
+    }
+  ],
+  "time_range": {
+    "from": "now-7d",
+    "to": "now"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "type": "xy",
+  "layers": [
+    {
+      "type": "bar",
+      "dataset": {
+        "type": "esql",
+        "query": "FROM kibana_sample_data_logs | STATS count = COUNT() BY response.keyword"
+      },
+      "x": { "operation": "value", "column": "response.keyword" },
+      "y": [{ "operation": "value", "column": "count" }]
+    }
+  ]
+}
