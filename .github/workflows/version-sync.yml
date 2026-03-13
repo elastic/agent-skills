@@ -1,7 +1,7 @@
 # Keep plugin.json and marketplace.json versions in sync with the release
 # manifest.  Runs on every push to the release branch that touches the
-# manifest, reads the authoritative version, updates the target files, and
-# commits back if anything changed.
+# manifest or any .claude-plugin file, reads the authoritative version,
+# updates the target files, and commits back if anything changed.
 #
 # Commits made with GITHUB_TOKEN do not re-trigger workflows, so this
 # cannot create an infinite loop.
@@ -14,6 +14,7 @@ on:
       - release/skills-sync
     paths:
       - '.github/.release-manifest.json'
+      - '.claude-plugin/**'
 
 permissions:
   contents: write
