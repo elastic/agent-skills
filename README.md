@@ -34,9 +34,25 @@ Skills in this repository focus on:
 - Building and managing Kibana content such as alerts, connectors, and more
 - Patterns for Elastic Observability, Elastic Security, and Agent Builder
 
+## Security considerations
+
+AI coding agents operate with real credentials, real shell access, and often the full permissions of the user running them. When those agents are pointed at security workflows, the stakes are higher. That warrants a frank conversation about risk before you get started.
+
+- **Conduct your own threat modeling.** Evaluate what data the agent can access, what actions it can take, and what happens if it behaves unexpectedly. [CISA's joint guidance on deploying AI systems securely](https://www.cisa.gov/news-events/alerts/2024/04/15/joint-guidance-deploying-ai-systems-securely) is a good starting point.
+- **Be aware of what data flows through the agent.** Security data can contain PII, credentials embedded in command lines, and other regulated data. When an agent queries alerts or process events, that content enters the model's context and may be sent to a third-party API. Involve your infosec and compliance teams early.
+- **These agents process attacker-controlled input.** Alerts, event fields, and file contents regularly contain strings crafted by attackers. Prompt injection is not theoretical here; it is an inherent property of the operating environment. Research like [Brainworm](https://www.originhq.com/blog/brainworm) demonstrates that agent context files alone can serve as a persistence mechanism for promptware.
+- **Scope privileges tightly.** Give API keys the minimum privileges required. Broad response privileges are particularly dangerous. Read-only access is a good default until you've validated behavior.
+- **Restrict agent tool access and network reach.** Most AI coding agents ship with broad defaults: shell execution, file system writes, internet access. Reducing the available tool surface limits what a compromised or misdirected agent can do.
+- **Start in non-production environments.** Use a Serverless trial project, dev cluster, or isolated Kibana space to evaluate skills before connecting them to anything carrying live security data.
+
+These skills are open source precisely so you can audit what they do. We encourage you to read them before you run them.
+
 ## Getting started
 
 You can install Elastic skills using the `skills` CLI with `npx`, or by cloning this repository and running the bundled installer script. The `npx` method requires `Node.js` with `npx` available in your environment.
+
+> [!TIP]
+> **Don't install every skill.** Each installed skill adds routing context that your agent evaluates on every request. Install the **cloud** and **elasticsearch** auth skills — most other skills depend on them — then add only the skills relevant to your workflow. Keeping the installed set focused avoids context bloat and helps the agent route to the right skill reliably.
 
 ### npx (Recommended)
 
