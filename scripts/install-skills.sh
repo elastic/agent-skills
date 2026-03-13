@@ -100,7 +100,7 @@ Usage:
 
 Options:
   -a, --agent <name>    Target agent(s), required for add, repeatable
-  -s, --skill <name>    Install specific skill(s) by name, repeatable
+  -s, --skill <name>    Install specific skill(s) by name or glob (e.g. 'observability-*'); quote globs to avoid shell expansion, repeatable
   -f, --force           Overwrite skills that are already installed
   -y, --yes             Skip confirmation prompts
   -h, --help            Show this help
@@ -112,6 +112,7 @@ Examples:
   $SCRIPT_NAME list                             Show available skills
   $SCRIPT_NAME add -a claude-code               Install all skills for Claude Code
   $SCRIPT_NAME add -a cursor -a claude-code     Install to multiple agents
+  $SCRIPT_NAME add -a cursor -s 'observability-*'   Install all observability skills (glob)
   $SCRIPT_NAME add -a cursor elasticsearch-query-authoring   Install a specific skill (by frontmatter name)
   $SCRIPT_NAME add -a cursor --force -y         Overwrite without prompts
 EOF
@@ -261,12 +262,15 @@ cmd_add() {
     die "No valid skills (with name in frontmatter) found in $SKILLS_DIR"
   fi
 
-  # Filter by --skill / positional args
+  # Filter by --skill / positional args (exact name or glob pattern, e.g. observability-*)
   local selected_indices=()
   if [ ${#SKILLS[@]} -gt 0 ]; then
+    for s in "${SKILLS[@]}"; do
+      [ -n "$s" ] || die "Empty skill name or pattern not allowed"
+    done
     for i in "${!skill_names[@]}"; do
       for s in "${SKILLS[@]}"; do
-        if [ "${skill_names[$i]}" = "$s" ] || [ "$s" = "*" ]; then
+        if [ "$s" = "*" ] || [[ "${skill_names[$i]}" == $s ]]; then
           selected_indices+=("$i")
           break
         fi
@@ -396,7 +400,7 @@ main() {
       -y|--yes)     YES=true; shift ;;
       -f|--force)   FORCE=true; shift ;;
       -a|--agent)   [ $# -ge 2 ] || die "-a requires a value"; AGENTS+=("$2"); shift 2 ;;
-      -s|--skill)   [ $# -ge 2 ] || die "-s requires a value"; SKILLS+=("$2"); shift 2 ;;
+      -s|--skill)   [ $# -ge 2 ] || die "-s requires a value"; [ -n "$2" ] || die "-s requires a non-empty value"; SKILLS+=("$2"); shift 2 ;;
       -h|--help)    usage ;;
       -*)           die "Unknown option: $1" ;;
       *)            positional+=("$1"); shift ;;
