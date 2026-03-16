@@ -1,7 +1,7 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "84f37e9ccd24cb4b966aedcdcb9c23e4cf6f92ca",
+  "sandbox_sha": "bff4e0f18449aa4c16444b765babaf52c0436ab2",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -73,6 +73,30 @@
     },
     "skills/kibana/streams": {
       "name": "kibana-streams",
+      "version": "0.1.0"
+    },
+    "skills/observability/edot-dotnet-instrument": {
+      "name": "observability-edot-dotnet-instrument",
+      "version": "0.1.0"
+    },
+    "skills/observability/edot-dotnet-migrate": {
+      "name": "observability-edot-dotnet-migrate",
+      "version": "0.1.0"
+    },
+    "skills/observability/edot-java-instrument": {
+      "name": "observability-edot-java-instrument",
+      "version": "0.1.0"
+    },
+    "skills/observability/edot-java-migrate": {
+      "name": "observability-edot-java-migrate",
+      "version": "0.1.0"
+    },
+    "skills/observability/edot-python-instrument": {
+      "name": "observability-edot-python-instrument",
+      "version": "0.1.0"
+    },
+    "skills/observability/edot-python-migrate": {
+      "name": "observability-edot-python-migrate",
       "version": "0.1.0"
     },
     "skills/observability/llm-obs": {
