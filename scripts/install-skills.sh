@@ -29,6 +29,7 @@ AGENT_DEFS=(
   "cursor|.agents/skills"
   "codex|.agents/skills"
   "opencode|.agents/skills"
+  "pi|.pi/agent/skills"
   "windsurf|.windsurf/skills"
   "roo|.roo/skills"
   "cline|.agents/skills"
