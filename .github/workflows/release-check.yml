@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.event.pull_request.head.ref == 'release/skills-sync'
+    if: github.event.pull_request.head.ref == 'automation/skills-sync'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch

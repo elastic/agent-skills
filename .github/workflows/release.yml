@@ -12,7 +12,7 @@ jobs:
   release:
     if: >-
       github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref == 'release/skills-sync' &&
+      github.event.pull_request.head.ref == 'automation/skills-sync' &&
       contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
     runs-on: ubuntu-latest
     steps:
