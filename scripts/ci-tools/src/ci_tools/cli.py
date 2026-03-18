@@ -10,6 +10,7 @@ import sys
 import typer
 from loguru import logger
 
+from ci_tools.commands.github.cli import github_app
 from ci_tools.commands.release.cli import release_app
 
 app = typer.Typer(
@@ -19,6 +20,7 @@ app = typer.Typer(
 )
 
 app.add_typer(release_app, name="release")
+app.add_typer(github_app, name="github")
 
 
 @app.callback()
