@@ -34,9 +34,8 @@ jobs:
       - name: Sync versions from manifest
         id: sync
         run: |
-          output=$(uv run --project scripts/release release \
+          output=$(uv run --project scripts/ci-tools ci-tools release sync \
             --manifest .github/.release-manifest.json \
-            --sync \
             --plugin-json .claude-plugin/plugin.json \
             --marketplace-json .claude-plugin/marketplace.json)
 

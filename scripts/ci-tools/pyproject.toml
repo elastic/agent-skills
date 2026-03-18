@@ -1,0 +1,30 @@
+[project]
+name = "ci-tools"
+version = "0.1.0"
+description = "CI tooling for this repository"
+authors = [
+    { name = "Matt Devy", email = "matt.devy@elastic.co" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.15",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "loguru>=0.7",
+]
+
+[project.scripts]
+ci-tools = "ci_tools.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.4,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
