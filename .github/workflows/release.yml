@@ -27,7 +27,7 @@ jobs:
       - name: Extract release metadata
         id: extract
         run: |
-          output=$(uv run --project scripts/release release \
+          output=$(uv run --project scripts/ci-tools ci-tools release extract \
             --manifest .github/.release-manifest.json \
             --changelog CHANGELOG.md)
 

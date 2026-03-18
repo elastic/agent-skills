@@ -37,12 +37,11 @@ jobs:
 
       - name: Validate release artifacts
         run: |
-          uv run --project scripts/release release \
+          uv run --project scripts/ci-tools ci-tools release validate \
             --manifest .github/.release-manifest.json \
             --changelog CHANGELOG.md \
-            --validate \
             --plugin-json .claude-plugin/plugin.json \
             --marketplace-json .claude-plugin/marketplace.json \
-            --existing-tags-file "$RUNNER_TEMP/existing-tags.txt" \
+            --tags-file "$RUNNER_TEMP/existing-tags.txt" \
             --initial-version "$INITIAL_VERSION" \
             | tee "$GITHUB_STEP_SUMMARY"
