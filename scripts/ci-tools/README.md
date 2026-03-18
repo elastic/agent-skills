@@ -29,6 +29,33 @@ Pass `--verbose` / `-v` to enable debug logging to stderr.
 
 ## Commands
 
+### `github setup-labels`
+
+Creates or updates the two autorelease labels required by the release workflow. This is a one-time setup operation run from a local machine.
+
+Requires the [GitHub CLI (`gh`)](https://cli.github.com/) to be installed and authenticated.
+
+```bash
+# auto-detect repo from the current directory
+uv run --project scripts/ci-tools ci-tools github setup-labels
+
+# explicit repo
+uv run --project scripts/ci-tools ci-tools github setup-labels --repo elastic/agent-skills
+```
+
+Labels managed:
+
+| Name | Colour | Description |
+|------|--------|-------------|
+| `autorelease: pending` | `#FBCA04` | Release PR awaiting merge |
+| `autorelease: tagged` | `#0E8A16` | Release PR has been tagged and published |
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--repo` / `-r` | auto-detected via `gh repo view` | Target repo as `OWNER/NAME` |
+
+---
+
 ### `release extract`
 
 Reads `.release-manifest.json` and `CHANGELOG.md` and emits a JSON object to stdout with the version, git tag, and changelog entry for that version. Used by the release workflow to populate `$GITHUB_OUTPUT` and the release notes file.
@@ -133,12 +160,16 @@ src/ci_tools/
 ├── cli.py                        # top-level Typer app; register new command groups here
 ├── settings.py                   # CISettings(BaseSettings) — env var config
 └── commands/
+    ├── github/
+    │   └── cli.py                # Typer sub-app (setup-labels)
     └── release/
         ├── models.py             # Pydantic domain models
         ├── core.py               # pure logic — no Typer imports, raises ValueError
         └── cli.py                # Typer sub-app (extract / validate / sync)
 tests/
 ├── test_cli_top.py               # top-level app tests
+├── github/
+│   └── test_cli.py
 └── release/
     ├── test_models.py
     ├── test_core.py
