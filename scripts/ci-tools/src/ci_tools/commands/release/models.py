@@ -18,12 +18,20 @@ class PluginManifest(BaseModel):
     version: str
 
 
+class MarketplacePluginEntry(BaseModel):
+    """A single entry in the marketplace plugins array — version is optional."""
+
+    model_config = ConfigDict(extra="allow")
+
+    version: str | None = None
+
+
 class MarketplaceManifest(BaseModel):
     """marketplace.json — extra fields are preserved on write."""
 
     model_config = ConfigDict(extra="allow")
 
-    plugins: list[PluginManifest] = Field(min_length=1)
+    plugins: list[MarketplacePluginEntry] = Field(min_length=1)
 
 
 class TagCheckResult(BaseModel):

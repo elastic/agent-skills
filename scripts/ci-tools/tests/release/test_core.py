@@ -214,8 +214,28 @@ class TestUpdateMarketplaceVersion:
         data = json.loads(marketplace_json.read_text())
         assert data["plugins"][0]["version"] == "2.0.0"
 
+    def test_updates_all_plugin_entries(self, tmp_path: Path) -> None:
+        p = tmp_path / "marketplace.json"
+        p.write_text(json.dumps({"plugins": [
+            {"name": "plugin-a", "version": "1.0.0"},
+            {"name": "plugin-b", "version": "1.0.0"},
+            {"name": "plugin-c", "version": "0.9.0"},
+        ]}))
+        changed = update_marketplace_version(p, "2.0.0")
+        assert changed is True
+        data = json.loads(p.read_text())
+        assert all(entry["version"] == "2.0.0" for entry in data["plugins"])
+
     def test_noop_returns_false(self, marketplace_json: Path) -> None:
         assert update_marketplace_version(marketplace_json, "1.2.3") is False
+
+    def test_noop_all_entries_already_match(self, tmp_path: Path) -> None:
+        p = tmp_path / "marketplace.json"
+        p.write_text(json.dumps({"plugins": [
+            {"name": "a", "version": "1.0.0"},
+            {"name": "b", "version": "1.0.0"},
+        ]}))
+        assert update_marketplace_version(p, "1.0.0") is False
 
     def test_preserves_extra_fields(self, marketplace_json: Path) -> None:
         update_marketplace_version(marketplace_json, "2.0.0")
@@ -327,6 +347,24 @@ class TestCheckVersionFiles:
     def test_detects_marketplace_drift(self, tmp_path: Path) -> None:
         p = tmp_path / "marketplace.json"
         p.write_text(json.dumps({"plugins": [{"version": "1.0.0"}]}))
+        errors = check_version_files("1.2.3", [p])
+        assert len(errors) == 1
+
+    def test_detects_marketplace_drift_multiple_entries(self, tmp_path: Path) -> None:
+        p = tmp_path / "marketplace.json"
+        p.write_text(json.dumps({"plugins": [
+            {"name": "a", "version": "1.2.3"},
+            {"name": "b", "version": "1.0.0"},
+            {"name": "c", "version": "0.9.0"},
+        ]}))
+        errors = check_version_files("1.2.3", [p])
+        assert len(errors) == 2
+        assert any("b" in e.message for e in errors)
+        assert any("c" in e.message for e in errors)
+
+    def test_marketplace_entries_without_version(self, tmp_path: Path) -> None:
+        p = tmp_path / "marketplace.json"
+        p.write_text(json.dumps({"plugins": [{"name": "a"}]}))
         errors = check_version_files("1.2.3", [p])
         assert len(errors) == 1
 

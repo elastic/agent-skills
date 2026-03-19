@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from ci_tools.commands.release.models import (
     MarketplaceManifest,
+    MarketplacePluginEntry,
     PluginManifest,
     ReleaseManifest,
     ReleaseOutput,
@@ -41,10 +42,33 @@ class TestPluginManifest:
         assert m.model_dump()["name"] == "my-plugin"
 
 
+class TestMarketplacePluginEntry:
+    def test_version_optional(self) -> None:
+        entry = MarketplacePluginEntry.model_validate({"name": "my-plugin"})
+        assert entry.version is None
+
+    def test_version_present(self) -> None:
+        entry = MarketplacePluginEntry(version="1.0.0")
+        assert entry.version == "1.0.0"
+
+    def test_extra_fields_preserved(self) -> None:
+        entry = MarketplacePluginEntry.model_validate(
+            {"name": "my-plugin", "version": "1.0.0", "description": "desc"}
+        )
+        assert entry.model_dump()["name"] == "my-plugin"
+
+
 class TestMarketplaceManifest:
     def test_basic(self) -> None:
-        m = MarketplaceManifest(plugins=[PluginManifest(version="1.0.0")])
+        m = MarketplaceManifest(plugins=[MarketplacePluginEntry(version="1.0.0")])
         assert m.plugins[0].version == "1.0.0"
+
+    def test_entries_without_version(self) -> None:
+        m = MarketplaceManifest.model_validate(
+            {"plugins": [{"name": "a"}, {"name": "b"}]}
+        )
+        assert len(m.plugins) == 2
+        assert m.plugins[0].version is None
 
     def test_rejects_empty_plugins(self) -> None:
         with pytest.raises(ValidationError):

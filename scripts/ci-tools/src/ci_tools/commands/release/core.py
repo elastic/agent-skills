@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from ci_tools.commands.release.models import (
     MarketplaceManifest,
+    MarketplacePluginEntry,
     PluginManifest,
     ReleaseManifest,
     TagCheckResult,
@@ -90,12 +91,16 @@ def update_plugin_version(path: Path, version: str) -> bool:
 
 
 def update_marketplace_version(path: Path, version: str) -> bool:
-    """Set plugins[0].version in marketplace.json. Returns True if modified."""
+    """Set version on all plugin entries in marketplace.json. Returns True if modified."""
     manifest = read_marketplace_manifest(path)
-    if manifest.plugins[0].version == version:
+    changed = False
+    for entry in manifest.plugins:
+        if entry.version != version:
+            entry.version = version
+            changed = True
+    if not changed:
         logger.debug("{} already at version {}", path, version)
         return False
-    manifest.plugins[0].version = version
     path.write_text(json.dumps(manifest.model_dump(), indent=2) + "\n")
     logger.info("Updated {} → {}", path, version)
     return True
@@ -208,6 +213,7 @@ def check_version_files(
     """Return errors for each tracked file whose version doesn't match *version*.
 
     Files that don't exist are silently skipped (no error).
+    For marketplace files, all plugin entries are checked.
     """
     errors: list[VersionFileError] = []
     for path in paths:
@@ -218,24 +224,30 @@ def check_version_files(
             # Try plugin manifest first (single version field), then marketplace
             try:
                 manifest = read_plugin_manifest(path)
-                actual = manifest.version
+                if manifest.version != version:
+                    errors.append(
+                        VersionFileError(
+                            filename=str(path),
+                            message=f"expected {version}, got {manifest.version}",
+                        )
+                    )
             except ValueError:
                 mmanifest = read_marketplace_manifest(path)
-                actual = mmanifest.plugins[0].version
+                for i, entry in enumerate(mmanifest.plugins):
+                    actual = entry.version
+                    if actual != version:
+                        name = entry.model_dump().get("name", f"plugins[{i}]")
+                        errors.append(
+                            VersionFileError(
+                                filename=str(path),
+                                message=f"{name}: expected {version}, got {actual}",
+                            )
+                        )
         except Exception:
             errors.append(
                 VersionFileError(
                     filename=str(path),
                     message=f"could not read version from {path}",
-                )
-            )
-            continue
-
-        if actual != version:
-            errors.append(
-                VersionFileError(
-                    filename=str(path),
-                    message=f"expected {version}, got {actual}",
                 )
             )
 
