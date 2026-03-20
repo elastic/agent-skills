@@ -49,10 +49,42 @@ These skills are open source precisely so you can audit what they do. We encoura
 
 ## Getting started
 
-You can install Elastic skills using the `skills` CLI with `npx`, or by cloning this repository and running the bundled installer script. The `npx` method requires `Node.js` with `npx` available in your environment.
+You can install Elastic skills using the Claude Code native plugin system, the `skills` CLI with `npx`, or by cloning this repository and running the bundled installer script. The `npx` method requires `Node.js` with `npx` available in your environment.
 
 > [!TIP]
 > **Don't install every skill.** Each installed skill adds routing context that your agent evaluates on every request. Install the **cloud** and **elasticsearch** auth skills — most other skills depend on them — then add only the skills relevant to your workflow. Keeping the installed set focused avoids context bloat and helps the agent route to the right skill reliably.
+
+### Claude Code plugin (Recommended for Claude Code users)
+
+Claude Code has a native plugin system that manages skills directly. Start by adding this repository as a marketplace source:
+
+```sh
+claude plugin marketplace add https://github.com/elastic/agent-skills
+```
+
+Once added, install individual plugins by name:
+
+```sh
+claude plugin install elastic-elasticsearch
+claude plugin install elastic-kibana
+claude plugin install elastic-observability
+claude plugin install elastic-security
+claude plugin install elastic-cloud
+```
+
+Install all plugins at once:
+
+```sh
+claude plugin install --all
+```
+
+Or use the interactive plugin browser inside any Claude Code session:
+
+```
+/plugins
+```
+
+This opens a menu to browse available plugins from all configured marketplaces, select what to install, and manage what is already installed.
 
 ### npx (Recommended)
 
@@ -145,9 +177,35 @@ List all available skills:
 
 ## Updating skills
 
-Skills are copied into your project (or home directory) at install time. When this repository is updated — new instructions, bug fixes, additional resources — those changes are **not** automatically synced to your local copies. You need to update manually.
+The update process depends on how the skills were installed.
 
-The update process depends on how the skills were installed (`npx` or a local clone).
+### Claude Code plugin
+
+Update all installed plugins to their latest versions:
+
+```sh
+claude plugin update
+```
+
+Update a specific plugin:
+
+```sh
+claude plugin update elastic-elasticsearch
+```
+
+To keep plugins up to date automatically, enable auto-update when adding the marketplace:
+
+```sh
+claude plugin marketplace add https://github.com/elastic/agent-skills --auto-update
+```
+
+Or enable it on an already-added marketplace:
+
+```sh
+claude plugin marketplace update elastic-agent-skills --auto-update
+```
+
+When auto-update is on, Claude Code checks for new plugin versions at startup and updates in the background.
 
 ### npx
 
