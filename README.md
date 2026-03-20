@@ -65,17 +65,11 @@ claude plugin marketplace add https://github.com/elastic/agent-skills
 Once added, install individual plugins by name:
 
 ```sh
-claude plugin install elastic-elasticsearch
-claude plugin install elastic-kibana
-claude plugin install elastic-observability
-claude plugin install elastic-security
-claude plugin install elastic-cloud
-```
-
-Install all plugins at once:
-
-```sh
-claude plugin install --all
+claude plugin install elastic-elasticsearch@elastic-agent-skills
+claude plugin install elastic-kibana@elastic-agent-skills
+claude plugin install elastic-observability@elastic-agent-skills
+claude plugin install elastic-security@elastic-agent-skills
+claude plugin install elastic-cloud@elastic-agent-skills
 ```
 
 > [!NOTE]
@@ -196,17 +190,7 @@ Update a specific plugin:
 claude plugin update elastic-elasticsearch
 ```
 
-To keep plugins up to date automatically, enable auto-update when adding the marketplace:
-
-```sh
-claude plugin marketplace add https://github.com/elastic/agent-skills --auto-update
-```
-
-Or enable it on an already-added marketplace:
-
-```sh
-claude plugin marketplace update elastic-agent-skills --auto-update
-```
+To keep plugins up to date automatically, enable auto-update using `/plugins` within Claude Code.
 
 When auto-update is on, Claude Code checks for new plugin versions at startup and updates in the background.
 
