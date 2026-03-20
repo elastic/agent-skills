@@ -78,6 +78,9 @@ Install all plugins at once:
 claude plugin install --all
 ```
 
+> [!NOTE]
+> After installing, skills may not appear immediately when running `/reload-plugins`. This is a known Claude Code issue — restart your Claude Code session to pick up newly installed plugins.
+
 Or use the interactive plugin browser inside any Claude Code session:
 
 ```
