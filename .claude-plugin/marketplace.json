@@ -1,0 +1,42 @@
+{
+  "name": "elastic-agent-skills",
+  "owner": {
+    "name": "Elastic"
+  },
+  "metadata": {
+    "description": "Official Elastic agent skills for Elasticsearch, Kibana, Observability, Security, and Cloud",
+    "pluginRoot": "./skills"
+  },
+  "plugins": [
+    {
+      "name": "elastic-elasticsearch",
+      "source": "elasticsearch",
+      "description": "Elasticsearch skills — ES|QL queries, data ingestion, security (authn, authz, audit), and troubleshooting",
+      "version": "0.1.1"
+    },
+    {
+      "name": "elastic-kibana",
+      "source": "kibana",
+      "description": "Kibana skills — dashboards, alerting rules, connectors, Vega visualizations, Agent Builder, streams, and audit logging",
+      "version": "0.1.1"
+    },
+    {
+      "name": "elastic-observability",
+      "source": "observability",
+      "description": "Elastic Observability skills — OpenTelemetry instrumentation and migration (.NET, Java, Python), LLM observability, log search, SLOs, and service health",
+      "version": "0.1.1"
+    },
+    {
+      "name": "elastic-security",
+      "source": "security",
+      "description": "Elastic Security skills — alert triage, case management, detection rule management, and sample data generation",
+      "version": "0.1.1"
+    },
+    {
+      "name": "elastic-cloud",
+      "source": "cloud",
+      "description": "Elastic Cloud skills — project setup, access management, network security, and Serverless project lifecycle",
+      "version": "0.1.1"
+    }
+  ]
+}

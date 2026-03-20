@@ -40,7 +40,11 @@ jobs:
           uv run --project scripts/ci-tools ci-tools release validate \
             --manifest .github/.release-manifest.json \
             --changelog CHANGELOG.md \
-            --plugin-json .claude-plugin/plugin.json \
+            --plugin-json skills/elasticsearch/.claude-plugin/plugin.json \
+            --plugin-json skills/kibana/.claude-plugin/plugin.json \
+            --plugin-json skills/observability/.claude-plugin/plugin.json \
+            --plugin-json skills/security/.claude-plugin/plugin.json \
+            --plugin-json skills/cloud/.claude-plugin/plugin.json \
             --marketplace-json .claude-plugin/marketplace.json \
             --tags-file "$RUNNER_TEMP/existing-tags.txt" \
             --initial-version "$INITIAL_VERSION" \
