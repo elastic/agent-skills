@@ -1,8 +1,7 @@
 {
   "name": "elastic-agent-skills",
   "owner": {
-    "name": "Elastic",
-    "email": "plugins@elastic.co"
+    "name": "Elastic"
   },
   "metadata": {
     "description": "Official Elastic agent skills for Elasticsearch, Kibana, Observability, Security, and Cloud",
