@@ -1,6 +1,6 @@
 {
   "name": "elastic-security",
-  "description": "Elastic Security skills \u2014 alert triage, case management, detection rule management, and sample data generation",
+  "description": "Elastic Security skills - alert triage, case management, detection rule management, and sample data generation",
   "version": "0.1.1",
   "author": {
     "name": "Elastic"
