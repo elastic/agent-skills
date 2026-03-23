@@ -197,6 +197,14 @@ class TestUpdatePluginVersion:
         update_plugin_version(plugin_json, "2.0.0")
         assert json.loads(plugin_json.read_text())["name"] == "agent-skills"
 
+    def test_preserves_unicode(self, tmp_path: Path) -> None:
+        p = tmp_path / "plugin.json"
+        p.write_text(json.dumps({"name": "skills \u2014 pro", "version": "1.0.0"}, ensure_ascii=False))
+        update_plugin_version(p, "2.0.0")
+        raw = p.read_text()
+        assert "\u2014" in raw
+        assert "\\u2014" not in raw
+
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="does not exist"):
             update_plugin_version(tmp_path / "nope.json", "1.0.0")
@@ -241,6 +249,16 @@ class TestUpdateMarketplaceVersion:
         update_marketplace_version(marketplace_json, "2.0.0")
         data = json.loads(marketplace_json.read_text())
         assert data["plugins"][0]["name"] == "agent-skills"
+
+    def test_preserves_unicode(self, tmp_path: Path) -> None:
+        p = tmp_path / "marketplace.json"
+        p.write_text(json.dumps({"plugins": [
+            {"name": "ES|QL queries \u2014 pro", "version": "1.0.0"},
+        ]}, ensure_ascii=False))
+        update_marketplace_version(p, "2.0.0")
+        raw = p.read_text()
+        assert "\u2014" in raw
+        assert "\\u2014" not in raw
 
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="does not exist"):

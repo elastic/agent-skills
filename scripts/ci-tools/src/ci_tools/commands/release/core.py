@@ -85,7 +85,7 @@ def update_plugin_version(path: Path, version: str) -> bool:
         logger.debug("{} already at version {}", path, version)
         return False
     manifest.version = version
-    path.write_text(json.dumps(manifest.model_dump(), indent=2) + "\n")
+    path.write_text(json.dumps(manifest.model_dump(), indent=2, ensure_ascii=False) + "\n")
     logger.info("Updated {} → {}", path, version)
     return True
 
@@ -101,7 +101,7 @@ def update_marketplace_version(path: Path, version: str) -> bool:
     if not changed:
         logger.debug("{} already at version {}", path, version)
         return False
-    path.write_text(json.dumps(manifest.model_dump(), indent=2) + "\n")
+    path.write_text(json.dumps(manifest.model_dump(), indent=2, ensure_ascii=False) + "\n")
     logger.info("Updated {} → {}", path, version)
     return True
 
