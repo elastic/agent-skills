@@ -1,0 +1,128 @@
+name: Sync Skills
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override (default: from .release-manifest.json)"
+        required: false
+      target:
+        description: "Target name (blank = all enabled)"
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  load-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@v4
+      - id: targets
+        run: |
+          # Get target list as JSON array for matrix
+          if [ -n "${{ inputs.target }}" ]; then
+            echo "matrix={\"include\":[{\"target\":\"${{ inputs.target }}\"}]}" >> "$GITHUB_OUTPUT"
+          else
+            targets=$(uv run --project scripts/ci-tools ci-tools sync list \
+              --config .github/ci-tools.toml | jq -c "[.targets[] | {target: .}]")
+            echo "matrix={\"include\":$targets}" >> "$GITHUB_OUTPUT"
+          fi
+
+  sync:
+    needs: load-targets
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - name: Fetch ephemeral GitHub token
+        id: fetch-token
+        uses: elastic/ci-gh-actions/fetch-github-token@335cc2171a81cf83a203d5c7679865b316dd50b8 # v1.3.0
+        with:
+          vault-instance: "ci-prod"
+
+      - name: Checkout source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: source
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+
+      - name: Get target repo from config
+        id: config
+        run: |
+          cd source
+          repo=$(uv run --project scripts/ci-tools python -c "
+          from ci_tools.commands.sync.core import load_sync_config, resolve_target
+          from pathlib import Path
+          cfg = load_sync_config(Path('.github/ci-tools.toml'))
+          t = resolve_target(cfg, '${{ matrix.target }}')
+          print(t.repo)
+          ")
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ steps.config.outputs.repo }}
+          token: ${{ steps.fetch-token.outputs.token }}
+          path: target
+
+      - name: Apply sync
+        id: sync
+        run: |
+          cd source
+
+          # Build version flag: explicit override > release tag > manifest default
+          version_flag=""
+          version="${{ inputs.version || github.event.release.tag_name }}"
+          version="${version#v}"
+          if [ -n "$version" ]; then
+            version_flag="--version $version"
+          fi
+
+          output=$(uv run --project scripts/ci-tools ci-tools sync apply \
+            --config .github/ci-tools.toml \
+            --source-root . \
+            --target-root ../target \
+            --target "${{ matrix.target }}" \
+            $version_flag \
+            --source-repo "${{ github.repository }}")
+
+          echo "$output"
+          echo "output<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$output" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create PR
+        if: fromJson(steps.sync.outputs.output).changes_made
+        env:
+          GH_TOKEN: ${{ steps.fetch-token.outputs.token }}
+        run: |
+          cd target
+          branch=$(echo '${{ steps.sync.outputs.output }}' | jq -r '.branch')
+          commit_msg=$(echo '${{ steps.sync.outputs.output }}' | jq -r '.commit_message')
+          pr_title=$(echo '${{ steps.sync.outputs.output }}' | jq -r '.pr_title')
+          pr_body=$(echo '${{ steps.sync.outputs.output }}' | jq -r '.pr_body')
+
+          git config user.name "Elastic Machine"
+          git config user.email "elasticmachine@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add -A
+          git commit -m "$commit_msg"
+          git push -f origin "$branch"
+
+          # Create or update PR
+          existing=$(gh pr list --head "$branch" --json number -q '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$pr_title" --body "$pr_body"
+          else
+            gh pr create --title "$pr_title" --body "$pr_body" --head "$branch"
+          fi

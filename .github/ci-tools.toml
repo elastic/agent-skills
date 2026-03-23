@@ -1,0 +1,19 @@
+[sync.defaults]
+branch = "automated/skill-sync"
+commit_message = "chore: sync skills from agent-skills {version}"
+pr_title = "chore: sync agent-skills {version}"
+pr_body = "Automated sync from {source_repo} release {version}"
+
+[[sync.target]]
+name = "cursor"
+repo = "elastic/cursor-plugins"
+
+[[sync.target.copies]]
+source = "skills"
+dest = "skills"
+exclude = ["**/.claude-plugin/**"]
+preserve = [".git", "README.md", "**/plugin.json"]
+
+[[sync.target.versions]]
+file = "skills/**/plugin.json"
+field = "version"

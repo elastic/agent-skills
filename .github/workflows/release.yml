@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   release:
@@ -16,6 +17,12 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
     runs-on: ubuntu-latest
     steps:
+      - name: Fetch ephemeral GitHub token
+        id: fetch-token
+        uses: elastic/ci-gh-actions/fetch-github-token@335cc2171a81cf83a203d5c7679865b316dd50b8 # v1.3.0
+        with:
+          vault-instance: "ci-prod"
+
       - name: Checkout merged code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -53,7 +60,7 @@ jobs:
 
       - name: Create GitHub Release (idempotent)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.fetch-token.outputs.token }}
         run: |
           tag="${{ steps.extract.outputs.tag }}"
           if gh release view "$tag" >/dev/null 2>&1; then
@@ -68,7 +75,7 @@ jobs:
 
       - name: Swap labels
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.fetch-token.outputs.token }}
         run: |
           pr_number="${{ github.event.pull_request.number }}"
           gh pr edit "$pr_number" --remove-label "autorelease: pending" || true
