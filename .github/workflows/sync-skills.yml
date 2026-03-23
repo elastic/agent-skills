@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   load-targets:
@@ -21,6 +22,12 @@ jobs:
     outputs:
       matrix: ${{ steps.targets.outputs.matrix }}
     steps:
+      - name: Fetch ephemeral GitHub token
+        id: fetch-token
+        uses: elastic/ci-gh-actions/fetch-github-token@335cc2171a81cf83a203d5c7679865b316dd50b8 # v1.3.0
+        with:
+          vault-instance: "ci-prod"
+
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
       - id: targets
@@ -41,6 +48,12 @@ jobs:
       matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
       fail-fast: false
     steps:
+      - name: Fetch ephemeral GitHub token
+        id: fetch-token
+        uses: elastic/ci-gh-actions/fetch-github-token@335cc2171a81cf83a203d5c7679865b316dd50b8 # v1.3.0
+        with:
+          vault-instance: "ci-prod"
+
       - name: Checkout source
         uses: actions/checkout@v4
         with:
@@ -65,7 +78,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.config.outputs.repo }}
-          token: ${{ secrets.SYNC_PAT }}
+          token: ${{ steps.fetch-token.outputs.token }}
           path: target
 
       - name: Apply sync
@@ -97,7 +110,7 @@ jobs:
       - name: Create PR
         if: fromJson(steps.sync.outputs.output).changes_made
         env:
-          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+          GH_TOKEN: ${{ steps.fetch-token.outputs.token }}
         run: |
           cd target
           branch=$(echo '${{ steps.sync.outputs.output }}' | jq -r '.branch')
