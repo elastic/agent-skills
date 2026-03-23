@@ -204,7 +204,7 @@ class TestCopyTree:
         assert deleted == 1
         assert not (dst / "stale.txt").exists()
 
-    def test_preserves_excluded_files(self, tmp_path: Path) -> None:
+    def test_preserves_target_files(self, tmp_path: Path) -> None:
         src = tmp_path / "src"
         dst = tmp_path / "dst"
         src.mkdir()
@@ -213,7 +213,7 @@ class TestCopyTree:
         (dst / "README.md").write_text("keep me")
         (dst / "stale.txt").write_text("delete me")
 
-        copied, deleted = copy_tree(src, dst, exclude=["README.md"])
+        copied, deleted = copy_tree(src, dst, preserve=["README.md"])
         assert copied == 1
         assert deleted == 1
         assert (dst / "README.md").read_text() == "keep me"
@@ -241,7 +241,33 @@ class TestCopyTree:
         assert deleted == 0
         assert (dst / "a.txt").exists()
 
-    def test_glob_exclude_pattern(self, tmp_path: Path) -> None:
+    def test_skips_excluded_source_files(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        dst = tmp_path / "dst"
+        src.mkdir()
+        (src / "a.txt").write_text("hello")
+        (src / "sub").mkdir()
+        (src / "sub" / "plugin.json").write_text("{}")
+
+        copied, deleted = copy_tree(src, dst, exclude=["**/plugin.json"])
+        assert copied == 1
+        assert (dst / "a.txt").exists()
+        assert not (dst / "sub" / "plugin.json").exists()
+
+    def test_skips_excluded_source_directory_glob(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        dst = tmp_path / "dst"
+        src.mkdir()
+        (src / "a.txt").write_text("hello")
+        (src / ".claude-plugin").mkdir()
+        (src / ".claude-plugin" / "plugin.json").write_text("{}")
+
+        copied, deleted = copy_tree(src, dst, exclude=["**/.claude-plugin/**"])
+        assert copied == 1
+        assert (dst / "a.txt").exists()
+        assert not (dst / ".claude-plugin").exists()
+
+    def test_glob_preserve_pattern(self, tmp_path: Path) -> None:
         src = tmp_path / "src"
         dst = tmp_path / "dst"
         src.mkdir()
@@ -250,7 +276,7 @@ class TestCopyTree:
         (dst / "keep.md").write_text("keep")
         (dst / "also_keep.md").write_text("keep too")
 
-        copied, deleted = copy_tree(src, dst, exclude=["*.md"])
+        copied, deleted = copy_tree(src, dst, preserve=["*.md"])
         assert copied == 1
         assert deleted == 0
         assert (dst / "keep.md").exists()
@@ -371,6 +397,23 @@ class TestApplyVersions:
 
     def test_skips_missing_files(self, tmp_path: Path) -> None:
         versions = [VersionUpdate(file="nope.json", field="version")]
+        updated = apply_versions(tmp_path, versions, "1.0.0")
+        assert updated == []
+
+    def test_glob_file_pattern(self, tmp_path: Path) -> None:
+        (tmp_path / "skills" / "a").mkdir(parents=True)
+        (tmp_path / "skills" / "b").mkdir(parents=True)
+        (tmp_path / "skills" / "a" / "plugin.json").write_text(json.dumps({"version": "0.1"}))
+        (tmp_path / "skills" / "b" / "plugin.json").write_text(json.dumps({"version": "0.1"}))
+        versions = [VersionUpdate(file="**/plugin.json", field="version")]
+        updated = apply_versions(tmp_path, versions, "1.0.0")
+        assert len(updated) == 2
+        assert all(entry.endswith(":version") for entry in updated)
+        for p in tmp_path.rglob("plugin.json"):
+            assert json.loads(p.read_text())["version"] == "1.0.0"
+
+    def test_glob_no_matches(self, tmp_path: Path) -> None:
+        versions = [VersionUpdate(file="**/plugin.json", field="version")]
         updated = apply_versions(tmp_path, versions, "1.0.0")
         assert updated == []
 

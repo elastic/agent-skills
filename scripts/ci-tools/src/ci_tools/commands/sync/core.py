@@ -6,6 +6,15 @@ import tomllib
 from fnmatch import fnmatch
 from pathlib import Path
 
+def _matches_any(rel_str: str, patterns: list[str]) -> bool:
+    for pat in patterns:
+        if fnmatch(rel_str, pat):
+            return True
+        if pat.startswith("**/") and fnmatch(rel_str, pat[3:]):
+            return True
+    return False
+
+
 from ci_tools.commands.sync.models import (
     CopyMapping,
     SyncApplyOutput,
@@ -50,32 +59,40 @@ def resolve_field(config: SyncConfig, target: SyncTarget, field: str) -> str:
 
 
 def copy_tree(
-    source: Path, dest: Path, exclude: list[str] | None = None
+    source: Path,
+    dest: Path,
+    *,
+    exclude: list[str] | None = None,
+    preserve: list[str] | None = None,
 ) -> tuple[int, int]:
     exclude = exclude or []
+    preserve = preserve or []
     files_copied = 0
     files_deleted = 0
 
-    # Delete stale files in dest that aren't in source and don't match exclude
+    # Delete stale files in dest that aren't in source and don't match preserve
     if dest.is_dir():
         for dest_file in sorted(dest.rglob("*")):
             if not dest_file.is_file():
                 continue
             rel = dest_file.relative_to(dest)
             rel_str = str(rel)
-            if any(fnmatch(rel_str, pat) for pat in exclude):
+            if _matches_any(rel_str, preserve):
                 continue
             source_file = source / rel
             if not source_file.is_file():
                 dest_file.unlink()
                 files_deleted += 1
 
-    # Copy all files from source to dest
+    # Copy all files from source to dest (skip excluded patterns)
     if source.is_dir():
         for source_file in sorted(source.rglob("*")):
             if not source_file.is_file():
                 continue
             rel = source_file.relative_to(source)
+            rel_str = str(rel)
+            if _matches_any(rel_str, exclude):
+                continue
             dest_file = dest / rel
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_file, dest_file)
@@ -92,7 +109,7 @@ def apply_copies(
     for mapping in copies:
         src = source_root / mapping.source
         dst = target_root / mapping.dest
-        copied, deleted = copy_tree(src, dst, mapping.exclude)
+        copied, deleted = copy_tree(src, dst, exclude=mapping.exclude, preserve=mapping.preserve)
         total_copied += copied
         total_deleted += deleted
     return total_copied, total_deleted
@@ -156,8 +173,12 @@ def update_json_field(path: Path, field_path: str, value: str) -> bool:
                 parent[key] = value
                 changed = True
     if changed:
-        path.write_text(json.dumps(data, indent=2) + "\n")
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return changed
+
+
+def _has_glob(pattern: str) -> bool:
+    return any(c in pattern for c in ("*", "?", "["))
 
 
 def apply_versions(
@@ -165,11 +186,16 @@ def apply_versions(
 ) -> list[str]:
     updated: list[str] = []
     for v in versions:
-        file_path = target_root / v.file
-        if not file_path.is_file():
-            continue
-        if update_json_field(file_path, v.field, version):
-            updated.append(f"{v.file}:{v.field}")
+        if _has_glob(v.file):
+            matches = sorted(target_root.glob(v.file))
+        else:
+            matches = [target_root / v.file]
+        for file_path in matches:
+            if not file_path.is_file():
+                continue
+            rel = str(file_path.relative_to(target_root))
+            if update_json_field(file_path, v.field, version):
+                updated.append(f"{rel}:{v.field}")
     return updated
 
 

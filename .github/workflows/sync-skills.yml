@@ -22,13 +22,7 @@ jobs:
     outputs:
       matrix: ${{ steps.targets.outputs.matrix }}
     steps:
-      - name: Fetch ephemeral GitHub token
-        id: fetch-token
-        uses: elastic/ci-gh-actions/fetch-github-token@335cc2171a81cf83a203d5c7679865b316dd50b8 # v1.3.0
-        with:
-          vault-instance: "ci-prod"
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: astral-sh/setup-uv@v4
       - id: targets
         run: |
@@ -55,11 +49,11 @@ jobs:
           vault-instance: "ci-prod"
 
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: source
 
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       - name: Get target repo from config
         id: config
@@ -75,7 +69,7 @@ jobs:
           echo "repo=$repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout target
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: ${{ steps.config.outputs.repo }}
           token: ${{ steps.fetch-token.outputs.token }}

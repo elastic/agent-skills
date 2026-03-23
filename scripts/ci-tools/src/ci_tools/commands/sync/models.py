@@ -7,6 +7,7 @@ class CopyMapping(BaseModel):
     source: str
     dest: str
     exclude: list[str] = []
+    preserve: list[str] = []
 
 class VersionUpdate(BaseModel):
     file: str
