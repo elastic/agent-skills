@@ -1,7 +1,7 @@
 {
+  "version": "0.2.0",
   "name": "elastic-elasticsearch",
   "description": "Elasticsearch skills - ES|QL queries, data ingestion, security (authn, authz, audit), and troubleshooting",
-  "version": "0.1.1",
   "author": {
     "name": "Elastic"
   },

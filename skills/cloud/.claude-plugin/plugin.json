@@ -1,7 +1,7 @@
 {
+  "version": "0.2.0",
   "name": "elastic-cloud",
   "description": "Elastic Cloud skills - project setup, access management, network security, and Serverless project lifecycle",
-  "version": "0.1.1",
   "author": {
     "name": "Elastic"
   },
