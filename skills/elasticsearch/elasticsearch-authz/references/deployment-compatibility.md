@@ -10,7 +10,6 @@ Hosted (ECH)** is managed by Elastic with no node-level access. **Serverless** i
 | Roles (API)                | Yes          | Yes           | Yes                      |
 | Kibana role API            | Yes          | Yes           | Yes                      |
 | Role mappings (ES API)     | Yes          | Yes           | Not available            |
-| Role mappings (Kibana API) | Yes          | Yes           | Not available            |
 | User password management   | Yes          | Yes           | Not available            |
 | Built-in privileges        | Yes          | Yes           | Yes                      |
 | Cloud API role assignments | N/A          | N/A           | Yes (primary user model) |
@@ -22,9 +21,7 @@ endpoint from the Cloud console. File-based roles are not available (no node-lev
 
 - **No native users.** Users are members of the Elastic Cloud organization and cannot be created or managed via
   Elasticsearch or Kibana user APIs. User identity is managed entirely at the Cloud organization level.
-- **No role mappings.** Both the Elasticsearch role mapping API (`PUT /_security/role_mapping`) and the Kibana role
-  mapping API are disabled in Serverless projects. Do not attempt to create role mappings — they will fail with a `410`
-  or `404` error.
+- **No role mappings.** In Serverless, this capability is not available. Do not attempt to create role mappings.
 - **Roles work normally.** Custom roles can be created via the Elasticsearch API or Kibana API, just like self-managed
   and ECH. These roles are used as `application_roles` when assigning access via the Cloud API.
 - **User access is granted via the Cloud API.** To give a user access to a Serverless project, assign them a Cloud-level

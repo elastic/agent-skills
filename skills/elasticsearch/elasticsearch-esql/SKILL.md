@@ -6,7 +6,7 @@ description: >
   charts and dashboards from ES|QL results.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # Elasticsearch ES|QL
@@ -352,10 +352,16 @@ When query execution fails, the script returns:
 
 **Common issues:**
 
-- Field doesn't exist → Check schema with `node scripts/esql.js schema "index"`
+- Field doesn't exist → Always use `get_schema` and `list_indices` before writing a query. Never guess field or index
+  names — they vary across deployments.
 - Type mismatch → Use type conversion functions (TO_STRING, TO_INTEGER, etc.)
-- Syntax error → Review ES|QL reference for correct syntax
+- Syntax error → Review ES|QL reference for correct syntax. Always use **double quotes** for strings, never single
+  quotes.
 - No results → Check time range and filter conditions
+- Wrong function name → ES|QL uses underscored names: `STD_DEV()` not `STDDEV()`, `MEDIAN_ABSOLUTE_DEVIATION()` not
+  `MAD()`. Use `CONCAT()` for strings, not `+`. Use `CASE(cond, val, ...)` not `CASE WHEN...THEN...END`.
+- Wrong date part → `DATE_EXTRACT` uses ES|QL part names: `"hour_of_day"` not `"hour"`, `"day_of_month"` not `"day"`,
+  `"month_of_year"` not `"month"`. Use `DATE_DIFF("day", start, end)` for date arithmetic, not subtraction.
 
 ## Examples
 

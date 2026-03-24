@@ -33,11 +33,18 @@ echo "${EC_API_KEY:?Not set}"
 If not set, instruct the user to set it. **Never ask the user to paste an API key into the chat** — secrets must not
 appear in conversation history.
 
+If the user indicates they do not have an Elastic Cloud account yet, propose starting a free trial at
+[Elastic Cloud free trial](https://cloud.elastic.co/registration). The trial provides 14 days of full access to Elastic
+Cloud Serverless with no credit card required. Once the user has registered and logged in, proceed with API key
+generation below.
+
 Direct the user to:
 
-1. Generate a key at [Elastic Cloud API keys](https://cloud.elastic.co/account/keys). The key must have **Project
-   Admin** privileges or higher (Org Owner) to create and manage serverless projects.
-2. Create a `.env` file in the project root (recommended — works in sandboxed agent shells):
+1. Generate a key at [Elastic Cloud API keys](https://cloud.elastic.co/account/keys). Only **Organization owners** can
+   create and manage Cloud API keys.
+1. When creating this key, include **Project Admin** privileges or higher (Org Owner) so it can create and manage
+   serverless projects.
+1. Create a `.env` file in the project root (recommended — works in sandboxed agent shells):
 
 ```bash
 EC_API_KEY=your-api-key
@@ -45,7 +52,7 @@ EC_API_KEY=your-api-key
 
 All `cloud/*` scripts auto-load `.env` from the working directory — no manual sourcing needed.
 
-1. Alternatively, export directly in the terminal:
+Alternatively, export directly in the terminal:
 
 ```bash
 export EC_API_KEY="your-api-key"

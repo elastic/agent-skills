@@ -8,6 +8,7 @@ Guidelines for generating accurate ES|QL queries from natural language.
 
 ## Table of Contents
 
+- [Critical Syntax Rules](#critical-syntax-rules)
 - [Step-by-Step Generation Process](#step-by-step-generation-process)
 - [Field Name Conventions](#field-name-conventions)
 - [Query Optimization Tips](#query-optimization-tips)
@@ -15,6 +16,118 @@ Guidelines for generating accurate ES|QL queries from natural language.
 - [Common Query Templates](#common-query-templates)
 - [Handling Ambiguity](#handling-ambiguity)
 - [Output Formatting Suggestions](#output-formatting-suggestions)
+
+## Critical Syntax Rules
+
+### String Literals Use Double Quotes Only
+
+ES|QL uses **double quotes** for string literals — never single quotes. This is the most common source of
+`token recognition error at: '` failures. SQL habits lead models to write `'value'` when ES|QL requires `"value"`.
+
+```esql
+// WRONG — single quotes cause parse errors
+| WHERE status == 'open'
+| EVAL priority = CASE(status == 'open', 'high', 'low')
+
+// CORRECT — always double quotes
+| WHERE status == "open"
+| EVAL priority = CASE(status == "open", "high", "low")
+```
+
+This applies everywhere: `WHERE`, `EVAL`, `CASE`, `STATS ... BY`, function arguments, and string constants.
+
+### CASE Uses Condition-Value Pairs (Not SQL Syntax)
+
+ES|QL `CASE` takes alternating condition-value pairs with an optional default — it does **not** support
+`CASE WHEN ... THEN ... ELSE ... END` syntax.
+
+```esql
+// WRONG — SQL-style CASE
+| EVAL grade = CASE WHEN score > 90 THEN "A" WHEN score > 80 THEN "B" ELSE "C" END
+
+// CORRECT — ES|QL pairs: CASE(cond1, val1, cond2, val2, ..., default)
+| EVAL grade = CASE(score > 90, "A", score > 80, "B", "C")
+```
+
+Two-branch conditionals use three arguments (condition, true-value, false-value):
+
+```esql
+| EVAL priority = CASE(status == "open", "high", "low")
+```
+
+### Aggregation Function Names Differ from SQL
+
+ES|QL function names use underscores where SQL does not. The most common mistake is `STDDEV()` — the correct ES|QL name
+is `STD_DEV()`.
+
+| SQL Name | ES\|QL Name |
+| -------- | ----------- |
+| STDDEV   | STD_DEV     |
+
+```esql
+// WRONG — SQL function name
+| STATS sd = STDDEV(total)
+
+// CORRECT — ES|QL uses underscored name
+| STATS sd = STD_DEV(total)
+```
+
+### String Concatenation Uses CONCAT (No + Operator)
+
+ES|QL does not support the `+` operator for string concatenation. Use `CONCAT()` instead. ES|QL also does not have
+`SUBSTRING`, `STRPOS`, `SPLIT`, or `INSTR` — use `DISSECT` or `GROK` for string extraction.
+
+```esql
+// WRONG — + operator does not work on strings
+| EVAL full_name = first_name + " " + last_name
+
+// CORRECT
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+```
+
+### DATE_EXTRACT Part Names Differ from SQL
+
+`DATE_EXTRACT(part, date)` uses ES|QL-specific part name strings — not SQL keywords like `HOUR` or `DAY`. The part
+string must be **double-quoted** and is **case-insensitive**.
+
+| SQL Part | ES\|QL Part Name     |
+| -------- | -------------------- |
+| YEAR     | `"year"`             |
+| QUARTER  | `"quarter"`          |
+| MONTH    | `"month_of_year"`    |
+| WEEK     | `"week"`             |
+| DAY      | `"day_of_month"`     |
+| DOW      | `"day_of_week"`      |
+| DOY      | `"day_of_year"`      |
+| HOUR     | `"hour_of_day"`      |
+| MINUTE   | `"minute_of_hour"`   |
+| SECOND   | `"second_of_minute"` |
+
+```esql
+// WRONG — SQL-style part names or single quotes
+| EVAL hour = DATE_EXTRACT("hour", @timestamp)
+| EVAL hour = DATE_EXTRACT('HOUR_OF_DAY', @timestamp)
+
+// CORRECT — ES|QL part name in double quotes
+| EVAL hour = DATE_EXTRACT("hour_of_day", @timestamp)
+| STATS count = COUNT(*) BY hour = DATE_EXTRACT("hour_of_day", @timestamp)
+```
+
+### Date Arithmetic Uses DATE_DIFF (No Subtraction)
+
+ES|QL does not support the `-` operator between two date values. Use `DATE_DIFF(unit, start, end)` instead.
+
+```esql
+// WRONG — subtraction between dates is not supported
+| EVAL days = end_date - start_date
+
+// CORRECT — DATE_DIFF computes the difference in the given unit
+| EVAL days = DATE_DIFF("day", start_date, end_date)
+```
+
+Valid units: `"year"`, `"quarter"`, `"month"`, `"week"`, `"day"`, `"hour"`, `"minute"`, `"second"`, `"millisecond"`.
+
+---
 
 ## Step-by-Step Generation Process
 

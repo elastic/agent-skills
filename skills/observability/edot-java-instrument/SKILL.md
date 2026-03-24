@@ -6,7 +6,7 @@ description: >
   to a Java service that has no existing APM agent.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # EDOT Java Instrumentation
@@ -19,7 +19,9 @@ Read the setup guide before making changes:
 
 ## Guidelines
 
-1. Use `elastic-otel-javaagent.jar` (download from GitHub releases, not a Maven/Gradle dependency)
+1. Use `elastic-otel-javaagent.jar` (download from
+   [Maven Central](https://mvnrepository.com/artifact/co.elastic.otel/elastic-otel-javaagent/latest), not a Maven/Gradle
+   compile dependency)
 1. Attach via `-javaagent:/path/to/elastic-otel-javaagent.jar` or
    `JAVA_TOOL_OPTIONS="-javaagent:/path/to/elastic-otel-javaagent.jar"` — without this the agent does nothing
 1. Set exactly three required environment variables:

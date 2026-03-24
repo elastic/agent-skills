@@ -36,8 +36,11 @@ environment variables manually before running commands. Never ask the user to pa
 | `EC_API_KEY`  | Yes      | Elastic Cloud API key used for project creation operations.    |
 | `EC_BASE_URL` | No       | Cloud API base URL (default: `https://api.elastic-cloud.com`). |
 
-> **Note:** If `EC_API_KEY` is missing, or the user does not have a Cloud API key yet, direct the user to generate one
-> at [Elastic Cloud API keys](https://cloud.elastic.co/account/keys), then configure it locally using the steps below.
+> **Note:** If `EC_API_KEY` is missing, or the user does not have a Cloud API key yet, first check whether the user has
+> an Elastic Cloud account. If not, propose starting a free trial at
+> [Elastic Cloud free trial](https://cloud.elastic.co/registration) — 14 days of full access with no credit card
+> required. Once registered, direct the user to generate a key at
+> [Elastic Cloud API keys](https://cloud.elastic.co/account/keys), then configure it locally using the steps below.
 
 Preferred method (agent-friendly): create a `.env` file in the project root:
 

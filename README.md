@@ -41,72 +41,73 @@ Skills in this repository focus on:
 <details>
 <summary>Cloud (5)</summary>
 
-| Skill | Description | Version |
-| ----- | ----------- | ------- |
-| [cloud-access-management](skills/cloud/access-management/SKILL.md) | Manage Elastic Cloud organization access: invite users, assign roles to Serverless projects, and create or revoke Cloud API keys. Use when granting, modifying, or auditing user access. | 0.1.0 |
-| [cloud-create-project](skills/cloud/create-project/SKILL.md) | Creates Elastic Cloud Serverless projects (Elasticsearch, Observability, or Security) via the REST API, saves credentials to file, and bootstraps a scoped Elasticsearch API key. Use when creating a new serverless project, provisioning a search or observability environment, or spinning up a new Elastic Cloud project. | 0.1.0 |
-| [cloud-manage-project](skills/cloud/manage-project/SKILL.md) | Manages existing Elastic Cloud Serverless projects: list, get, update, delete, reset credentials, resume, and load saved credentials. Connects to existing projects by resolving endpoints and acquiring scoped Elasticsearch API keys. Use when performing day-2 operations on serverless projects, connecting to an existing project, loading or resetting project credentials, or looking up project details. | 0.1.0 |
-| [cloud-network-security](skills/cloud/network-security/SKILL.md) | Manage Serverless network security (traffic filters): create, update, and delete IP filters and AWS PrivateLink VPC filters. Use when restricting network access or configuring private connectivity. | 0.1.0 |
-| [cloud-setup](skills/cloud/setup/SKILL.md) | Configures Elastic Cloud authentication and environment defaults. Use when setting up EC_API_KEY, configuring Cloud API access, or when another cloud skill requires credentials. | 0.1.0 |
+| Skill | Description | Version | Author |
+| ----- | ----------- | ------- | ------ |
+| [cloud-access-management](skills/cloud/access-management/SKILL.md) | Manage Elastic Cloud organization access: invite users, assign roles to Serverless projects, and create or revoke Cloud API keys. Use when granting, modifying, or auditing user access. | 0.1.0 | elastic |
+| [cloud-create-project](skills/cloud/create-project/SKILL.md) | Creates Elastic Cloud Serverless projects (Elasticsearch, Observability, or Security) via the REST API, saves credentials to file, and bootstraps a scoped Elasticsearch API key. Use when creating a new serverless project, provisioning a search or observability environment, or spinning up a new Elastic Cloud project. | 0.1.0 | elastic |
+| [cloud-manage-project](skills/cloud/manage-project/SKILL.md) | Manages existing Elastic Cloud Serverless projects: list, get, update, delete, reset credentials, resume, and load saved credentials. Connects to existing projects by resolving endpoints and acquiring scoped Elasticsearch API keys. Use when performing day-2 operations on serverless projects, connecting to an existing project, loading or resetting project credentials, or looking up project details. | 0.1.0 | elastic |
+| [cloud-network-security](skills/cloud/network-security/SKILL.md) | Manage Serverless network security (traffic filters): create, update, and delete IP filters and AWS PrivateLink VPC filters. Use when restricting network access or configuring private connectivity. | 0.1.0 | elastic |
+| [cloud-setup](skills/cloud/setup/SKILL.md) | Configures Elastic Cloud authentication and environment defaults. Use when setting up EC_API_KEY, configuring Cloud API access, or when another cloud skill requires credentials. | 0.1.0 | elastic |
 
 </details>
 
 <details>
-<summary>Elasticsearch (6)</summary>
+<summary>Elasticsearch (7)</summary>
 
-| Skill | Description | Version |
-| ----- | ----------- | ------- |
-| [elasticsearch-audit](skills/elasticsearch/elasticsearch-audit/SKILL.md) | Enable, configure, and query Elasticsearch security audit logs. Use when the task involves audit logging setup, event filtering, or investigating security incidents like failed logins. | 0.1.0 |
-| [elasticsearch-authn](skills/elasticsearch/elasticsearch-authn/SKILL.md) | Authenticate to Elasticsearch using native, file-based, LDAP/AD, SAML, OIDC, Kerberos, JWT, or certificate realms. Use when connecting with credentials, choosing a realm, or managing API keys. Assumes the target realms are already configured. | 0.1.0 |
-| [elasticsearch-authz](skills/elasticsearch/elasticsearch-authz/SKILL.md) | Manage Elasticsearch RBAC: native users, roles, role mappings, document- and field-level security. Use when creating users or roles, assigning privileges, or mapping external realms like LDAP/SAML. | 0.1.0 |
-| [elasticsearch-esql](skills/elasticsearch/elasticsearch-esql/SKILL.md) | Execute ES\|QL (Elasticsearch Query Language) queries, use when the user wants to query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create charts and dashboards from ES\|QL results. | 0.1.0 |
-| [elasticsearch-file-ingest](skills/elasticsearch/elasticsearch-file-ingest/SKILL.md) | Ingest and transform data files (CSV/JSON/Parquet/Arrow IPC) into Elasticsearch with stream processing, custom transforms, and cross-version reindexing. Use when loading files, batch importing data, or migrating indices across versions -- not for general ingest pipeline design or bulk API patterns. | 0.1.0 |
-| [elasticsearch-security-troubleshooting](skills/elasticsearch/elasticsearch-security-troubleshooting/SKILL.md) | Diagnose and resolve Elasticsearch security errors: 401/403 failures, TLS problems, expired API keys, role mapping mismatches, and Kibana login issues. Use when the user reports a security error. | 0.1.0 |
+| Skill | Description | Version | Author |
+| ----- | ----------- | ------- | ------ |
+| [elasticsearch-audit](skills/elasticsearch/elasticsearch-audit/SKILL.md) | Enable, configure, and query Elasticsearch security audit logs. Use when the task involves audit logging setup, event filtering, or investigating security incidents like failed logins. | 0.1.0 | elastic |
+| [elasticsearch-authn](skills/elasticsearch/elasticsearch-authn/SKILL.md) | Authenticate to Elasticsearch using native, file-based, LDAP/AD, SAML, OIDC, Kerberos, JWT, or certificate realms. Use when connecting with credentials, choosing a realm, or managing API keys. Assumes the target realms are already configured. | 0.1.0 | elastic |
+| [elasticsearch-authz](skills/elasticsearch/elasticsearch-authz/SKILL.md) | Manage Elasticsearch RBAC: native users, roles, role mappings, document- and field-level security. Use when creating users or roles, assigning privileges, or mapping external realms like LDAP/SAML. | 0.1.1 | elastic |
+| [elasticsearch-esql](skills/elasticsearch/elasticsearch-esql/SKILL.md) | Execute ES\|QL (Elasticsearch Query Language) queries, use when the user wants to query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create charts and dashboards from ES\|QL results. | 0.1.1 | elastic |
+| [elasticsearch-file-ingest](skills/elasticsearch/elasticsearch-file-ingest/SKILL.md) | Ingest and transform data files (CSV/JSON/Parquet/Arrow IPC) into Elasticsearch with stream processing, custom transforms, and cross-version reindexing. Use when loading files, batch importing data, or migrating indices across versions — not for general ingest pipeline design or bulk API patterns. | 0.1.0 | elastic |
+| [elasticsearch-onboarding](skills/elasticsearch/elasticsearch-onboarding/SKILL.md) | Help developers new to Elasticsearch get from zero to a working search experience. Guide them through understanding their intent, mapping their data, and building a search experience with best practices baked in. Use this when developers are new to Elasticsearch and need help getting started with their search use case. | 0.1.0 | elastic |
+| [elasticsearch-security-troubleshooting](skills/elasticsearch/elasticsearch-security-troubleshooting/SKILL.md) | Diagnose and resolve Elasticsearch security errors: 401/403 failures, TLS problems, expired API keys, role mapping mismatches, and Kibana login issues. Use when the user reports a security error. | 0.1.0 | elastic |
 
 </details>
 
 <details>
 <summary>Kibana (7)</summary>
 
-| Skill | Description | Version |
-| ----- | ----------- | ------- |
-| [kibana-agent-builder](skills/kibana/agent-builder/SKILL.md) | Create and manage Agent Builder agents and custom tools in Kibana. Use when asked to create, update, delete, test, or inspect agents or tools in Agent Builder. | 0.2.0 |
-| [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules via REST API or Terraform. Use when creating, updating, or managing rule lifecycle (enable, disable, mute, snooze) or rules-as-code workflows. | 0.1.0 |
-| [kibana-audit](skills/kibana/kibana-audit/SKILL.md) | Enable and configure Kibana audit logging for saved object access, logins, and space operations. Use when setting up Kibana audit, filtering events, or correlating Kibana and ES audit logs. | 0.1.0 |
-| [kibana-connectors](skills/kibana/kibana-connectors/SKILL.md) | Create and manage Kibana connectors for Slack, PagerDuty, Jira, webhooks, and more via REST API or Terraform. Use when configuring third-party integrations or managing connectors as code. | 0.1.1 |
-| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.1.0 |
-| [kibana-streams](skills/kibana/streams/SKILL.md) | List, inspect, enable, disable, and resync Kibana Streams via the REST API. Use when the user needs stream details, ingest/query settings, queries, significant events, or attachments. | 0.1.0 |
-| [kibana-vega](skills/kibana/kibana-vega/SKILL.md) | Create Vega and Vega-Lite visualizations with ES\|QL data sources in Kibana. Use when building custom charts, dashboards, or programmatic panel layouts beyond standard Lens charts. | 0.1.0 |
+| Skill | Description | Version | Author |
+| ----- | ----------- | ------- | ------ |
+| [kibana-agent-builder](skills/kibana/agent-builder/SKILL.md) | Create and manage Agent Builder agents and custom tools in Kibana. Use when asked to create, update, delete, test, or inspect agents or tools in Agent Builder. | 0.2.0 | elastic |
+| [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules via REST API or Terraform. Use when creating, updating, or managing rule lifecycle (enable, disable, mute, snooze) or rules-as-code workflows. | 0.1.0 | elastic |
+| [kibana-audit](skills/kibana/kibana-audit/SKILL.md) | Enable and configure Kibana audit logging for saved object access, logins, and space operations. Use when setting up Kibana audit, filtering events, or correlating Kibana and ES audit logs. | 0.1.0 | elastic |
+| [kibana-connectors](skills/kibana/kibana-connectors/SKILL.md) | Create and manage Kibana connectors for Slack, PagerDuty, Jira, webhooks, and more via REST API or Terraform. Use when configuring third-party integrations or managing connectors as code. | 0.1.1 | elastic |
+| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.1.0 | elastic |
+| [kibana-vega](skills/kibana/kibana-vega/SKILL.md) | Create Vega and Vega-Lite visualizations with ES\|QL data sources in Kibana. Use when building custom charts, dashboards, or programmatic panel layouts beyond standard Lens charts. | 0.1.0 | elastic |
+| [kibana-streams](skills/kibana/streams/SKILL.md) | List, inspect, enable, disable, and resync Kibana Streams via the REST API. Use when the user needs stream details, ingest/query settings, queries, significant events, or attachments. | 0.1.0 | elastic |
 
 </details>
 
 <details>
 <summary>Observability (10)</summary>
 
-| Skill | Description | Version |
-| ----- | ----------- | ------- |
-| [observability-edot-dotnet-instrument](skills/observability/edot-dotnet-instrument/SKILL.md) | Instrument a .NET application with the Elastic Distribution of OpenTelemetry (EDOT) .NET SDK for automatic tracing, metrics, and logs. Use when adding observability to a .NET service that has no existing APM agent. | 0.1.0 |
-| [observability-edot-dotnet-migrate](skills/observability/edot-dotnet-migrate/SKILL.md) | Migrate a .NET application from the classic Elastic APM .NET agent to the EDOT .NET SDK. Use when switching from Elastic.Apm.\* packages to Elastic.OpenTelemetry. | 0.1.0 |
-| [observability-edot-java-instrument](skills/observability/edot-java-instrument/SKILL.md) | Instrument a Java application with the Elastic Distribution of OpenTelemetry (EDOT) Java agent for automatic tracing, metrics, and logs. Use when adding observability to a Java service that has no existing APM agent. | 0.1.0 |
-| [observability-edot-java-migrate](skills/observability/edot-java-migrate/SKILL.md) | Migrate a Java application from the classic Elastic APM Java agent to the EDOT Java agent. Use when switching from elastic-apm-agent.jar to elastic-otel-javaagent.jar. | 0.1.0 |
-| [observability-edot-python-instrument](skills/observability/edot-python-instrument/SKILL.md) | Instrument a Python application with the Elastic Distribution of OpenTelemetry (EDOT) Python agent for automatic tracing, metrics, and logs. Use when adding observability to a Python service that has no existing APM agent. | 0.1.0 |
-| [observability-edot-python-migrate](skills/observability/edot-python-migrate/SKILL.md) | Migrate a Python application from the classic Elastic APM Python agent to the EDOT Python agent. Use when switching from elastic-apm to elastic-opentelemetry. | 0.1.0 |
-| [observability-llm-obs](skills/observability/llm-obs/SKILL.md) | Monitor LLMs and agentic apps: performance, token/cost, response quality, and workflow orchestration. Use when the user asks about LLM monitoring, GenAI observability, or AI cost/quality. | 0.1.0 |
-| [observability-logs-search](skills/observability/logs-search/SKILL.md) | Search and filter Observability logs using ES\|QL. Use when investigating log spikes, errors, or anomalies; getting volume and trends; or drilling into services or containers during incidents. | 0.2.0 |
-| [observability-manage-slos](skills/observability/manage-slos/SKILL.md) | Create and manage SLOs in Elastic Observability using the Kibana API. Use when defining SLIs, setting error budgets, or managing SLO lifecycle. | 0.2.0 |
-| [observability-service-health](skills/observability/service-health/SKILL.md) | Assess APM service health using SLOs, alerts, ML, throughput, latency, error rate, and dependencies. Use when checking service status, performance, or when the user asks about service health. | 0.1.0 |
+| Skill | Description | Version | Author |
+| ----- | ----------- | ------- | ------ |
+| [observability-edot-dotnet-instrument](skills/observability/edot-dotnet-instrument/SKILL.md) | Instrument a .NET application with the Elastic Distribution of OpenTelemetry (EDOT) .NET SDK for automatic tracing, metrics, and logs. Use when adding observability to a .NET service that has no existing APM agent. | 0.1.0 | elastic |
+| [observability-edot-dotnet-migrate](skills/observability/edot-dotnet-migrate/SKILL.md) | Migrate a .NET application from the classic Elastic APM .NET agent to the EDOT .NET SDK. Use when switching from Elastic.Apm.* packages to Elastic.OpenTelemetry. | 0.1.0 | elastic |
+| [observability-edot-java-instrument](skills/observability/edot-java-instrument/SKILL.md) | Instrument a Java application with the Elastic Distribution of OpenTelemetry (EDOT) Java agent for automatic tracing, metrics, and logs. Use when adding observability to a Java service that has no existing APM agent. | 0.1.1 | elastic |
+| [observability-edot-java-migrate](skills/observability/edot-java-migrate/SKILL.md) | Migrate a Java application from the classic Elastic APM Java agent to the EDOT Java agent. Use when switching from elastic-apm-agent.jar to elastic-otel-javaagent.jar. | 0.1.1 | elastic |
+| [observability-edot-python-instrument](skills/observability/edot-python-instrument/SKILL.md) | Instrument a Python application with the Elastic Distribution of OpenTelemetry (EDOT) Python agent for automatic tracing, metrics, and logs. Use when adding observability to a Python service that has no existing APM agent. | 0.1.0 | elastic |
+| [observability-edot-python-migrate](skills/observability/edot-python-migrate/SKILL.md) | Migrate a Python application from the classic Elastic APM Python agent to the EDOT Python agent. Use when switching from elastic-apm to elastic-opentelemetry. | 0.1.0 | elastic |
+| [observability-llm-obs](skills/observability/llm-obs/SKILL.md) | Monitor LLMs and agentic apps: performance, token/cost, response quality, and workflow orchestration. Use when the user asks about LLM monitoring, GenAI observability, or AI cost/quality. | 0.1.0 | elastic |
+| [observability-logs-search](skills/observability/logs-search/SKILL.md) | Search and filter Observability logs using ES\|QL. Use when investigating log spikes, errors, or anomalies; getting volume and trends; or drilling into services or containers during incidents. | 0.2.0 | elastic |
+| [observability-manage-slos](skills/observability/manage-slos/SKILL.md) | Create and manage SLOs in Elastic Observability using the Kibana API. Use when defining SLIs, setting error budgets, or managing SLO lifecycle. | 0.2.0 | elastic |
+| [observability-service-health](skills/observability/service-health/SKILL.md) | Assess APM service health using SLOs, alerts, ML, throughput, latency, error rate, and dependencies. Use when checking service status, performance, or when the user asks about service health. | 0.1.0 | elastic |
 
 </details>
 
 <details>
 <summary>Security (4)</summary>
 
-| Skill | Description | Version |
-| ----- | ----------- | ------- |
-| [security-alert-triage](skills/security/alert-triage/SKILL.md) | Triage Elastic Security alerts -- gather context, classify threats, create cases, and acknowledge. Use when triaging alerts, performing SOC analysis, or investigating detections. | 0.1.0 |
-| [security-case-management](skills/security/case-management/SKILL.md) | Create, search, update, and manage SOC cases via the Kibana Cases API. Use when tracking incidents, linking alerts to cases, adding investigation notes, or managing triage output. | 0.1.0 |
-| [security-detection-rule-management](skills/security/detection-rule-management/SKILL.md) | Create, tune, and manage Elastic Security detection rules (SIEM and Endpoint). Use for false positives, exceptions, new coverage, noisy rules, or rule management via Kibana API. | 0.1.0 |
-| [security-generate-security-sample-data](skills/security/generate-security-sample-data/SKILL.md) | Generate sample security events, attack scenarios, and synthetic alerts for Elastic Security. Use when demoing, populating dashboards, testing detection rules, or setting up a POC. | 0.1.0 |
+| Skill | Description | Version | Author |
+| ----- | ----------- | ------- | ------ |
+| [security-alert-triage](skills/security/alert-triage/SKILL.md) | Triage Elastic Security alerts — gather context, classify threats, create cases, and acknowledge. Use when triaging alerts, performing SOC analysis, or investigating detections. | 0.1.0 | elastic |
+| [security-case-management](skills/security/case-management/SKILL.md) | Create, search, update, and manage SOC cases via the Kibana Cases API. Use when tracking incidents, linking alerts to cases, adding investigation notes, or managing triage output. | 0.1.0 | elastic |
+| [security-detection-rule-management](skills/security/detection-rule-management/SKILL.md) | Create, tune, and manage Elastic Security detection rules (SIEM and Endpoint). Use for false positives, exceptions, new coverage, noisy rules, or rule management via Kibana API. | 0.1.0 | elastic |
+| [security-generate-security-sample-data](skills/security/generate-security-sample-data/SKILL.md) | Generate sample security events, attack scenarios, and synthetic alerts for Elastic Security. Use when demoing, populating dashboards, testing detection rules, or setting up a POC. | 0.1.0 | elastic |
 
 </details>
 

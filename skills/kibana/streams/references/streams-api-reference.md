@@ -46,7 +46,8 @@ retention, not the failure store.
 | Enable streams  | POST   | `/api/streams/_enable`  | Enable streams                                      |
 | Resync streams  | POST   | `/api/streams/_resync`  | Resync streams                                      |
 
-Disabling streams can lead to data loss; confirm with the user before calling the disable API.
+Disabling streams deletes wired stream data while preserving classic stream data; confirm with the user before calling
+the disable API.
 
 ## Deferred (later version)
 

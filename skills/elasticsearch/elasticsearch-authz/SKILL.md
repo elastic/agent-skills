@@ -9,7 +9,7 @@ compatibility: >
   API. Serverless role assignment requires the cloud-access-management skill.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # Elasticsearch Authorization
@@ -302,6 +302,10 @@ multi-condition policies and user metadata setup.
 A single index privilege entry can include both `query` (DLS) and `field_security` (FLS). See the
 [HR department example](#restrict-hr-data-by-department-dls--fls) for a practical combined use case.
 
+When users hold multiple roles, DLS queries are combined with OR and FLS grants are unioned. A broad role without
+DLS/FLS can unintentionally widen access. When combining roles, always verify effective permissions and ensure no
+unrestricted role overrides DLS/FLS intent.
+
 ## Assign Roles to Users
 
 > Self-managed and ECH only. On Serverless, use the **cloud-access-management** skill — see
@@ -321,13 +325,33 @@ curl -X PUT "${ELASTICSEARCH_URL}/_security/user/${USERNAME}" \
 The `roles` array is **replaced entirely** — include all roles the user should have. Fetch the user first to see current
 roles before updating.
 
+### Verify effective permissions
+
+After role or user updates, verify effective access with:
+
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_security/user/_has_privileges" \
+  <auth_flags> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cluster": ["monitor"],
+    "index": [
+      {
+        "names": ["'"${INDEX_PATTERN}"'"],
+        "privileges": ["read", "view_index_metadata"]
+      }
+    ]
+  }'
+```
+
 ## Manage Role Mappings
 
-> Role mappings are **not available** on Serverless (both ES and Kibana APIs are disabled). Use the
+> Role mappings are **not available** on Serverless (both ES API and Kibana UI are disabled). Use the
 > **cloud-access-management** skill instead — see [Serverless User Access](#serverless-user-access).
 
 Role mappings assign external-realm users (LDAP, AD, SAML, PKI) to roles based on attribute rules. Self-managed and ECH
-only.
+only. For supported rule operators and resource fields, see
+[role mapping resource properties](https://www.elastic.co/docs/deploy-manage/users-roles/cluster-or-deployment-auth/role-mapping-resources).
 
 ### Static role mapping
 
@@ -405,6 +429,7 @@ assignments.
 - **Custom roles** are required when the user needs fine-grained access (specific indices, Kibana features, DLS/FLS).
   Create the custom role using the Elasticsearch API or Kibana API (same as self-managed — see
   [Manage Roles](#manage-roles)), then assign it to the user alongside a predefined base role via the Cloud API.
+- **Run-as** privileges are unavailable in Serverless custom roles.
 
 Use the **cloud-access-management** skill for the full workflow (inviting users, assigning roles, managing Cloud API
 keys, and verifying access). This skill handles only role definition; cloud-access-management handles user assignment.

@@ -1,7 +1,7 @@
 {
-  "version": "0.1.1",
+  "version": "0.2.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "bff4e0f18449aa4c16444b765babaf52c0436ab2",
+  "sandbox_sha": "5255f3069ac23ba77264c83c269fba9fb9995c9a",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -33,14 +33,18 @@
     },
     "skills/elasticsearch/elasticsearch-authz": {
       "name": "elasticsearch-authz",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     "skills/elasticsearch/elasticsearch-esql": {
       "name": "elasticsearch-esql",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     "skills/elasticsearch/elasticsearch-file-ingest": {
       "name": "elasticsearch-file-ingest",
+      "version": "0.1.0"
+    },
+    "skills/elasticsearch/elasticsearch-onboarding": {
+      "name": "elasticsearch-onboarding",
       "version": "0.1.0"
     },
     "skills/elasticsearch/elasticsearch-security-troubleshooting": {
@@ -85,11 +89,11 @@
     },
     "skills/observability/edot-java-instrument": {
       "name": "observability-edot-java-instrument",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     "skills/observability/edot-java-migrate": {
       "name": "observability-edot-java-migrate",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     "skills/observability/edot-python-instrument": {
       "name": "observability-edot-python-instrument",

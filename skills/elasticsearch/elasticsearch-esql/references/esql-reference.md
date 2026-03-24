@@ -499,6 +499,25 @@ FROM apache_logs
 | DISSECT message "%{ip} %{} %{} [%{timestamp}] \"%{request}\" %{status} %{bytes}"
 ```
 
+**Cookbook — Common DISSECT Patterns:**
+
+```esql
+// Extract email domain
+FROM customers
+| DISSECT email "%{local}@%{domain}"
+| STATS count = COUNT(*) BY domain
+
+// Parse HTTP method and path from log messages like "GET /api/users HTTP/1.1"
+FROM logs
+| DISSECT message "%{method} %{path} %{protocol}"
+| WHERE method IS NOT NULL
+| KEEP @timestamp, method, path
+
+// Extract key-value pairs from structured strings like "user=admin action=login"
+FROM audit_logs
+| DISSECT message "%{key1}=%{val1} %{key2}=%{val2}"
+```
+
 **Limitations:** DISSECT does not support
 [reference keys](https://www.elastic.co/docs/reference/query-languages/esql/esql-process-data-with-dissect-grok#esql-dissect-limitations)
 (e.g., `%{*key}` / `%{&key}` for dynamic key-value extraction).

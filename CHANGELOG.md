@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.2.0
+
+### New Skills
+
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.1.0)
+
+### Updated Skills
+
+- `skills/cloud/create-project` (v0.1.0)
+- `skills/cloud/setup` (v0.1.0)
+- `skills/elasticsearch/elasticsearch-authz` (v0.1.0 → v0.1.1)
+- `skills/elasticsearch/elasticsearch-esql` (v0.1.0 → v0.1.1)
+- `skills/kibana/streams` (v0.1.0)
+- `skills/observability/edot-java-instrument` (v0.1.0 → v0.1.1)
+- `skills/observability/edot-java-migrate` (v0.1.0 → v0.1.1)
+- `skills/observability/manage-slos` (v0.2.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.1.1
 
 ### New Skills

@@ -51,3 +51,34 @@ Include `kbn-xsrf: true` on all POST, PUT, and DELETE requests.
 - Group-by SLOs create one instance per unique value — avoid high-cardinality fields.
 - Synthetics SLOs are auto-grouped by monitor and location; do not set `groupBy` manually.
 - Burn rate alert rules are not auto-created using the API — set them up separately.
+
+## Additional references
+
+For official documentation, refer to the following resources:
+
+### SLO documentation
+
+- [Service-level objectives (SLOs)](https://www.elastic.co/docs/solutions/observability/incident-management/service-level-objectives-slos)
+  — concepts, SLI types, budgeting methods, and dashboard panels.
+- [Create an SLO](https://www.elastic.co/docs/solutions/observability/incident-management/create-an-slo) — step-by-step
+  guide for creating SLOs in the Kibana UI.
+- [View and manage SLOs](https://www.elastic.co/docs/solutions/observability/incident-management/slo-management) —
+  searching, filtering, and managing existing SLOs.
+
+### Kibana SLO API
+
+- [Create an SLO](https://www.elastic.co/docs/api/doc/kibana/operation/operation-createsloop) — full request body schema
+  with all SLI type payloads.
+- [Get an SLO](https://www.elastic.co/docs/api/doc/kibana/operation/operation-getsloop) |
+  [Update](https://www.elastic.co/docs/api/doc/kibana/operation/operation-updatesloop) |
+  [Delete](https://www.elastic.co/docs/api/doc/kibana/operation/operation-deletesloop) |
+  [Reset](https://www.elastic.co/docs/api/doc/kibana/operation/operation-resetsloop)
+- [Enable](https://www.elastic.co/docs/api/doc/kibana/operation/operation-enablesloop) |
+  [Disable](https://www.elastic.co/docs/api/doc/kibana/operation/operation-disablesloop) |
+  [Get definitions](https://www.elastic.co/docs/api/doc/kibana/operation/operation-getdefinitionsop)
+
+### Troubleshooting and access
+
+- [Troubleshoot SLOs](https://www.elastic.co/docs/troubleshoot/observability/troubleshoot-service-level-objectives-slos)
+- [Configure SLO access](https://www.elastic.co/docs/solutions/observability/incident-management/configure-service-level-objective-slo-access)
+- [Create an SLO burn rate rule](https://www.elastic.co/docs/solutions/observability/incident-management/create-an-slo-burn-rate-rule)

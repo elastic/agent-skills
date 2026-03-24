@@ -29,13 +29,15 @@ For detailed endpoints and parameters, see [references/streams-api-reference.md]
 
 ## Prerequisites
 
-| Item               | Description                                                                 |
-| ------------------ | --------------------------------------------------------------------------- |
-| **Kibana URL**     | Kibana endpoint (e.g. `https://localhost:5601` or a Cloud deployment URL)   |
-| **Authentication** | API key or basic auth (see the elasticsearch-authn skill)                   |
-| **Privileges**     | `read_stream` for read operations; appropriate privilege for lifecycle APIs |
+| Item               | Description                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| **Kibana URL**     | Kibana endpoint (e.g. `https://localhost:5601` or a Cloud deployment URL) |
+| **Authentication** | API key or basic auth (see the elasticsearch-authn skill)                 |
+| **Privileges**     | `read_stream` for read operations; `manage_stream` for lifecycle APIs     |
 
-Use the space-scoped path `/s/{space_id}/api/streams` when operating in a non-default space.
+Use the space-scoped path `/s/{space_id}/api/streams` when operating in a non-default space. For role configuration
+(Kibana feature privileges and Elasticsearch-level permissions), refer to
+[Streams required permissions](https://www.elastic.co/docs/solutions/observability/streams/streams#streams-required-permissions).
 
 ## API base and headers
 
@@ -121,7 +123,7 @@ curl -X GET "${KIBANA_URL}/api/streams/my-stream/attachments" \
 ### Disable, enable, or resync streams
 
 ```bash
-# Disable streams (request body per API docs) — warn user and confirm before proceeding
+# Disable streams (request body per API docs) — deletes wired stream data; warn and confirm before proceeding
 curl -X POST "${KIBANA_URL}/api/streams/_disable" \
   -H "Authorization: ApiKey <base64-api-key>" \
   -H "kbn-xsrf: true" \
@@ -154,7 +156,8 @@ request/response bodies (e.g. request body for \_disable/\_enable/\_resync if re
 - Other mutating operations (create, update, delete, fork, bulk query management, attachment management, and more) are
   not supported by this skill. See [references/streams-api-reference.md](references/streams-api-reference.md) for the
   full list of deferred operations.
-- **Disabling streams can lead to data loss.** Before calling the disable API, warn the user and confirm they understand
-  the risk (and have backed up or no longer need the data).
+- **Disabling streams can lead to data loss for wired streams.** The disable API deletes wired stream data (classic
+  stream data is preserved). Before calling disable, warn the user and confirm they understand the risk (and have backed
+  up or no longer need the data).
 - Prefer read operations when the user only needs to inspect stream state; use lifecycle APIs when they need to enable,
   disable, or resync streams.
