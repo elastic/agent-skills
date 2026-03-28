@@ -1,0 +1,273 @@
+# Changelog Configuration
+# This file configures the valid values for changelog fields using the pivot structure.
+# Place this file as `changelog.yml` in the `docs/` directory
+#
+# NOTE: All list-like fields accept BOTH forms:
+#   - Comma-separated string: "value1, value2, value3"
+#   - YAML list:
+#     - value1
+#     - value2
+#     - value3
+# Both forms produce the same result. Choose whichever is more readable for your use case.
+
+# Filename strategy for generated changelog files.
+# Controls how files created by 'changelog add' are named.
+#   pr        — use the PR number (e.g., 12345.yaml).
+#   issue     — use the issue number (e.g., 67890.yaml).
+#   timestamp — use a Unix timestamp with a title slug (e.g., 1735689600-fix-search.yaml). Default.
+# Can be overridden per invocation with --use-pr-number or --use-issue-number CLI flags.
+filename: pr
+
+# Products configuration (optional)
+# If not specified, all products from products.yml are allowed
+products:
+  # List of available product IDs (empty = all from products.yml)
+  # Accepts string or list: "elasticsearch, kibana" or [elasticsearch, kibana]
+  available: []
+  # Default products when --products not specified
+  default:
+    - product: agent-skills
+      lifecycle: ga
+
+# Extraction configuration
+# Controls automatic extraction of information from PR descriptions
+extract:
+  # Auto-extract release notes from PR descriptions (default: true)
+  # Can be overridden by CLI --no-extract-release-notes
+  release_notes: true
+  # Auto-extract linked references (default: true)
+  # When using --prs: looks for patterns like "Fixes #123", "Closes #456" in PR body to derive issues.
+  # When using --issues: looks for patterns like "Fixed by #123" in issue body to derive PRs.
+  # Can be overridden by CLI --no-extract-issues
+  issues: true
+  # Remove square-bracket prefixes from PR titles (default: false)
+  # When enabled (true or via --strip-title-prefix), titles like "[ES|QL] Fix bug" become "Fix bug".
+  # Can be overridden by CLI --strip-title-prefix
+  strip_title_prefix: false
+
+# Available lifecycle values (strongly typed: preview, beta, ga)
+# Accepts string or list: "preview, beta, ga" or a YAML list
+lifecycles:
+  - preview
+  - beta
+  - ga
+
+# Pivot configuration for types, subtypes, and areas with label mappings.
+# By default we render changelogs grouped by type > subtype > area.
+# NOTE: subtype and area are optional and either may be omitted.
+# Labels are specified in a "label -> value" format
+pivot:
+  # Type definitions with optional labels
+  # At a minimum, feature, bug-fix, and breaking-change must be configured.
+  # Keys are type names, values can be:
+  #   - simple string: comma-separated label list (e.g., ">bug, >fix")
+  #   - YAML list: [">bug", ">fix"]
+  #   - empty/null: no labels for this type
+  #   - object: { labels: "...", subtypes: {...} } for breaking-change type only
+  #     (labels and subtype values also accept string or list)
+  types:
+    # Complex object form with subtypes (ONLY allowed for breaking-change)
+    # Subtypes help categorize breaking changes by their nature
+    # Both labels and subtype values accept string or list form
+    breaking-change:
+      # labels: ">breaking, >bc"
+      # Equivalent list form:
+      # labels:
+      #   - ">breaking"
+      #   - ">bc"
+      # subtypes:
+      #   api: ">api-breaking"
+      #   behavioral: ">behavioral-breaking"
+      #   configuration: ">config-breaking"
+      #   dependency: ">dependency-breaking"
+      #   subscription: ">subscription-breaking"
+      #   plugin: ">plugin-breaking"
+      #   security: ">security-breaking"
+      #   other:
+    # Simple string form: labels as comma-separated string
+    bug-fix: "bug"
+    deprecation:
+    feature:
+    enhancement: "enhancement"
+    docs: "documentation"
+    known-issue:
+    other:
+    regression:
+    security:
+
+  # Labels that trigger the highlight flag (accepts string or list)
+  # String form: highlight: ">highlight, >release-highlight"
+  # List form:
+  # highlight:
+  #   - ">highlight"
+  #   - ">release-highlight"
+
+  # Area definitions with labels
+  # Keys are area display names (can contain commas), values are label strings or lists
+  # Each label maps to exactly one area.
+  # String form: "label1, label2" | List form: [label1, label2]
+  # To map one label to multiple areas, repeat the label under each area name.
+  areas:
+    # Example mappings - customize based on your label naming conventions
+    # Autoscaling: ":Distributed Coordination/Autoscaling"
+    # Search: ":Search/Search"
+    # Security: ":Security/Security"
+    # Watcher: ":Data Management/Watcher"
+    # To map a label to multiple areas (e.g., "Team:Search" to both "Search" and "Observability"):
+    # Search:
+    #   - ":Search/Search"
+    #   - "Team:Search"
+    # Observability:
+    #   - "Team:Search"
+    # List form example:
+    # Search:
+    #   - ":Search/Search"
+    #   - ":Search/Ranking"
+
+  # Product definitions with labels (optional).
+  # Keys are product spec strings; values are label strings or lists that trigger that product.
+  # A product spec string is: "<product-id> [<target-version>] [<lifecycle>]"
+  #   - Product ID only:           "elasticsearch"
+  #   - Product + target:          "kibana 9.2.0"
+  #   - Full spec:                 "cloud-serverless 2025-06 ga"
+  # When a PR has labels matching any product entry, all matching products are added.
+  # Precedence: --products CLI option > pivot.products label mapping > products.default > repo inference.
+  #
+  # products:
+  #   'elasticsearch':
+  #     - ":stack/elasticsearch"
+  #   'kibana':
+  #     - ":stack/kibana"
+  #   'cloud-serverless':
+  #     - ":cloud/serverless"
+  #   # Specify a target version if known:
+  #   # 'elasticsearch 9.2.0':
+  #   #   - ":feature/new-in-9.2"
+
+# Rules configuration — controls which PRs create changelogs and which changelogs are published.
+# All list-like fields (exclude, include, exclude_types) accept BOTH forms:
+#   - Comma-separated string: "value1, value2, value3"
+#   - YAML list: [value1, value2, value3]
+#
+# Global match default for multi-valued fields (labels, areas, products).
+#   any (default) = match if ANY item matches the list
+#   all           = match only if ALL items match the list
+# Inherited by create, bundle, publish, and all product overrides.
+rules:
+  # match: any
+
+  # Create — controls which PRs generate changelogs.
+  #   exclude: block PRs with these labels (string or list)
+  #   include: only create changelogs for PRs with these labels (string or list)
+  # Cannot specify both.
+  #
+  # create:
+  #   exclude: ">non-issue, >test"
+  #   # Or equivalently:
+  #   # exclude:
+  #   #   - ">non-issue"
+  #   #   - ">test"
+  #   # match: any
+  #   products:
+  #     'elasticsearch, kibana':
+  #       exclude: ">test"
+  #     'cloud-serverless':
+  #       exclude: "ILM"
+
+  # Bundle — filtering applied during 'changelog bundle' and 'changelog gh-release'.
+  # Applied after the primary filter (--prs, --issues, --all, ...) has collected changelogs.
+  #
+  # Product filtering:
+  #   Skipped when the primary filter is already product-based
+  #   (--input-products option or a profile with bundle.profiles.<name>.products configured).
+  #   exclude_products / include_products (string or list) — cannot specify both.
+  #   match_products inherits from rules.match if not specified.
+  #
+  # Type and area filtering (replaces rules.publish):
+  #   Always applied, regardless of the primary filter.
+  #   exclude_types / include_types (string or list) — cannot specify both.
+  #   exclude_areas / include_areas (string or list) — cannot specify both.
+  #   match_areas inherits from rules.match if not specified.
+  #
+  # Per-product overrides:
+  #   products:
+  #     '<id>': override type/area filters for that product
+  #
+  #   When an entry belongs to multiple products, the applicable rule is resolved using
+  #   intersection + alphabetical first-match. See docs/contribute/changelog.md for details.
+  #
+  # bundle:
+  #   # match_products: any
+  #   exclude_products: "cloud-enterprise"
+  #   # Or include only certain products:
+  #   # include_products:
+  #   #   - cloud-serverless
+  #   #   - cloud-hosted
+  #   # Type/area filtering:
+  #   # exclude_types: "deprecation, known-issue"
+  #   # exclude_areas:
+  #   #   - "Internal"
+  #   # Per-product overrides:
+  #   # products:
+  #   #   'elasticsearch, kibana':
+  #   #     exclude_types:
+  #   #       - docs
+  #   #   'cloud-serverless':
+  #   #     # match_areas: any
+  #   #     include_areas:
+  #   #       - "Search"
+  #   #       - "Monitoring"
+
+# Bundle configuration (profiles and defaults)
+bundle:
+  # Input directory containing changelog YAML files
+  directory: docs/changelog
+  # Output directory for bundled changelog files
+  output_directory: docs/releases
+  # Whether to resolve (copy contents) by default
+  resolve: true
+  # Optional: default GitHub repo name applied to all profiles that do not specify their own.
+  # Used by the {changelog} directive to generate correct PR/issue links when the product ID
+  # differs from the GitHub repository name. Can be overridden per profile.
+  repo: agent-skills
+  # Optional: default GitHub owner applied to all profiles that do not specify their own.
+  owner: elastic
+
+  # Named bundle profiles for different release scenarios.
+  # Profiles can be used with both 'changelog bundle' and 'changelog remove':
+  #   docs-builder changelog bundle elasticsearch-release 9.2.0
+  #   docs-builder changelog remove elasticsearch-release 9.2.0
+  # When used with 'changelog remove', only the 'products' field is applied.
+  # The 'output', 'output_products', 'repo', 'owner', and 'hide_features' fields are
+  # bundle-specific and are ignored for removal.
+  profiles:
+    # Example: Elasticsearch release profile (filter by changelog fields)
+    # elasticsearch-release:
+    #   # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
+    #   products: "elasticsearch {version} {lifecycle}"
+    #   # Output filename ({version} is substituted at runtime)
+    #   output: "elasticsearch-{version}.yaml"
+    #   # Optional: override the products array written to the bundle output.
+    #   # output_products: "elasticsearch {version}"
+
+    # Example: GitHub release profile (fetches PR list directly from a GitHub release)
+    # Use when you want to bundle or remove changelogs based on a published GitHub release.
+    # elasticsearch-gh-release:
+    #   source: github_release       # Fetch PR list from GitHub release instead of filtering input changelogs
+    #   repo: elasticsearch          # GitHub repository (required if bundle.repo is not set)
+    #   owner: elastic               # GitHub owner (optional; defaults to bundle.owner or "elastic")
+    #   output: "elasticsearch-{version}.yaml"
+    #   output_products: "elasticsearch {version} {lifecycle}"
+
+    # Example: Serverless release profile (filter by promotion report, PR, or issue list)
+    # serverless-release:
+    #   output: "serverless-{version}.yaml"
+    #   output_products: "cloud-serverless {version}"
+    #   # Optional: profile-specific GitHub repo name (overrides bundle.repo if set).
+    #   # Only needed when this profile's product ID differs from the repository name.
+    #     repo: elasticsearch
+    #     owner: elastic
+    #   # Feature IDs to hide when bundling with this profile (accepts string or list)
+    #   hide_features:
+    #     - feature-flag-1
+    #     - feature-flag-2
