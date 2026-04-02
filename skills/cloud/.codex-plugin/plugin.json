@@ -1,0 +1,23 @@
+{
+  "version": "0.2.1",
+  "name": "elastic-cloud",
+  "description": "Elastic Cloud skills - project setup, access management, network security, and Serverless project lifecycle",
+  "author": {
+    "name": "Elastic"
+  },
+  "repository": "https://github.com/elastic/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "cloud",
+    "serverless",
+    "elastic-cloud",
+    "elastic"
+  ],
+  "skills": "./",
+  "interface": {
+    "displayName": "Elastic Cloud",
+    "shortDescription": "project setup, access management, network security, and Serverless project lifecycle",
+    "developerName": "Elastic",
+    "category": "Developer Tools"
+  }
+}

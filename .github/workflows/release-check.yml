@@ -45,6 +45,11 @@ jobs:
             --plugin-json skills/observability/.claude-plugin/plugin.json \
             --plugin-json skills/security/.claude-plugin/plugin.json \
             --plugin-json skills/cloud/.claude-plugin/plugin.json \
+            --plugin-json skills/elasticsearch/.codex-plugin/plugin.json \
+            --plugin-json skills/kibana/.codex-plugin/plugin.json \
+            --plugin-json skills/observability/.codex-plugin/plugin.json \
+            --plugin-json skills/security/.codex-plugin/plugin.json \
+            --plugin-json skills/cloud/.codex-plugin/plugin.json \
             --marketplace-json .claude-plugin/marketplace.json \
             --tags-file "$RUNNER_TEMP/existing-tags.txt" \
             --initial-version "$INITIAL_VERSION" \

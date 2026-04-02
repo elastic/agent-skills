@@ -1,0 +1,25 @@
+{
+  "version": "0.2.1",
+  "name": "elastic-kibana",
+  "description": "Kibana skills - dashboards, alerting rules, connectors, Vega visualizations, Agent Builder, streams, and audit logging",
+  "author": {
+    "name": "Elastic"
+  },
+  "repository": "https://github.com/elastic/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "kibana",
+    "dashboards",
+    "alerting",
+    "connectors",
+    "vega",
+    "elastic"
+  ],
+  "skills": "./",
+  "interface": {
+    "displayName": "Elastic Kibana",
+    "shortDescription": "dashboards, alerting rules, connectors, Vega visualizations, Agent Builder, streams, and audit logging",
+    "developerName": "Elastic",
+    "category": "Developer Tools"
+  }
+}
