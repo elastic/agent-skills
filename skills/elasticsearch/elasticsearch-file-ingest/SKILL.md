@@ -2,12 +2,11 @@
 name: elasticsearch-file-ingest
 description: >
   Ingest and transform data files (CSV/JSON/Parquet/Arrow IPC) into Elasticsearch
-  with stream processing, custom transforms, and cross-version reindexing. Use when
-  loading files, batch importing data, or migrating indices across versions — not
-  for general ingest pipeline design or bulk API patterns.
+  with stream processing and custom transforms. Use when loading files or batch importing
+  data — not for reindexing, general ingest pipeline design, or bulk API patterns.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Elasticsearch File Ingest
@@ -18,10 +17,8 @@ Stream-based ingestion and transformation of large data files (NDJSON, CSV, Parq
 
 - **Stream-based**: Handle large files without running out of memory
 - **High throughput**: 50k+ documents/second on commodity hardware
-- **Cross-version**: Seamlessly migrate between ES 8.x and 9.x, or replicate across clusters
 - **Formats**: NDJSON, CSV, Parquet, Arrow IPC
 - **Transformations**: Apply custom JavaScript transforms during ingestion (enrich, split, filter)
-- **Reindexing**: Copy and transform existing indices (rename fields, restructure documents)
 - **Batch processing**: Ingest multiple files matching a pattern (e.g., `logs/*.json`)
 - **Document splitting**: Transform one source document into multiple targets
 
@@ -43,47 +40,38 @@ npm install
 
 ### Environment Configuration
 
-Elasticsearch connection is configured via environment variables. The CLI flags `--node`, `--api-key`, `--username`, and
-`--password` override environment variables when provided.
+Elasticsearch connection is configured by users exclusively via environment variables. **Never pass credentials as
+command-line arguments**. If the test fails, output the setup options below to the user, then stop. Do not proceed with
+ingestion until a successful connection test.
 
 #### Option 1: Elastic Cloud (recommended for production)
 
 ```bash
-export ELASTICSEARCH_CLOUD_ID="deployment-name:base64encodedcloudid"
-export ELASTICSEARCH_API_KEY="base64encodedapikey"
+export ELASTICSEARCH_CLOUD_ID="<your-cloud-id>"
+export ELASTICSEARCH_API_KEY="<your-api-key>"
 ```
 
 #### Option 2: Direct URL with API Key
 
 ```bash
 export ELASTICSEARCH_URL="https://elasticsearch:9200"
-export ELASTICSEARCH_API_KEY="base64encodedapikey"
+export ELASTICSEARCH_API_KEY="<your-api-key>"
 ```
 
 #### Option 3: Basic Authentication
 
 ```bash
 export ELASTICSEARCH_URL="https://elasticsearch:9200"
-export ELASTICSEARCH_USERNAME="elastic"
-export ELASTICSEARCH_PASSWORD="changeme"
+export ELASTICSEARCH_USERNAME="<your-username>"
+export ELASTICSEARCH_PASSWORD="<your-password>"
 ```
 
-#### Option 4: Local Development with start-local
+#### Option 4: Local Development
 
-For local development and testing, use [start-local](https://github.com/elastic/start-local) to quickly spin up
-Elasticsearch and Kibana using Docker or Podman:
-
-```bash
-curl -fsSL https://elastic.co/start-local | sh
-```
-
-After installation completes, source the generated `.env` file:
-
-```bash
-source elastic-start-local/.env
-export ELASTICSEARCH_URL="$ES_LOCAL_URL"
-export ELASTICSEARCH_API_KEY="$ES_LOCAL_API_KEY"
-```
+For local development and testing, see
+[Run Elasticsearch locally](https://www.elastic.co/guide/en/elasticsearch/reference/current/run-elasticsearch-locally.html)
+to spin up Elasticsearch and Kibana. After setup, export the connection variables (URL and API key or credentials) as
+shown in Option 2 or Option 3 above.
 
 #### Optional: Skip TLS verification (development only)
 
@@ -91,40 +79,50 @@ export ELASTICSEARCH_API_KEY="$ES_LOCAL_API_KEY"
 export ELASTICSEARCH_INSECURE="true"
 ```
 
+## Test Connection
+
+Verify the Elasticsearch connection before ingesting data:
+
+```bash
+node scripts/ingest.js test
+```
+
+Always run this first. If the test fails, resolve the connection issue before proceeding.
+
 ## Examples
 
 ### Ingest a JSON file
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/data.json --target my-index
+node scripts/ingest.js ingest --file /absolute/path/to/data.json --target my-index
 ```
 
 ### Stream NDJSON/CSV via stdin
 
 ```bash
 # NDJSON
-cat /absolute/path/to/data.ndjson | node scripts/ingest.js --stdin --target my-index
+cat /absolute/path/to/data.ndjson | node scripts/ingest.js ingest --stdin --target my-index
 
 # CSV
-cat /absolute/path/to/data.csv | node scripts/ingest.js --stdin --source-format csv --target my-index
+cat /absolute/path/to/data.csv | node scripts/ingest.js ingest --stdin --source-format csv --target my-index
 ```
 
 ### Ingest CSV directly
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/users.csv --source-format csv --target users
+node scripts/ingest.js ingest --file /absolute/path/to/users.csv --source-format csv --target users
 ```
 
 ### Ingest Parquet directly
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/users.parquet --source-format parquet --target users
+node scripts/ingest.js ingest --file /absolute/path/to/users.parquet --source-format parquet --target users
 ```
 
 ### Ingest Arrow IPC directly
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/users.arrow --source-format arrow --target users
+node scripts/ingest.js ingest --file /absolute/path/to/users.arrow --source-format arrow --target users
 ```
 
 ### Ingest CSV with parser options
@@ -137,7 +135,7 @@ node scripts/ingest.js --file /absolute/path/to/users.arrow --source-format arro
 #   "trim": true
 # }
 
-node scripts/ingest.js --file /absolute/path/to/users.csv --source-format csv --csv-options csv-options.json --target users
+node scripts/ingest.js ingest --file /absolute/path/to/users.csv --source-format csv --csv-options csv-options.json --target users
 ```
 
 ### Infer mappings/pipeline from CSV
@@ -148,7 +146,7 @@ processor. If `--source-format csv` is also set, CSV is parsed client-side **and
 index. Let `--infer-mappings` handle everything:
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/users.csv --infer-mappings --target users
+node scripts/ingest.js ingest --file /absolute/path/to/users.csv --infer-mappings --target users
 ```
 
 ### Infer mappings with options
@@ -160,34 +158,19 @@ node scripts/ingest.js --file /absolute/path/to/users.csv --infer-mappings --tar
 #   "lines_to_sample": 2000
 # }
 
-node scripts/ingest.js --file /absolute/path/to/users.csv --infer-mappings --infer-mappings-options infer-options.json --target users
+node scripts/ingest.js ingest --file /absolute/path/to/users.csv --infer-mappings --infer-mappings-options infer-options.json --target users
 ```
 
 ### Ingest with custom mappings
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/data.json --target my-index --mappings mappings.json
+node scripts/ingest.js ingest --file /absolute/path/to/data.json --target my-index --mappings mappings.json
 ```
 
 ### Ingest with transformation
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/data.json --target my-index --transform transform.js
-```
-
-### Reindex from another index
-
-```bash
-node scripts/ingest.js --source-index old-index --target new-index
-```
-
-### Cross-cluster reindex (ES 8.x → 9.x)
-
-```bash
-node scripts/ingest.js --source-index logs \
-  --node https://es8.example.com:9200 --api-key es8-key \
-  --target new-logs \
-  --target-node https://es9.example.com:9200 --target-api-key es9-key
+node scripts/ingest.js ingest --file /absolute/path/to/data.json --target my-index --transform transform.js
 ```
 
 ## Command Reference
@@ -202,32 +185,13 @@ node scripts/ingest.js --source-index logs \
 
 ```bash
 --file <path>            # Source file (supports wildcards, e.g., logs/*.json)
---source-index <name>    # Source Elasticsearch index
 --stdin                  # Read NDJSON/CSV from stdin
-```
-
-### Elasticsearch Connection
-
-```bash
---node <url>             # ES node URL (default: http://localhost:9200)
---api-key <key>          # API key authentication
---username <user>        # Basic auth username
---password <pass>        # Basic auth password
-```
-
-### Target Connection (for cross-cluster)
-
-```bash
---target-node <url>      # Target ES node URL (uses --node if not specified)
---target-api-key <key>   # Target API key
---target-username <user> # Target username
---target-password <pass> # Target password
 ```
 
 ### Index Configuration
 
 ```bash
---mappings <file.json>          # Mappings file (auto-copy from source if reindexing)
+--mappings <file.json>          # Mappings file
 --infer-mappings                # Infer mappings/pipeline from file/stream (do NOT combine with --source-format)
 --infer-mappings-options <file> # Options for inference (JSON file)
 --delete-index                  # Delete target index if exists
@@ -238,7 +202,6 @@ node scripts/ingest.js --source-index logs \
 
 ```bash
 --transform <file.js>    # Transform function (export as default or module.exports)
---query <file.json>      # Query file to filter source documents
 --source-format <fmt>    # Source format: ndjson|csv|parquet|arrow (default: ndjson)
 --csv-options <file>     # CSV parser options (JSON file)
 --skip-header            # Skip first line (e.g., CSV header)
@@ -248,7 +211,6 @@ node scripts/ingest.js --source-index logs \
 
 ```bash
 --buffer-size <kb>       # Buffer size in KB (default: 5120)
---search-size <n>        # Docs per search when reindexing (default: 100)
 --total-docs <n>         # Total docs for progress bar (file/stream)
 --stall-warn-seconds <n> # Stall warning threshold (default: 30)
 --progress-mode <mode>   # Progress output: auto|line|newline (default: auto)
@@ -314,14 +276,6 @@ export default function transform(doc) {
 
 ## Mappings
 
-### Auto-Copy Mappings (Reindexing)
-
-When reindexing, mappings are automatically copied from the source index:
-
-```bash
-node scripts/ingest.js --source-index old-logs --target new-logs
-```
-
 ### Custom Mappings (mappings.json)
 
 ```json
@@ -340,40 +294,24 @@ node scripts/ingest.js --source-index old-logs --target new-logs
 ```
 
 ```bash
-node scripts/ingest.js --file /absolute/path/to/data.json --target my-index --mappings mappings.json
-```
-
-## Query Filters
-
-Filter source documents during reindexing with a query file:
-
-### Query File (filter.json)
-
-```json
-{
-  "range": {
-    "@timestamp": {
-      "gte": "2024-01-01",
-      "lt": "2024-02-01"
-    }
-  }
-}
-```
-
-```bash
-node scripts/ingest.js \
-  --source-index logs \
-  --target filtered-logs \
-  --query filter.json
+node scripts/ingest.js ingest --file /absolute/path/to/data.json --target my-index --mappings mappings.json
 ```
 
 ## Boundaries
 
+- **Never** echo, print, log, or otherwise reveal the values of credential environment variables
+  (`$ELASTICSEARCH_API_KEY`, `$ELASTICSEARCH_PASSWORD`, `$ELASTICSEARCH_CLOUD_ID`, etc.). Do not run shell commands
+  whose output would expose secret values (e.g., `echo $ELASTICSEARCH_API_KEY`, `env | grep KEY`, `printenv`). Exporting
+  these variables and running scripts that read them internally is expected and safe — the restriction is on surfacing
+  secret values in command output. The only way to verify connectivity is `node scripts/ingest.js test`. If the test
+  fails, ask the user to check their environment configuration — do not attempt to diagnose credentials yourself.
 - **Never** run destructive commands (such as using the `--delete-index` flag or deleting existing indices and data)
   without explicit user confirmation.
 
 ## Guidelines
 
+- **Test first**: Always run `node scripts/ingest.js test` before ingesting data. If the connection fails, ask the user
+  to verify their environment configuration and re-test. Do not attempt ingestion until the test passes.
 - **Never combine `--infer-mappings` with `--source-format`**. Inference creates a server-side ingest pipeline that
   handles parsing (e.g., CSV processor). Using `--source-format csv` parses client-side as well, causing double-parsing
   and an empty index. Use `--infer-mappings` alone for automatic detection, or `--source-format` with explicit
@@ -386,6 +324,8 @@ node scripts/ingest.js \
 
 Consider alternatives for:
 
+- **Reindexing or index migration**: Use the `elasticsearch-reindex` skill for copying, migrating, or transforming
+  existing Elasticsearch indices
 - **Real-time ingestion**: Use [Filebeat](https://www.elastic.co/beats/filebeat) or
   [Elastic Agent](https://www.elastic.co/guide/en/fleet/current/fleet-overview.html)
 - **Enterprise pipelines**: Use [Logstash](https://www.elastic.co/products/logstash)
@@ -394,7 +334,7 @@ Consider alternatives for:
 
 ## Additional Resources
 
-- [Common Patterns](references/patterns.md) - Detailed examples for CSV loading, migrations, filtering, and more
+- [Common Patterns](references/patterns.md) - Detailed examples for CSV loading, batch ingestion, enrichment, and more
 - [Troubleshooting](references/troubleshooting.md) - Solutions for common issues
 
 ## References

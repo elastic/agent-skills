@@ -1,7 +1,7 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "5255f3069ac23ba77264c83c269fba9fb9995c9a",
+  "sandbox_sha": "7773a02cf0dc0fba2793c809c4888ba249066ee4",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -41,7 +41,7 @@
     },
     "skills/elasticsearch/elasticsearch-file-ingest": {
       "name": "elasticsearch-file-ingest",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     "skills/elasticsearch/elasticsearch-onboarding": {
       "name": "elasticsearch-onboarding",

@@ -27,6 +27,9 @@ All Serverless traffic filter API calls use base URL `https://api.elastic-cloud.
 
 ## Traffic Filters
 
+> **Official API docs:**
+> [Serverless traffic filter endpoints](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/group/endpoint-traffic-filters)
+
 ### List traffic filters
 
 ```text
@@ -167,6 +170,9 @@ filter from all projects first using the project PATCH endpoint.
 
 ## PrivateLink Metadata
 
+> **Official API docs:**
+> [Serverless traffic filter endpoints](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/group/endpoint-traffic-filters)
+
 ### List PrivateLink region metadata
 
 ```text
@@ -253,6 +259,13 @@ Returned by all read and write operations. Extends [TrafficFilterRequest](#traff
 ---
 
 ## Project Association
+
+> **Official API docs:**
+> [Patch Elasticsearch project](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/operation/operation-patchelasticsearchproject)
+> ·
+> [Patch Observability project](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/operation/operation-patchobservabilityproject)
+> ·
+> [Patch Security project](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/operation/operation-patchsecurityproject)
 
 Traffic filters are associated with Serverless projects using the **project PATCH endpoint**, not through the traffic
 filter API. This is handled by the **cloud-manage-project** skill.

@@ -8,64 +8,49 @@ import { Client } from "@elastic/elasticsearch";
 const args = process.argv.slice(2);
 
 function showUsage() {
-  console.log("Usage: ingest.js [options]");
-  console.log("\nRequired:");
+  console.log("Usage: ingest.js <command> [options]");
+  console.log("\nCommands:");
+  console.log("  test                     Test Elasticsearch connection");
+  console.log("  ingest [options]         Ingest data into Elasticsearch");
+  console.log("  help                     Show this help message");
+  console.log("\nRequired (ingest):");
   console.log("  --target <index>         Target index name");
   console.log("\nSource (choose one):");
   console.log("  --file <path>            Source file (supports wildcards, e.g., logs/*.json)");
-  console.log("  --source-index <name>    Source Elasticsearch index");
   console.log("  --stdin                  Read NDJSON/CSV from stdin");
-  console.log("\nElasticsearch Connection:");
-  console.log("  --node <url>             Elasticsearch node URL (default: http://localhost:9200)");
-  console.log("  --api-key <key>          API key authentication");
-  console.log("  --username <user>        Basic auth username");
-  console.log("  --password <pass>        Basic auth password");
-  console.log("\nTarget Connection (for cross-cluster reindexing):");
-  console.log("  --target-node <url>      Target ES node URL (uses --node if not specified)");
-  console.log("  --target-api-key <key>   Target API key");
-  console.log("  --target-username <user> Target username");
-  console.log("  --target-password <pass> Target password");
+  console.log("\nElasticsearch Connection (environment variables only):");
+  console.log("  ELASTICSEARCH_API_KEY, ELASTICSEARCH_USERNAME, ELASTICSEARCH_PASSWORD");
+  console.log("  ELASTICSEARCH_CLOUD_ID, ELASTICSEARCH_URL, ELASTICSEARCH_INSECURE");
   console.log("\nIndex Configuration:");
-  console.log("  --mappings <file.json>   Mappings file (auto-copy from source if reindexing)");
+  console.log("  --mappings <file.json>   Mappings file");
   console.log("  --infer-mappings         Infer mappings/pipeline from file/stream");
   console.log("  --infer-mappings-options <file>  Options for inference (JSON file)");
   console.log("  --delete-index           Delete target index if exists");
   console.log("  --pipeline <name>        Ingest pipeline name");
   console.log("\nProcessing:");
   console.log("  --transform <file.js>    Transform function (export as default or module.exports)");
-  console.log("  --query <file.json>      Query file to filter source documents");
   console.log("  --source-format <fmt>    Source format: ndjson|csv|parquet|arrow (default: ndjson)");
   console.log("  --csv-options <file>     CSV parser options (JSON file)");
   console.log("  --skip-header            Skip first line (e.g., CSV header)");
   console.log("\nPerformance:");
   console.log("  --buffer-size <kb>       Buffer size in KB (default: 5120)");
-  console.log("  --search-size <n>        Docs per search when reindexing (default: 100)");
   console.log("  --total-docs <n>         Total docs for progress bar (file/stream)");
   console.log("  --stall-warn-seconds <n> Stall warning threshold (default: 30)");
   console.log("  --progress-mode <mode>   Progress output: auto|line|newline (default: auto)");
   console.log("  --debug-events           Log pause/resume/stall events");
   console.log("  --quiet                  Disable progress bars");
   console.log("\nExamples:");
+  console.log("  # Test connection");
+  console.log("  ingest.js test");
+  console.log("");
   console.log("  # Ingest a JSON file");
-  console.log("  ingest.js --file data.json --target my-index");
+  console.log("  ingest.js ingest --file data.json --target my-index");
   console.log("");
   console.log("  # Ingest with custom mappings");
-  console.log("  ingest.js --file data.json --target my-index --mappings mappings.json");
+  console.log("  ingest.js ingest --file data.json --target my-index --mappings mappings.json");
   console.log("");
   console.log("  # Ingest with transformation");
-  console.log("  ingest.js --file data.json --target my-index --transform transform.js");
-  console.log("");
-  console.log("  # Reindex from another index");
-  console.log("  ingest.js --source-index old-index --target new-index");
-  console.log("");
-  console.log("  # Cross-cluster reindex (ES 8.x → 9.x)");
-  console.log("  ingest.js --source-index logs \\");
-  console.log("    --node https://es8.example.com:9200 --api-key es8-key \\");
-  console.log("    --target new-logs \\");
-  console.log("    --target-node https://es9.example.com:9200 --target-api-key es9-key");
-  console.log("");
-  console.log("  # Ingest with query filter");
-  console.log("  ingest.js --source-index logs --target filtered-logs --query filter.json");
+  console.log("  ingest.js ingest --file data.json --target my-index --transform transform.js");
   process.exit(1);
 }
 
@@ -120,12 +105,6 @@ function parseArgs(args) {
         i++;
         break;
 
-      case "--source-index":
-        if (!next) showUsage();
-        options.sourceIndexName = next;
-        i++;
-        break;
-
       case "--stdin":
         options.stream = process.stdin;
         break;
@@ -133,62 +112,6 @@ function parseArgs(args) {
       case "--target":
         if (!next) showUsage();
         options.targetIndexName = next;
-        i++;
-        break;
-
-      case "--node":
-        if (!next) showUsage();
-        options.sourceClientConfig.node = next;
-        i++;
-        break;
-
-      case "--api-key":
-        if (!next) showUsage();
-        options.sourceClientConfig.auth = { apiKey: next };
-        i++;
-        break;
-
-      case "--username":
-        if (!next) showUsage();
-        if (!options.sourceClientConfig.auth) options.sourceClientConfig.auth = {};
-        options.sourceClientConfig.auth.username = next;
-        i++;
-        break;
-
-      case "--password":
-        if (!next) showUsage();
-        if (!options.sourceClientConfig.auth) options.sourceClientConfig.auth = {};
-        options.sourceClientConfig.auth.password = next;
-        i++;
-        break;
-
-      case "--target-node":
-        if (!next) showUsage();
-        if (!options.targetClientConfig) options.targetClientConfig = {};
-        options.targetClientConfig.node = next;
-        i++;
-        break;
-
-      case "--target-api-key":
-        if (!next) showUsage();
-        if (!options.targetClientConfig) options.targetClientConfig = {};
-        options.targetClientConfig.auth = { apiKey: next };
-        i++;
-        break;
-
-      case "--target-username":
-        if (!next) showUsage();
-        if (!options.targetClientConfig) options.targetClientConfig = {};
-        if (!options.targetClientConfig.auth) options.targetClientConfig.auth = {};
-        options.targetClientConfig.auth.username = next;
-        i++;
-        break;
-
-      case "--target-password":
-        if (!next) showUsage();
-        if (!options.targetClientConfig) options.targetClientConfig = {};
-        if (!options.targetClientConfig.auth) options.targetClientConfig.auth = {};
-        options.targetClientConfig.auth.password = next;
         i++;
         break;
 
@@ -255,18 +178,6 @@ function parseArgs(args) {
         i++;
         break;
 
-      case "--query":
-        if (!next) showUsage();
-        try {
-          const content = fs.readFileSync(next, "utf8");
-          options.query = JSON.parse(content);
-        } catch (err) {
-          console.error(`Error reading query file ${next}:`, err.message);
-          process.exit(1);
-        }
-        i++;
-        break;
-
       case "--source-format":
         if (!next) showUsage();
         options.sourceFormat = next;
@@ -292,12 +203,6 @@ function parseArgs(args) {
       case "--buffer-size":
         if (!next) showUsage();
         options.bufferSize = parseInt(next, 10);
-        i++;
-        break;
-
-      case "--search-size":
-        if (!next) showUsage();
-        options.searchSize = parseInt(next, 10);
         i++;
         break;
 
@@ -338,20 +243,34 @@ function parseArgs(args) {
     }
   }
 
+  // Auto-detect source format from file extension when not explicitly set
+  if (!options.sourceFormat && options.fileName) {
+    const ext = path.extname(options.fileName).toLowerCase();
+    const formatMap = {
+      ".csv": "csv",
+      ".json": "ndjson",
+      ".ndjson": "ndjson",
+      ".parquet": "parquet",
+      ".arrow": "arrow",
+    };
+    if (formatMap[ext]) {
+      options.sourceFormat = formatMap[ext];
+    }
+  }
+
   // Validation
   if (!options.targetIndexName) {
     console.error("Error: --target is required\n");
     showUsage();
   }
 
-  if (!options.fileName && !options.sourceIndexName && !options.stream) {
-    console.error("Error: Either --file, --source-index, or --stdin is required\n");
+  if (!options.fileName && !options.stream) {
+    console.error("Error: Either --file or --stdin is required\n");
     showUsage();
   }
 
-  const sources = [options.fileName, options.sourceIndexName, options.stream].filter(Boolean);
-  if (sources.length > 1) {
-    console.error("Error: Only one of --file, --source-index, or --stdin can be used\n");
+  if (options.fileName && options.stream) {
+    console.error("Error: Only one of --file or --stdin can be used\n");
     showUsage();
   }
 
@@ -377,12 +296,70 @@ async function testConnection(clientConfig) {
   }
 }
 
+function printConnectionHelp() {
+  console.error("");
+  console.error("Set one of these environment variable combinations:");
+  console.error("  1. Elastic Cloud: ELASTICSEARCH_CLOUD_ID + ELASTICSEARCH_API_KEY");
+  console.error("  2. Direct URL + API Key: ELASTICSEARCH_URL + ELASTICSEARCH_API_KEY");
+  console.error("  3. Basic Auth: ELASTICSEARCH_URL + ELASTICSEARCH_USERNAME + ELASTICSEARCH_PASSWORD");
+  console.error("");
+  console.error("For self-signed certs: set ELASTICSEARCH_INSECURE=true");
+  console.error("");
+  console.error("For local development, see:");
+  console.error("  https://www.elastic.co/guide/en/elasticsearch/reference/current/run-elasticsearch-locally.html");
+  console.error("");
+  console.error("Then re-run: node scripts/ingest.js test");
+}
+
+async function runTest(clientConfig) {
+  console.log("=== Testing Elasticsearch Connection ===\n");
+  const connTest = await testConnection(clientConfig);
+
+  if (!connTest.success) {
+    console.error(`✗ Connection failed to ${connTest.node}`);
+    console.error(`  Error: ${connTest.error}`);
+    printConnectionHelp();
+    process.exit(1);
+  }
+
+  console.log("✓ Connected successfully!");
+  console.log(`  Cluster: ${connTest.cluster}`);
+  console.log(`  Version: ${connTest.version}`);
+  console.log(`  Node:    ${connTest.node}`);
+
+  // Test bulk indexing capability with a dummy check
+  const client = new Client(clientConfig);
+  try {
+    const health = await client.cluster.health();
+    console.log(`  Status:  ${health.status}`);
+    console.log(`  Nodes:   ${health.number_of_nodes}`);
+  } catch {
+    // cluster.health may fail with limited permissions — not critical
+  } finally {
+    await client.close();
+  }
+
+  console.log("\n✓ Ready for ingestion");
+}
+
 async function main() {
-  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
+  if (args.length === 0 || args.includes("--help") || args.includes("-h") || args[0] === "help") {
     showUsage();
   }
 
-  const options = parseArgs(args);
+  // Handle "test" subcommand before parsing ingest options
+  if (args[0] === "test") {
+    await runTest(getDefaultClientConfig());
+    return;
+  }
+
+  // Require "ingest" subcommand
+  if (args[0] !== "ingest") {
+    console.error(`Unknown command: ${args[0]}\n`);
+    showUsage();
+  }
+
+  const options = parseArgs(args.slice(1));
 
   // Test connection before starting ingestion
   console.log("Testing Elasticsearch connection...");
@@ -391,42 +368,11 @@ async function main() {
   if (!connTest.success) {
     console.error(`\n✗ Connection failed to ${connTest.node}`);
     console.error(`  Error: ${connTest.error}`);
-    console.error("");
-    console.error("Set one of these environment variable combinations:");
-    console.error("  1. Elastic Cloud: ELASTICSEARCH_CLOUD_ID + ELASTICSEARCH_API_KEY");
-    console.error("  2. Direct URL + API Key: ELASTICSEARCH_URL + ELASTICSEARCH_API_KEY");
-    console.error("  3. Basic Auth: ELASTICSEARCH_URL + ELASTICSEARCH_USERNAME + ELASTICSEARCH_PASSWORD");
-    console.error("");
-    console.error("Or use CLI flags: --node, --api-key, --username, --password");
-    console.error("For self-signed certs: set ELASTICSEARCH_INSECURE=true");
-    console.error("");
-    console.error("For local development, use start-local to run Elasticsearch via Docker:");
-    console.error("  https://github.com/elastic/start-local");
-    console.error("");
-    console.error("  curl -fsSL https://elastic.co/start-local | sh");
-    console.error("");
-    console.error("Then configure the environment:");
-    console.error("  source elastic-start-local/.env");
-    console.error('  export ELASTICSEARCH_URL="$ES_LOCAL_URL"');
-    console.error('  export ELASTICSEARCH_API_KEY="$ES_LOCAL_API_KEY"');
+    printConnectionHelp();
     process.exit(1);
   }
 
   console.log(`✓ Connected to ${connTest.cluster} (ES ${connTest.version})\n`);
-
-  // Test target connection if different from source
-  if (options.targetClientConfig) {
-    console.log("Testing target Elasticsearch connection...");
-    const targetTest = await testConnection(options.targetClientConfig);
-
-    if (!targetTest.success) {
-      console.error(`\n✗ Target connection failed to ${targetTest.node}`);
-      console.error(`  Error: ${targetTest.error}`);
-      process.exit(1);
-    }
-
-    console.log(`✓ Connected to target ${targetTest.cluster} (ES ${targetTest.version})\n`);
-  }
 
   try {
     console.log("Starting ingestion...");
@@ -435,7 +381,7 @@ async function main() {
     if (options.fileName) {
       console.log(`Source: File ${options.fileName}`);
     } else {
-      console.log(`Source: Index ${options.sourceIndexName}`);
+      console.log(`Source: stdin`);
     }
 
     const result = await transformer(options);

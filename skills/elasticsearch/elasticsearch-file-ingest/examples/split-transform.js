@@ -4,7 +4,7 @@
  * This example takes a tweet and creates a separate document for each hashtag.
  *
  * Usage:
- *   ./scripts/ingest.js --file tweets.json --target hashtags --transform examples/split-transform.js
+ *   node scripts/ingest.js ingest --file tweets.json --target hashtags --transform examples/split-transform.js
  */
 
 export default function transform(doc) {

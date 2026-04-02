@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.1
+
+### Updated Skills
+
+- `skills/cloud/access-management` (v0.1.0)
+- `skills/cloud/network-security` (v0.1.0)
+- `skills/elasticsearch/elasticsearch-esql` (v0.1.1)
+- `skills/elasticsearch/elasticsearch-file-ingest` (v0.1.0 → v0.2.0)
+- `skills/kibana/kibana-vega` (v0.1.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.2.0
 
 ### New Skills

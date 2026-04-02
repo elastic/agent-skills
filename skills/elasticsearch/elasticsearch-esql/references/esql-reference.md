@@ -776,7 +776,7 @@ FROM articles METADATA _id, _index, _score
 
 ### RERANK
 
-Uses an inference model to re-score an initial set of documents. Tech preview in 9.1 (serverless only). Since 9.3,
+Uses an inference model to re-score an initial set of documents. Tech preview in 9.2 (GA on Serverless). Since 9.3,
 defaults to 1000 rows; configurable via `esql.command.rerank.limit` and `esql.command.rerank.enabled` cluster settings.
 
 **Syntax:**
@@ -1018,8 +1018,8 @@ TS metrics
 | `REVERSE(s)`                | Reverse string                                      | `EVAL rev = REVERSE(text)`                                           |
 | `REPEAT(s, n)`              | Repeat string                                       | `EVAL sep = REPEAT("-", 10)`                                         |
 | `SPACE(n)`                  | N spaces                                            | `EVAL spaces = SPACE(5)`                                             |
-| `BIT_LENGTH(s)`             | Bit length (8.18/9.0+)                              | `EVAL bits = BIT_LENGTH(name)`                                       |
-| `BYTE_LENGTH(s)`            | Byte length (8.18/9.0+)                             | `EVAL bytes = BYTE_LENGTH(name)`                                     |
+| `BIT_LENGTH(s)`             | Bit length (8.17+)                                  | `EVAL bits = BIT_LENGTH(name)`                                       |
+| `BYTE_LENGTH(s)`            | Byte length (8.17+)                                 | `EVAL bytes = BYTE_LENGTH(name)`                                     |
 | `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)              | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
 | `HASH(alg, s)`              | Hash string (8.18/9.0+)                             | `EVAL h = HASH("SHA-256", msg)`                                      |
 | `MD5(s)`                    | MD5 hash (8.18/9.0+)                                | `EVAL h = MD5(content)`                                              |

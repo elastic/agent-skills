@@ -4,22 +4,20 @@ Common issues and solutions for the ingest tool.
 
 ## Connection Refused
 
-Elasticsearch is not running or URL is incorrect:
+Elasticsearch is not running or the URL is incorrect. Run the connection test:
 
 ```bash
-# Test connection
-curl http://localhost:9200
-
-# Or with auth
-curl -H "Authorization: ApiKey $API_KEY" https://es.example.com:9200
+node scripts/ingest.js test
 ```
+
+If the test fails, ask the user to verify their Elasticsearch environment configuration.
 
 ## Out of Memory Errors
 
 Reduce buffer size:
 
 ```bash
-{baseDir}/scripts/ingest.js --file data.json --target my-index --buffer-size 2048
+node scripts/ingest.js ingest --file data.json --target my-index --buffer-size 2048
 ```
 
 ## Transform Function Not Loading
@@ -48,7 +46,7 @@ function transform(doc) {
 Delete and recreate the index:
 
 ```bash
-{baseDir}/scripts/ingest.js \
+node scripts/ingest.js ingest \
   --file data.json \
   --target my-index \
   --mappings mappings.json \
@@ -59,10 +57,9 @@ Delete and recreate the index:
 
 Check these common causes:
 
-1. **Network latency**: Use `--search-size 50` for smaller batches
-2. **Large documents**: Reduce `--buffer-size`
-3. **Complex transforms**: Simplify transform logic
-4. **Elasticsearch load**: Check cluster health and indexing queue
+1. **Large documents**: Reduce `--buffer-size`
+2. **Complex transforms**: Simplify transform logic
+3. **Elasticsearch load**: Check cluster health and indexing queue
 
 ## Stall Warnings
 
@@ -70,13 +67,13 @@ If you see stall warnings, the ingestion is pausing due to backpressure:
 
 ```bash
 # Increase stall warning threshold
-{baseDir}/scripts/ingest.js \
+node scripts/ingest.js ingest \
   --file data.json \
   --target my-index \
   --stall-warn-seconds 60
 
 # Debug pause/resume events
-{baseDir}/scripts/ingest.js \
+node scripts/ingest.js ingest \
   --file data.json \
   --target my-index \
   --debug-events
@@ -97,7 +94,7 @@ cat > csv-options.json << 'EOF'
 }
 EOF
 
-{baseDir}/scripts/ingest.js \
+node scripts/ingest.js ingest \
   --file data.csv \
   --source-format csv \
   --csv-options csv-options.json \
@@ -106,12 +103,10 @@ EOF
 
 ## Authentication Errors
 
-Verify credentials:
+Run the built-in connection test to verify credentials and connectivity:
 
 ```bash
-# Test API key
-curl -H "Authorization: ApiKey $API_KEY" https://es.example.com:9200/_cluster/health
-
-# Test basic auth
-curl -u "username:password" https://es.example.com:9200/_cluster/health
+node scripts/ingest.js test
 ```
+
+If the test fails, ask the user to verify their Elasticsearch credentials and environment configuration.
