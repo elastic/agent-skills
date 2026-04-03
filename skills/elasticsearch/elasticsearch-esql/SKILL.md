@@ -45,60 +45,11 @@ ES|QL uses pipes (`|`) to chain commands:
 
 ### Environment Configuration
 
-Elasticsearch connection is configured via environment variables. Run `node scripts/esql.js test` to verify the
-connection. If the test fails, suggest these setup options to the user, then stop. Do not try to explore further until a
-successful connection test.
+See [Environment Setup](references/environment-setup.md) for full connection configuration options (Elastic Cloud,
+direct URL, basic auth, local development).
 
-#### Option 1: Elastic Cloud (recommended for production)
-
-```bash
-export ELASTICSEARCH_CLOUD_ID="deployment-name:base64encodedcloudid"
-export ELASTICSEARCH_API_KEY="base64encodedapikey"
-```
-
-#### Option 2: Direct URL with API Key
-
-```bash
-export ELASTICSEARCH_URL="https://elasticsearch:9200"
-export ELASTICSEARCH_API_KEY="base64encodedapikey"
-```
-
-#### Option 3: Basic Authentication
-
-```bash
-export ELASTICSEARCH_URL="https://elasticsearch:9200"
-export ELASTICSEARCH_USERNAME="elastic"
-export ELASTICSEARCH_PASSWORD="changeme"
-```
-
-#### Option 4: Local Development with start-local
-
-For local development and testing, use [start-local](https://github.com/elastic/start-local) to quickly spin up
-Elasticsearch and Kibana using Docker or Podman:
-
-```bash
-curl -fsSL https://elastic.co/start-local | sh
-```
-
-After installation completes, Elasticsearch runs at `http://localhost:9200` and Kibana at `http://localhost:5601`. The
-script generates a random password for the `elastic` user and an API key, both stored in the `.env` file inside the
-created `elastic-start-local` folder.
-
-To configure the environment variables for this skill, source the `.env` file and export the connection settings:
-
-```bash
-source elastic-start-local/.env
-export ELASTICSEARCH_URL="$ES_LOCAL_URL"
-export ELASTICSEARCH_API_KEY="$ES_LOCAL_API_KEY"
-```
-
-Then run `node scripts/esql.js test` to verify the connection.
-
-#### Optional: Skip TLS verification (development only)
-
-```bash
-export ELASTICSEARCH_INSECURE="true"
-```
+Run `node scripts/esql.js test` to verify the connection. If the test fails, refer the user to the environment setup
+guide, then stop. Do not try to explore further until a successful connection test.
 
 ## Usage
 
@@ -152,6 +103,11 @@ node scripts/esql.js test
    `application_logs`. Field names may use ECS dotted notation (`source.ip`, `service.name`) or flat custom names — the
    only way to know is to check.
 
+   **Prefer simplicity:** Query a single index unless the user explicitly asks for data across multiple sources. Do not
+   combine indices with different schemas using `COALESCE` unless specifically requested — pick the single most relevant
+   index for the question. When multiple indices contain similar data, prefer the one with the most complete schema for
+   the task at hand.
+
    The `schema` command reports the index mode. If it shows `Index mode: time_series`, the output includes the data
    stream name and copy-pasteable TS syntax — use `TS <data-stream>` (not `FROM`), `TBUCKET(interval)` (not
    `DATE_TRUNC`), and wrap counter fields with `SUM(RATE(...))`. Read the full TS section in
@@ -167,7 +123,8 @@ node scripts/esql.js test
    - "find patterns," "categorize," "group similar messages" → `CATEGORIZE(field)`
    - "spike," "dip," "anomaly," "when did X change" → `CHANGE_POINT value ON key`
    - "trend over time," "time series" → `STATS ... BY BUCKET(@timestamp, interval)` or `TS` for TSDB
-   - "search," "find documents matching" → `MATCH`, `QSTR`, `KQL`
+   - "search," "find documents matching" → `MATCH` (default), `QSTR` (advanced boolean), `KQL` (Kibana migration). For
+     content/document relevance search, follow the [ES|QL Search Strategy](references/esql-search-strategy.md)
    - "count," "average," "breakdown" → `STATS` with aggregation functions
 
 4. **Read the references** before generating queries:
@@ -176,9 +133,15 @@ node scripts/esql.js test
    - [Time Series Queries](references/time-series-queries.md) - **read before any TS query**: inner/outer aggregation
      model, TBUCKET syntax, RATE constraints
    - [ES|QL Complete Reference](references/esql-reference.md) - full syntax for all commands and functions
-   - [ES|QL Search Reference](references/esql-search.md) — for full-text search queries (MATCH, QSTR, KQL, scoring)
+   - [ES|QL Search Strategy](references/esql-search-strategy.md) — for content/document relevance search (retrieve →
+     fuse → rerank)
+   - [ES|QL Search Reference](references/esql-search.md) — for full-text search function syntax (MATCH, QSTR, KQL,
+     scoring)
 
-5. **Generate the query** following ES|QL syntax:
+5. **Generate the query** following ES|QL syntax. Prefer the **simplest query** that answers the question — do not add
+   extra indices, fields, or transformations unless the user asks for them. Only include fields in `KEEP` that directly
+   answer the question. Do not add extra filter conditions beyond what the user specified (e.g., don't add
+   `OR level == "ERROR"` when the user just said "errors").
    - Start with `FROM index-pattern` (or `TS index-pattern` for time series indices)
    - Add `WHERE` for filtering (use `TRANGE` for time ranges on 9.3+)
    - Use `EVAL` for computed fields
@@ -240,14 +203,43 @@ FROM web-logs
 | LIMIT 10
 ```
 
-**Text search:** Use `MATCH`, `QSTR`, or `KQL` for full-text search instead of `LIKE`/`RLIKE` — they are significantly
-faster and support relevance scoring. See [ES|QL Search Reference](references/esql-search.md) for the full guide.
+**Text search (8.17+):** Use `MATCH` as the default for full-text search instead of `LIKE`/`RLIKE` — it is significantly
+faster and supports relevance scoring. `MATCH` on a `text` field is usually sufficient on its own — do not add redundant
+keyword equality filters (e.g., `category == "X"`) alongside `MATCH` unless the user explicitly requests filtering. Use
+`QSTR` only when you need advanced boolean logic, wildcards, or multi-field searches in a single expression. The first
+argument to `MATCH` must be **one** real field name — not a string listing several fields (e.g. `"title,content"`) and
+not multiple field arguments; combine fields with `MATCH(a, "q") OR MATCH(b, "q")`. `KQL` is available from 8.18/9.0+.
+For content/document search use cases, follow the [ES|QL Search Strategy](references/esql-search-strategy.md). See
+[ES|QL Search Reference](references/esql-search.md) for the full function guide.
 
 ```esql
 FROM documents METADATA _score
 | WHERE MATCH(content, "search terms")
 | SORT _score DESC
 | LIMIT 20
+```
+
+**String extraction:** Use `DISSECT` for structured delimiter-based patterns (preferred — produces named fields) and
+`GROK` for regex-based extraction. For simple cases, `SUBSTRING(s, start, len)` for fixed-position extraction,
+`SPLIT(s, delim)` to split into a multivalue, `LOCATE(substr, s)` to find a character position. `SPLIT` returns a
+multivalue — use `MV_FIRST`, `MV_LAST`, or `MV_SLICE` to pick elements. `INSTR` and `STRPOS` do **not** exist — use
+`LOCATE`. `REGEXP_EXTRACT` does not exist — use `GROK`.
+
+```esql
+// Extract domain from email using DISSECT (preferred — produces named fields)
+FROM customers
+| DISSECT email "%{local}@%{domain}"
+| STATS count = COUNT(*) BY domain
+
+// Alternative: extract domain from email using SPLIT
+FROM customers
+| EVAL domain = MV_LAST(SPLIT(email, "@"))
+| STATS count = COUNT(*) BY domain
+
+// Parse HTTP log lines
+FROM logs-*
+| DISSECT message "%{method} %{path} %{status_text}"
+| KEEP @timestamp, method, path, status_text
 ```
 
 **Log categorization (Platinum license):** Use `CATEGORIZE` to auto-cluster log messages into pattern groups. Prefer
@@ -272,7 +264,8 @@ FROM logs-*
 | WHERE type IS NOT NULL
 ```
 
-**Time series metrics:**
+**Time series metrics:** With `TS`, use `TRANGE` for time filtering (9.3+) or omit it entirely — do **not** add a
+redundant `WHERE @timestamp > NOW() - ...` alongside `TBUCKET`. The `TBUCKET` duration defines the aggregation window.
 
 ```esql
 // Counter metric: SUM(RATE(...)) with TBUCKET(duration)
@@ -286,14 +279,28 @@ TS metrics-tsds
 | SORT bucket
 ```
 
-**Data enrichment with LOOKUP JOIN:** Use `RENAME` when the join key has a different name in the source vs the lookup
-index. Use multiple fields in `ON` when the lookup table has a composite key.
+**Data enrichment with LOOKUP JOIN:** The basic `ON` clause matches fields by name in both indices
+(`LOOKUP JOIN idx ON field_name`). When the join key has a different name in the source, use `RENAME` first to align
+names. 9.2+ tech preview also supports expression predicates (`ON expr == expr`); see
+[ES|QL Complete Reference](references/esql-reference.md) for details. After `LOOKUP JOIN`, lookup columns are available
+by their **original field names** — do **not** table-qualify them (e.g., write `threat_level`, not
+`threat_intel.threat_level`). **Ordering tip:** when the question asks for top-N results, `SORT` and `LIMIT` _before_
+`LOOKUP JOIN` to reduce enrichment cost. For general listings or full enrichment, place `LOOKUP JOIN` right after
+`FROM`/`WHERE`.
 
 ```esql
 // Field name mismatch — RENAME before joining
 FROM support_tickets
 | RENAME product AS product_name
 | LOOKUP JOIN knowledge_base ON product_name
+
+// Aggregate, limit, THEN enrich (top-N only)
+FROM orders
+| STATS total_spent = SUM(total) BY customer_id
+| SORT total_spent DESC
+| LIMIT 3
+| LOOKUP JOIN customers_lookup ON customer_id
+| KEEP name, customer_id, total_spent
 
 // Multi-field join (9.2+)
 FROM application_logs
@@ -336,11 +343,14 @@ For complete ES|QL syntax including all commands, functions, and operators, read
 - [ES|QL Complete Reference](references/esql-reference.md)
 - [ES|QL Search Reference](references/esql-search.md) - Full-text search: MATCH, QSTR, KQL, MATCH_PHRASE, scoring,
   semantic search
+- [ES|QL Search Strategy](references/esql-search-strategy.md) - Relevance search strategy for content indices: retrieve
+  → fuse → rerank
 - [ES|QL Version History](references/esql-version-history.md) - Feature availability by Elasticsearch version
 - [Query Patterns](references/query-patterns.md) - Natural language to ES|QL translation
 - [Generation Tips](references/generation-tips.md) - Best practices for query generation
 - [Time Series Queries](references/time-series-queries.md) - TS command, time series aggregation functions, TBUCKET
 - [DSL to ES|QL Migration](references/dsl-to-esql-migration.md) - Convert Query DSL to ES|QL
+- [Environment Setup](references/environment-setup.md) - Connection configuration options
 
 ## Error Handling
 

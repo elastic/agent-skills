@@ -1,12 +1,12 @@
 # ES|QL Full-Text Search Reference
 
-Full-text search in ES|QL uses analyzer-aware functions that leverage Lucene's inverted index for fast, relevance-ranked
-text retrieval. Use these instead of `LIKE`/`RLIKE` for searching natural language content — they are 50–1000x faster on
-large datasets.
+Full-text search in ES|QL uses analyzer-aware functions for fast, relevance-ranked text retrieval. Use these instead of
+`LIKE`/`RLIKE` for searching natural language content — they are significantly faster on large datasets.
 
-> **Version:** Full-text search functions were introduced in 8.17 (tech preview) and became GA in 9.1. Scoring via
-> `METADATA _score` is available from 8.18/9.0. See [esql-version-history.md](esql-version-history.md) for the full
-> timeline.
+> **Version:** `MATCH` and `QSTR` were introduced in 8.17 (preview) and became GA in 8.19/9.1. `KQL` and scoring via
+> `METADATA _score` were added in 8.18/9.0 (GA in 8.19/9.1). `MATCH_PHRASE` is 8.19/9.1+. See the version column in the
+> [Functions Overview](#functions-overview) table and [esql-version-history.md](esql-version-history.md) for
+> per-function availability.
 
 ## Table of Contents
 
@@ -36,7 +36,8 @@ Use full-text search functions (`MATCH`, `QSTR`, `KQL`, `MATCH_PHRASE`) when:
 
 - Searching natural-language text (log messages, descriptions, titles, comments)
 - Relevance ranking matters (most relevant results first)
-- You need analyzer features: case-insensitive matching, stemming, synonyms, fuzzy matching
+- You need analyzer features on `text` fields: case-insensitive matching, stemming, synonyms, fuzzy matching (note:
+  analyzer features do **not** apply to `semantic_text` fields)
 - Searching multivalued text fields
 - Performance matters on large datasets
 
@@ -71,6 +72,13 @@ MATCH(field, query)
 MATCH(field, query, {"option": value})
 ```
 
+> **One field per `MATCH`:** The first argument must be a **single field from the index mapping** (an identifier such as
+> `title` or `content`), not a string literal and not a comma-separated list. **`MATCH("title,content", "q")` is
+> invalid** — that is not a real field name. To search several text fields, use separate calls combined with `OR` (for
+> example `MATCH(title, "q") OR MATCH(body, "q")`) or use `QSTR` / `KQL` for a multi-field query string.
+> **`MATCH(title, body, "phrase")` is invalid** — the second argument is the query text; the optional third is the
+> options map, not another field.
+
 ### Basic Examples
 
 ```esql
@@ -95,30 +103,32 @@ FROM docs METADATA _score
 
 ### Named Parameters
 
-All parameters are optional.
+All parameters are optional. Analyzer-related parameters (`analyzer`, `fuzziness`,
+`auto_generate_synonyms_phrase_query`) only apply to `text` fields — they have no effect on `semantic_text` fields.
 
-| Parameter                             | Type    | Default | Description                                        |
-| ------------------------------------- | ------- | ------- | -------------------------------------------------- |
-| `operator`                            | keyword | `"OR"`  | Boolean logic between terms: `"OR"` or `"AND"`     |
-| `fuzziness`                           | varies  | none    | Edit distance: `"AUTO"`, `0`, `1`, `2`             |
-| `analyzer`                            | keyword | field's | Override the query-time analyzer                   |
-| `boost`                               | float   | `1.0`   | Relevance score multiplier                         |
-| `minimum_should_match`                | varies  | none    | Min terms that must match (number or percentage)   |
-| `fuzzy_transpositions`                | boolean | `true`  | Allow ab→ba swaps in fuzzy matching                |
-| `max_expansions`                      | integer | —       | Max terms for fuzzy/prefix expansion               |
-| `fuzzy_rewrite`                       | keyword | —       | Rewrite method for fuzzy queries                   |
-| `prefix_length`                       | integer | —       | Leading chars unchanged in fuzzy matching          |
-| `lenient`                             | boolean | `false` | Ignore format errors (text query on numeric field) |
-| `zero_terms_query`                    | keyword | —       | Behavior when analyzer removes all tokens          |
-| `auto_generate_synonyms_phrase_query` | boolean | `true`  | Auto-create phrase queries for multi-term synonyms |
+| Parameter                             | Type    | Default | Description                                           |
+| ------------------------------------- | ------- | ------- | ----------------------------------------------------- |
+| `operator`                            | keyword | `"OR"`  | Boolean logic between terms: `"OR"` or `"AND"`        |
+| `fuzziness`                           | varies  | none    | Edit distance: `"AUTO"`, `0`, `1`, `2`                |
+| `analyzer`                            | keyword | field's | Override the query-time analyzer (`text` fields only) |
+| `boost`                               | float   | `1.0`   | Relevance score multiplier                            |
+| `minimum_should_match`                | varies  | none    | Min terms that must match (number or percentage)      |
+| `fuzzy_transpositions`                | boolean | `true`  | Allow ab→ba swaps in fuzzy matching                   |
+| `max_expansions`                      | integer | —       | Max terms for fuzzy/prefix expansion                  |
+| `fuzzy_rewrite`                       | keyword | —       | Rewrite method for fuzzy queries                      |
+| `prefix_length`                       | integer | —       | Leading chars unchanged in fuzzy matching             |
+| `lenient`                             | boolean | `false` | Ignore format errors (text query on numeric field)    |
+| `zero_terms_query`                    | keyword | —       | Behavior when analyzer removes all tokens             |
+| `auto_generate_synonyms_phrase_query` | boolean | `true`  | Auto-create phrase queries for multi-term synonyms    |
 
 ### Supported Field Types
 
 `text`, `semantic_text`, `keyword`, `boolean`, `date`, `date_nanos`, `double`, `integer`, `long`, `unsigned_long`, `ip`,
 `version`.
 
-> **Semantic search:** When MATCH targets a `semantic_text` field, it automatically performs semantic (vector) search
-> instead of lexical search. No syntax change needed.
+> **Semantic search:** `MATCH` is **required** for searching `semantic_text` fields — it automatically performs semantic
+> (vector) search instead of lexical search. No syntax change needed. Other full-text functions (`QSTR`, `KQL`,
+> `MATCH_PHRASE`) do **not** support `semantic_text`.
 
 ---
 
@@ -314,7 +324,9 @@ FROM logs-*
 
 ## Relevance Scoring
 
-Full-text functions produce relevance scores using BM25. Scoring must be explicitly requested.
+Full-text functions produce relevance scores. For lexical search on `text` fields, scoring uses BM25. For semantic
+search on `semantic_text` fields, scoring is based on vector similarity. For hybrid search via `FUSE`, scores are
+combined using the selected fusion method (RRF or linear). Scoring must be explicitly requested.
 
 ### Enabling Scores
 
@@ -404,12 +416,15 @@ FROM index METADATA _id, _index, _score
 
 **Rules:**
 
-1. `METADATA _id, _index, _score` must be in the `FROM` clause — FUSE requires all three
+1. `METADATA _id, _index, _score` must be in the `FROM` clause — FUSE requires all three. The same `METADATA _index`
+   declaration is required **before** you filter on `_index` inside a branch (for example `WHERE _index LIKE "logs-*"`).
+   Without `METADATA _index`, `_index` is not a valid column.
 2. Each branch uses `WHERE MATCH(...)` inside parentheses — not a bare `MATCH` command
 3. Each branch should `SORT _score DESC` to feed ranked results into FUSE
 4. FUSE supports two methods: `rrf` (Reciprocal Rank Fusion, default) and `linear` (weighted linear combination with
    optional `minmax` score normalization and per-branch `weights`)
 5. The `_fork` column in results indicates which branch(es) matched each document
+6. A maximum of 8 forks are allowed
 
 ### Examples
 
@@ -438,6 +453,7 @@ FROM docs METADATA _id, _index, _score
     (WHERE MATCH(content, "query optimization") | SORT _score DESC | LIMIT 20)
     (WHERE semantic_content : "how to speed up database queries" | SORT _score DESC | LIMIT 20)
     (WHERE KNN(embedding, TEXT_EMBEDDING("query optimization", "my-endpoint")) | SORT _score DESC | LIMIT 20)
+| DROP embedding
 | FUSE
 | SORT _score DESC
 | LIMIT 10
@@ -536,11 +552,13 @@ Extract the best-matching text snippets from a field:
 ```esql
 FROM articles METADATA _score
 | WHERE MATCH(content, "elasticsearch performance")
-| EVAL snippets = TOP_SNIPPETS(content, "elasticsearch performance", {"num_snippets": 3})
+| EVAL snippets = TOP_SNIPPETS(content, "elasticsearch performance", {"num_snippets": 3, "num_words": 50})
 | KEEP title, snippets, _score
 | SORT _score DESC
 | LIMIT 10
 ```
+
+Options: `num_snippets` (number of snippets to return), `num_words` (max words per snippet).
 
 ### DECAY — Distance-Based Scoring (9.3+, preview)
 
@@ -671,9 +689,11 @@ FROM logs-*
 
 ## Interaction with Text Analyzers
 
-Full-text search functions automatically use the field's configured analyzer at both index time and query time.
+Full-text search functions automatically use the field's configured analyzer at both index time and query time. **These
+analyzer features apply to `text` fields only — they do not apply to `semantic_text` fields**, which use vector-based
+similarity instead of token analysis.
 
-**Analyzer-powered capabilities:**
+**Analyzer-powered capabilities (text fields only):**
 
 - **Case-insensitive matching** — analyzers typically lowercase tokens
 - **Stemming** — "running" matches "run", "runs", "ran"
@@ -681,7 +701,7 @@ Full-text search functions automatically use the field's configured analyzer at 
 - **Synonyms** — configured synonym mappings are applied
 - **ASCII folding** — "café" matches "cafe"
 
-**Override the analyzer** at query time using the `analyzer` parameter:
+**Override the analyzer** at query time using the `analyzer` parameter (text fields only):
 
 ```esql
 FROM logs-*

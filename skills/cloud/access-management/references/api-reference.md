@@ -34,6 +34,9 @@ with `manage_security` privileges.
 
 ## Organization Discovery
 
+> **Official API docs:**
+> [List organizations](https://www.elastic.co/docs/api/doc/cloud/operation/operation-list-organizations)
+
 ### Get organizations
 
 ```text
@@ -63,6 +66,13 @@ curl -s -H "Authorization: ApiKey $EC_API_KEY" \
 ---
 
 ## Organization Members
+
+> **Official API docs:**
+> [List members](https://www.elastic.co/docs/api/doc/cloud/operation/operation-list-organization-members) ·
+> [Invite users](https://www.elastic.co/docs/api/doc/cloud/operation/operation-create-organization-invitations) ·
+> [List invitations](https://www.elastic.co/docs/api/doc/cloud/operation/operation-list-organization-invitations) ·
+> [Delete invitations](https://www.elastic.co/docs/api/doc/cloud/operation/operation-delete-organization-invitations) ·
+> [Remove members](https://www.elastic.co/docs/api/doc/cloud/operation/operation-delete-organization-memberships)
 
 ### List members
 
@@ -193,6 +203,10 @@ curl -s -X DELETE -H "Authorization: ApiKey $EC_API_KEY" \
 
 ## Role Assignments
 
+> **Official API docs:**
+> [Add role assignments](https://www.elastic.co/docs/api/doc/cloud/operation/operation-add-role-assignments) ·
+> [Remove role assignments](https://www.elastic.co/docs/api/doc/cloud/operation/operation-remove-role-assignments)
+
 ### Add role assignments to a user
 
 ```text
@@ -234,7 +248,13 @@ curl -s -X POST \
 
 ```json
 {
-  "organization": [{ "role_id": "<org-role-id>" }],
+  "organization": [
+    {
+      "role_id": "<org-role-id>",
+      "organization_id": "<org-id>",
+      "application_roles": ["<predefined-or-custom-role>"]
+    }
+  ],
   "deployment": [
     {
       "role_id": "<deployment-role-id>",
@@ -274,9 +294,27 @@ curl -s -X POST \
 For project-scoped assignments that include `application_roles`, use project-type-specific viewer role IDs:
 `elasticsearch-viewer`, `observability-viewer`, `security-viewer` (not the generic `viewer`).
 
-**`application_roles`** (optional, array of strings): When provided, the user is granted these application roles (custom
-roles created in the project) when signing into the project, instead of the default stack role mapped to `role_id`.
-Serverless only. The custom role must already exist in the project (created via `PUT /_security/role/{name}`).
+**`application_roles`** (optional, array of strings): Specifies which ES/Kibana roles to grant. Accepts predefined role
+names (`admin`, `developer`, `viewer`, and solution-specific roles) or custom role names created in the project via
+`PUT /_security/role/{name}`. Serverless only. Behavior depends on the principal type:
+
+- **For users:** When set on a project-scoped assignment, the user receives these roles when signing into the project
+  instead of the default stack role mapped to `role_id`.
+- **For API keys:** Grants ES/Kibana API access. Unlike users, API keys **never** inherit stack roles from `role_id` —
+  `application_roles` must be explicitly provided. If omitted or empty, the API key has Cloud API access only and
+  receives 403 Forbidden when calling ES/Kibana endpoints.
+- **On organization scope:** Grants the specified roles across **all projects (current and future)** in the
+  organization. Supported for API keys.
+
+> **Broad access warning:** Organization-scoped `application_roles` is the broadest possible data-plane scope — it
+> grants ES/Kibana access to every project in the organization, including projects created after the key. Use
+> project-scoped assignments when the key only needs access to specific projects. Reserve org-scoped `application_roles`
+> for platform automation keys that genuinely require cross-project access.
+>
+> **Custom roles with org scope:** When using a custom role name in `application_roles`, the role must be defined in
+> each project where the key should have access (via `PUT /_security/role/{name}`). If a project does not have that
+> role, the key silently gets no access there — no error is raised. Predefined roles (`admin`, `developer`, `viewer`)
+> are available in every project by default and do not have this limitation.
 
 > **Security:** When using `application_roles`, the user automatically receives Viewer-level Cloud access for the
 > project. Do not also assign a predefined Cloud role (such as `viewer`) for the same project as a separate role
@@ -320,6 +358,10 @@ Uses the same body schema as `POST`. Removes the specified role assignments from
 
 ## Cloud API Keys
 
+> **Official API docs:** [Create API key](https://www.elastic.co/docs/api/doc/cloud/operation/operation-create-api-key)
+> · [List API keys](https://www.elastic.co/docs/api/doc/cloud/operation/operation-get-api-keys) ·
+> [Delete API keys](https://www.elastic.co/docs/api/doc/cloud/operation/operation-delete-api-keys)
+
 Only Organization owners (`organization-admin` role) can create and manage Cloud API keys. Non-owner requests
 return 403.
 
@@ -352,13 +394,69 @@ curl -s -X POST \
   }'
 ```
 
+**Project-scoped API key with ES access** (grants developer access to all Elasticsearch projects):
+
+```bash
+curl -s -X POST \
+  -H "Authorization: ApiKey $EC_API_KEY" \
+  -H "Content-Type: application/json" \
+  "https://api.elastic-cloud.com/api/v1/users/auth/keys" \
+  -d '{
+    "description": "CI pipeline with ES access",
+    "expiration": "30d",
+    "role_assignments": {
+      "project": {
+        "elasticsearch": [
+          {
+            "role_id": "developer",
+            "organization_id": "'"$ORG_ID"'",
+            "all": true,
+            "application_roles": ["developer"]
+          }
+        ]
+      }
+    }
+  }'
+```
+
+**Organization-scoped API key with ES access** (grants admin access to ALL current and future projects):
+
+```bash
+curl -s -X POST \
+  -H "Authorization: ApiKey $EC_API_KEY" \
+  -H "Content-Type: application/json" \
+  "https://api.elastic-cloud.com/api/v1/users/auth/keys" \
+  -d '{
+    "description": "Platform automation key",
+    "expiration": "7d",
+    "role_assignments": {
+      "organization": [
+        {
+          "role_id": "organization-admin",
+          "organization_id": "'"$ORG_ID"'",
+          "application_roles": ["admin"]
+        }
+      ]
+    }
+  }'
+```
+
+> **Caution:** This grants admin-level ES/Kibana access to every project in the organization, including projects created
+> after the key. Use project-scoped assignments for narrower access.
+
 **Request body fields:**
 
-| Field              | Type   | Required | Description                                                    |
-| ------------------ | ------ | -------- | -------------------------------------------------------------- |
-| `description`      | string | No       | Human-readable label for the key                               |
-| `expiration`       | string | No       | Duration string (for example, `1d`, `30d`, `3h`). Default: 3mo |
-| `role_assignments` | object | No       | Roles scoped to the key (same schema as above)                 |
+| Field                                                 | Type          | Required | Description                                                                                                                                                                                                                               |
+| ----------------------------------------------------- | ------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description`                                         | string        | No       | Human-readable label for the key                                                                                                                                                                                                          |
+| `expiration`                                          | string        | No       | Duration string (for example, `1d`, `30d`, `3h`). Default: 3mo                                                                                                                                                                            |
+| `role_assignments`                                    | object        | No       | Roles scoped to the key (same schema as above)                                                                                                                                                                                            |
+| `role_assignments.organization[].application_roles`   | array[string] | No       | ES/Kibana role names for stack access across all projects (org-scoped). If omitted or empty, the key has Cloud API access only. Predefined: `admin`, `developer`, `viewer`, and solution-specific roles. Custom role names also accepted. |
+| `role_assignments.project.<type>[].application_roles` | array[string] | No       | ES/Kibana role names for stack access on specific projects (project-scoped). Same values as above. Required for ES/Kibana API calls — without it, the key receives 403.                                                                   |
+
+> **403 on ES/Kibana calls:** If an API key without `application_roles` calls an Elasticsearch or Kibana endpoint, the
+> request returns 403 Forbidden. Unlike users, API keys never inherit stack roles from `role_id`. Add explicit
+> `application_roles` when the key needs data-plane access.
 
 **Response** (201):
 
@@ -409,6 +507,11 @@ curl -s -X DELETE \
 ---
 
 ## Serverless Custom Roles (Elasticsearch Security API)
+
+> **Official API docs:**
+> [Create/update role](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-put-role) ·
+> [Get role](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-role) ·
+> [Delete role](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-role)
 
 These endpoints run against the **project Elasticsearch endpoint**, not the Cloud API. They require an Elasticsearch API
 key or credentials with `manage_security` cluster privilege.

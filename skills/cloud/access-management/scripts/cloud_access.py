@@ -170,6 +170,18 @@ def _project_viewer_role_id(project_type):
     return role_id
 
 
+def _inject_application_roles(role_assignments, app_roles):
+    """Inject application_roles into role assignment entries that lack them."""
+    for entry in role_assignments.get("organization", []):
+        if "application_roles" not in entry:
+            entry["application_roles"] = app_roles
+    project = role_assignments.get("project", {})
+    for project_type in ("elasticsearch", "observability", "security"):
+        for entry in project.get(project_type, []):
+            if "application_roles" not in entry:
+                entry["application_roles"] = app_roles
+
+
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
@@ -215,6 +227,16 @@ def cmd_create_api_key(args):
         body["expiration"] = args.expiration
     if args.roles:
         body["role_assignments"] = json.loads(args.roles)
+    if args.stack_access:
+        if "role_assignments" not in body:
+            _fail(
+                "--stack-access requires --roles to specify the scope "
+                "(project or organization) for the API key."
+            )
+        app_roles = [r.strip() for r in args.stack_access.split(",") if r.strip()]
+        if not app_roles:
+            _fail("--stack-access must specify at least one non-empty role name.")
+        _inject_application_roles(body["role_assignments"], app_roles)
     result = _cloud_request("POST", "/users/auth/keys", body)
     _safe_output(result)
 
@@ -430,13 +452,39 @@ def main():
             "Examples:\n"
             '  %(prog)s --description "CI key" --expiration 30d\n'
             '  %(prog)s --description "Scoped key" --expiration 7d \\\n'
-            """    --roles '{"deployment":[{"role_id":"deployment-viewer","all":true}]}'"""
+            """    --roles '{"deployment":[{"role_id":"deployment-viewer","all":true}]}'\n"""
+            "\n"
+            "  # Cloud + ES API access on specific projects (convenience flag):\n"
+            '  %(prog)s --description "CI with ES" --expiration 30d \\\n'
+            """    --roles '{"project":{"elasticsearch":[{"role_id":"developer","organization_id":"ORG","all":true}]}}' \\\n"""
+            "    --stack-access developer\n"
+            "\n"
+            "  # Cloud + ES API access (raw JSON with application_roles):\n"
+            '  %(prog)s --description "CI with ES" --expiration 30d \\\n'
+            """    --roles '{"project":{"elasticsearch":[{"role_id":"developer","organization_id":"ORG","all":true,"application_roles":["developer"]}]}}'\n"""
+            "\n"
+            "  # Org-scoped with ES admin access to ALL current and future projects:\n"
+            "  # WARNING: grants ES/KB access to every project in the organization\n"
+            '  %(prog)s --description "Platform key" --expiration 7d \\\n'
+            """    --roles '{"organization":[{"role_id":"organization-admin","organization_id":"ORG"}]}' \\\n"""
+            "    --stack-access admin"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--description", default=None, help="Key description")
     p.add_argument("--expiration", default=None, help="Expiration duration (for example, 30d, 3h)")
     p.add_argument("--roles", default=None, help="Role assignments JSON string")
+    p.add_argument(
+        "--stack-access",
+        default=None,
+        help=(
+            "Comma-separated ES/Kibana role names to grant via application_roles. "
+            "Injects into organization and project role assignment entries from "
+            "--roles that lack application_roles (deployment entries are not "
+            "modified). Predefined: admin, developer, viewer. "
+            "Custom roles also accepted."
+        ),
+    )
     p.set_defaults(func=cmd_create_api_key)
 
     # list-api-keys

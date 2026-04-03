@@ -44,7 +44,7 @@ are **IP filters** (type `ip`) and **VPC filters** (type `vpce`).
 - Associate or disassociate filters with Serverless projects (delegates to **cloud-manage-project**)
 - Audit the current network security posture for an organization
 
-## Prerequisites
+## Prerequisites and permissions
 
 | Item            | Description                                                                                 |
 | --------------- | ------------------------------------------------------------------------------------------- |
@@ -54,6 +54,52 @@ are **IP filters** (type `ip`) and **VPC filters** (type `vpce`).
 
 Run `python3 skills/cloud/network-security/scripts/cloud_network_security.py list-filters` to verify that `EC_API_KEY`
 is valid before proceeding with any operation.
+
+### Operation-level permissions
+
+The following permissions are required for common network security operations in Elastic Cloud Serverless.
+
+| Operation                        | Required permission                       |
+| -------------------------------- | ----------------------------------------- |
+| List filters / get metadata      | Any organization member                   |
+| Create / update / delete filters | Organization owner (`organization-admin`) |
+| Associate filters with projects  | Organization owner or project Admin       |
+
+This skill does not perform a separate role pre-check. Attempt the requested operation and let the API enforce
+authorization. If the API returns an authorization error (for example, `403 Forbidden`), stop and ask the user to verify
+the provided API key permissions.
+
+### Manual setup fallback (when cloud-setup is unavailable)
+
+If this skill is installed standalone and `cloud-setup` is not available, instruct the user to configure Cloud
+environment variables manually before running commands. Never ask the user to paste API keys in chat.
+
+| Variable      | Required | Description                                                                          |
+| ------------- | -------- | ------------------------------------------------------------------------------------ |
+| `EC_API_KEY`  | Yes      | Elastic Cloud API key (see permissions table above for required roles by operation). |
+| `EC_BASE_URL` | No       | Cloud API base URL (default: `https://api.elastic-cloud.com`).                       |
+
+> **Note:** If `EC_API_KEY` is missing, or the user does not have a Cloud API key yet, direct the user to generate one
+> at [Elastic Cloud API keys](https://cloud.elastic.co/account/keys), then configure it locally using the steps below.
+
+Preferred method (agent-friendly): create a `.env` file in the project root:
+
+```bash
+EC_API_KEY=your-api-key
+EC_BASE_URL=https://api.elastic-cloud.com
+```
+
+All `cloud/*` scripts auto-load `.env` from the working directory.
+
+Alternative: export directly in the terminal:
+
+```bash
+export EC_API_KEY="<your-cloud-api-key>"
+export EC_BASE_URL="https://api.elastic-cloud.com"
+```
+
+Terminal exports may not be visible to sandboxed agents running in separate shell sessions, so prefer `.env` when using
+an agent.
 
 ## Decomposing Network Security Requests
 

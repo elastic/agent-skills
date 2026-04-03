@@ -36,12 +36,13 @@ For detailed API endpoints and request schemas, see [references/api-reference.md
 - Update a user's roles (org-level or project-level)
 - Remove a user from the organization
 - Create an additional Cloud API key with scoped roles and expiration
+- Create a Cloud API key that can also call Elasticsearch and Kibana APIs on Serverless projects
 - List and revoke Cloud API keys
 - Create a custom role inside a Serverless project with ES cluster, index, and Kibana privileges
 - Assign or remove a custom role for a user on a Serverless project using the Cloud API's `application_roles`
 - Translate a natural-language access request into invite, role, and API key tasks
 
-## Prerequisites
+## Prerequisites and permissions
 
 | Item                 | Description                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -53,6 +54,62 @@ For detailed API endpoints and request schemas, see [references/api-reference.md
 
 Run `python3 skills/cloud/access-management/scripts/cloud_access.py list-members` to verify that `EC_API_KEY` is valid
 and auto-discover the org ID before proceeding with any operation.
+
+### Operation-level permissions
+
+The following permissions are required for common access management operations in Elastic Cloud Serverless.
+
+| Operation                          | Required permission                                            |
+| ---------------------------------- | -------------------------------------------------------------- |
+| Invite / remove members            | Organization owner (`organization-admin`)                      |
+| Assign or remove roles             | Organization owner (`organization-admin`)                      |
+| Create / revoke Cloud API keys     | Organization owner (`organization-admin`)                      |
+| List members, invitations, or keys | Any organization member                                        |
+| Create / delete custom roles       | `manage_security` cluster privilege on the project ES endpoint |
+
+This skill does not perform a separate role pre-check. Attempt the requested operation and let the API enforce
+authorization. If the API returns an authorization error (for example, `403 Forbidden`), stop and ask the user to verify
+the provided API key permissions.
+
+### Manual setup fallback (when cloud-setup is unavailable)
+
+If this skill is installed standalone and `cloud-setup` is not available, instruct the user to configure Cloud
+environment variables manually before running commands. Never ask the user to paste API keys in chat.
+
+| Variable                | Required    | Description                                                                                       |
+| ----------------------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| `EC_API_KEY`            | Yes         | Elastic Cloud API key with Organization owner role.                                               |
+| `EC_BASE_URL`           | No          | Cloud API base URL (default: `https://api.elastic-cloud.com`).                                    |
+| `ELASTICSEARCH_URL`     | Conditional | Elasticsearch URL. Required only for custom role operations.                                      |
+| `ELASTICSEARCH_API_KEY` | Conditional | Elasticsearch API key with `manage_security` privilege. Required only for custom role operations. |
+
+> **Note:** If `EC_API_KEY` is missing, or the user does not have a Cloud API key yet, direct the user to generate one
+> at [Elastic Cloud API keys](https://cloud.elastic.co/account/keys), then configure it locally using the steps below.
+
+Preferred method (agent-friendly): create a `.env` file in the project root:
+
+```bash
+EC_API_KEY=your-api-key
+EC_BASE_URL=https://api.elastic-cloud.com
+# Only needed for custom role operations against the project Elasticsearch endpoint:
+# ELASTICSEARCH_URL=https://<project-id>.es.<region>.elastic-cloud.com
+# ELASTICSEARCH_API_KEY=<your-es-manage-security-api-key>
+```
+
+All `cloud/*` scripts auto-load `.env` from the working directory.
+
+Alternative: export directly in the terminal:
+
+```bash
+export EC_API_KEY="<your-cloud-api-key>"
+export EC_BASE_URL="https://api.elastic-cloud.com"
+# Only needed for custom role operations against the project Elasticsearch endpoint:
+# export ELASTICSEARCH_URL="https://<project-id>.es.<region>.elastic-cloud.com"
+# export ELASTICSEARCH_API_KEY="<your-es-manage-security-api-key>"
+```
+
+Terminal exports may not be visible to sandboxed agents running in separate shell sessions, so prefer `.env` when using
+an agent.
 
 ## Decomposing Access Requests
 
@@ -150,8 +207,8 @@ Elasticsearch security API and assign it to users through the Cloud API's `appli
   `observability-viewer`, or `security-viewer`) and sets `application_roles` to the custom role name. This ensures the
   user can see and access the project in the Cloud console but receives only the custom role's restricted permissions
   inside the project.
-- Cloud API keys (`create-api-key`) currently carry Cloud roles only. Support for assigning custom roles to Cloud API
-  keys is planned and will be documented here once available in production.
+- Cloud API keys can also use `application_roles` to gain ES/Kibana API access on Serverless projects. See
+  [Cloud API Keys — ES and Kibana API Access](#cloud-api-keys--es-and-kibana-api-access) below for details.
 
 ### Canonical custom-role onboarding flow
 
@@ -187,6 +244,88 @@ not available in Serverless.
 
 For advanced DLS/FLS patterns (templated queries, ABAC), see the **elasticsearch-authz** skill.
 
+## Cloud API Keys — ES and Kibana API Access
+
+Cloud API keys can now optionally access Elasticsearch and Kibana APIs on Serverless projects, in addition to the Cloud
+API. This enables a single credential for both control plane (Cloud API) and data plane (ES/Kibana API) operations — for
+example, a CI pipeline that creates a project via Cloud API and then indexes data via ES API.
+
+### How it works
+
+Add `application_roles` to the key's `role_assignments` at creation time. This field accepts an array of predefined role
+names (`admin`, `developer`, `viewer`, and solution-specific roles like `t1_analyst`, `editor`) or custom role names
+created in the project via `PUT /_security/role/{name}`. Predefined roles are available in every project by default.
+Custom roles must be created individually in each project where the key should have access — if a referenced custom role
+does not exist in a project, the key silently gets no access there.
+
+### Critical rule: no implicit inheritance
+
+Unlike users, API keys **never** inherit stack roles from their `role_id`. If `application_roles` is omitted or empty,
+the key has Cloud API access only. Calling an ES or Kibana endpoint with such a key returns **403 Forbidden**. This is
+by design for backward compatibility — existing keys without `application_roles` continue to work as Cloud-only keys.
+
+### Scoping modes
+
+- **Project-scoped** (preferred) — grants access to specific projects or all projects of a given type. Uses the
+  `project` key in `role_assignments` with `application_roles` on each entry. **Use this by default** unless the user
+  explicitly needs cross-project access.
+
+- **Organization-scoped** — grants access to **all current and future projects** in the organization. Uses the
+  `organization` key in `role_assignments` with `application_roles`. **This is the broadest possible data-plane scope.**
+  Only use when the key genuinely needs access to every project (for example, platform automation or cross-project
+  search across the whole org). Always confirm with the user before creating an org-scoped key with `application_roles`,
+  as it grants ES/Kibana access to projects that may not exist yet.
+
+> **Custom roles and org-scoped access:** When using a custom role name in `application_roles` with organization-scoped
+> assignments, the custom role must exist in each project where you want the key to have access. If a project does not
+> have that custom role defined (via `PUT /_security/role/{name}`), the key silently gets no access to that project — no
+> error is raised. For org-wide access, prefer predefined roles (`admin`, `developer`, `viewer`) which are available in
+> every project by default. If you must use custom roles across multiple projects, ensure the role is created in each
+> target project first.
+
+> **Agent guidance:** When a user asks for an API key with ES/Kibana access, default to project-scoped assignments. Only
+> suggest organization-scoped `application_roles` if the user explicitly needs access across all projects. Confirm the
+> intent before proceeding — org-scoped access applies to future projects too. If the user specifies a custom role name
+> with org-scoped access, warn them that the role must be defined in each project individually.
+
+### Examples
+
+**Project-scoped key with developer ES access** (using `--stack-access` convenience flag):
+
+```bash
+python3 skills/cloud/access-management/scripts/cloud_access.py create-api-key \
+  --description "CI pipeline - ES ingest" \
+  --expiration 30d \
+  --roles '{"project":{"elasticsearch":[{"role_id":"developer","organization_id":"$ORG_ID","all":true}]}}' \
+  --stack-access developer
+```
+
+**Organization-scoped key with admin ES access** (access to ALL projects — use with caution):
+
+```bash
+python3 skills/cloud/access-management/scripts/cloud_access.py create-api-key \
+  --description "Platform automation" \
+  --expiration 7d \
+  --roles '{"organization":[{"role_id":"organization-admin","organization_id":"$ORG_ID"}]}' \
+  --stack-access admin
+```
+
+**Project-scoped key with a custom role** (raw JSON):
+
+```bash
+python3 skills/cloud/access-management/scripts/cloud_access.py create-api-key \
+  --description "Marketing ETL" \
+  --expiration 14d \
+  --roles '{"project":{"elasticsearch":[{"role_id":"elasticsearch-viewer","organization_id":"$ORG_ID","all":false,"project_ids":["$PROJECT_ID"],"application_roles":["marketing-writer"]}]}}'
+```
+
+Replace `$ORG_ID` and `$PROJECT_ID` with the actual organization and project IDs. Use `list-members` to discover the org
+ID.
+
+> **Common mistake:** If your API key gets a 403 when calling an ES or Kibana endpoint, the most likely cause is missing
+> `application_roles`. Unlike users, API keys must have explicit `application_roles` to access the stack — the `role_id`
+> alone is not sufficient.
+
 ## Examples
 
 ### Invite a user as a Viewer on a search project
@@ -217,6 +356,23 @@ python3 skills/cloud/access-management/scripts/cloud_access.py create-api-key \
 The actual key value is written to a secure temp file (0600 permissions). The stdout JSON contains a `_secret_file` path
 instead of the raw secret. Tell the user to retrieve the key from that file — it is shown only once. When the CI
 pipeline no longer needs this key, revoke it using `delete-api-key` to avoid unused keys accumulating.
+
+### Create a CI/CD API key with ES access
+
+**Prompt:** "Create an API key for our CI pipeline that can index data into our search projects."
+
+```bash
+python3 skills/cloud/access-management/scripts/cloud_access.py create-api-key \
+  --description "CI pipeline - ES ingest" \
+  --expiration 30d \
+  --roles '{"project":{"elasticsearch":[{"role_id":"developer","organization_id":"$ORG_ID","all":true}]}}' \
+  --stack-access developer
+```
+
+Replace `$ORG_ID` with the actual organization ID. The `--stack-access` flag injects `application_roles: ["developer"]`
+into the role assignments, granting the key developer-level ES/Kibana API access on all Elasticsearch projects. Without
+`--stack-access` (or explicit `application_roles` in the JSON), the key would only have Cloud API access and receive 403
+on ES/Kibana calls.
 
 ### Create a custom role for marketing data
 
