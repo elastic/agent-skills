@@ -8,7 +8,7 @@
       "name": "elastic-elasticsearch",
       "source": {
         "source": "local",
-        "path": "../../skills/elasticsearch"
+        "path": "./skills/elasticsearch"
       },
       "category": "Developer Tools"
     },
@@ -16,7 +16,7 @@
       "name": "elastic-kibana",
       "source": {
         "source": "local",
-        "path": "../../skills/kibana"
+        "path": "./skills/kibana"
       },
       "category": "Developer Tools"
     },
@@ -24,7 +24,7 @@
       "name": "elastic-observability",
       "source": {
         "source": "local",
-        "path": "../../skills/observability"
+        "path": "./skills/observability"
       },
       "category": "Developer Tools"
     },
@@ -32,7 +32,7 @@
       "name": "elastic-security",
       "source": {
         "source": "local",
-        "path": "../../skills/security"
+        "path": "./skills/security"
       },
       "category": "Security"
     },
@@ -40,7 +40,7 @@
       "name": "elastic-cloud",
       "source": {
         "source": "local",
-        "path": "../../skills/cloud"
+        "path": "./skills/cloud"
       },
       "category": "Developer Tools"
     }
