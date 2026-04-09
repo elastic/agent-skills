@@ -170,7 +170,7 @@ The fastest way to install skills is with the [`skills`](https://github.com/verc
 npx skills add elastic/agent-skills
 ```
 
-This launches an interactive prompt to select skills and target agents. The CLI copies each skill folder into the correct location for the agent to discover.
+This launches an interactive prompt to select skills and [target agents](https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents). The CLI copies each skill folder into the correct location for the agent to discover.
 
 Install a specific skill by name:
 
@@ -184,7 +184,7 @@ Or use the `@` shorthand to specify the skill directly as `repo@skill` (equivale
 npx skills add elastic/agent-skills@elasticsearch-esql
 ```
 
-Install to specific agents:
+Install to specific agents (see [supported agents](https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents)):
 
 ```sh
 npx skills add elastic/agent-skills -a cursor -a claude-code
@@ -204,7 +204,7 @@ npx skills add elastic/agent-skills --all
 
 | Flag              | Description                                       |
 | ----------------- | ------------------------------------------------- |
-| `-a, --agent`     | Target specific agents                            |
+| `-a, --agent`     | Target specific agents (see [Supported agents](https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents)) |
 | `-s, --skill`     | Install specific skills by name                   |
 | `-g, --global`    | Install to user home instead of project directory |
 | `-y, --yes`       | Skip confirmation prompts                         |
