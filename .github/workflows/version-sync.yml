@@ -36,11 +36,11 @@ jobs:
         run: |
           output=$(uv run --project scripts/ci-tools ci-tools release sync \
             --manifest .github/.release-manifest.json \
-            --plugin-json skills/elasticsearch/.claude-plugin/plugin.json \
-            --plugin-json skills/kibana/.claude-plugin/plugin.json \
-            --plugin-json skills/observability/.claude-plugin/plugin.json \
-            --plugin-json skills/security/.claude-plugin/plugin.json \
-            --plugin-json skills/cloud/.claude-plugin/plugin.json \
+            --plugin-json plugins/elasticsearch/.claude-plugin/plugin.json \
+            --plugin-json plugins/kibana/.claude-plugin/plugin.json \
+            --plugin-json plugins/observability/.claude-plugin/plugin.json \
+            --plugin-json plugins/security/.claude-plugin/plugin.json \
+            --plugin-json plugins/cloud/.claude-plugin/plugin.json \
             --marketplace-json .claude-plugin/marketplace.json)
 
           echo "$output"

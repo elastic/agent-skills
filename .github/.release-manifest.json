@@ -1,5 +1,5 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "source_repo": "elastic/agent-skills",
   "sandbox_sha": "7773a02cf0dc0fba2793c809c4888ba249066ee4",
   "skills": {
