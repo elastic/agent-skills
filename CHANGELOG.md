@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.2
+
+### Fixes
+
+- Worked around Claude Code validation error on `"skills": "./"` in plugin.json by moving plugin metadata to `plugins/` with symlinked skills directories
+- Fixed CI workflow paths (`version-sync`, `release-check`) to match new `plugins/` layout
+
 ## v0.2.1
 
 ### Updated Skills
