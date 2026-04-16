@@ -1,5 +1,5 @@
 {
-  "version": "0.2.2",
+  "version": "0.2.3",
   "name": "elastic-kibana",
   "description": "Kibana skills - dashboards, alerting rules, connectors, Vega visualizations, Agent Builder, streams, and audit logging",
   "author": {

@@ -1,5 +1,5 @@
 {
-  "version": "0.2.2",
+  "version": "0.2.3",
   "name": "elastic-security",
   "description": "Elastic Security skills - alert triage, case management, detection rule management, and sample data generation",
   "author": {

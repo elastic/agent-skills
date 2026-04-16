@@ -1,31 +1,31 @@
 {
   "plugins": [
     {
-      "version": "0.2.2",
+      "version": "0.2.3",
       "name": "elastic-elasticsearch",
       "source": "./plugins/elasticsearch",
       "description": "Elasticsearch skills — ES|QL queries, data ingestion, security (authn, authz, audit), and troubleshooting"
     },
     {
-      "version": "0.2.2",
+      "version": "0.2.3",
       "name": "elastic-kibana",
       "source": "./plugins/kibana",
       "description": "Kibana skills — dashboards, alerting rules, connectors, Vega visualizations, Agent Builder, streams, and audit logging"
     },
     {
-      "version": "0.2.2",
+      "version": "0.2.3",
       "name": "elastic-observability",
       "source": "./plugins/observability",
       "description": "Elastic Observability skills — OpenTelemetry instrumentation and migration (.NET, Java, Python), LLM observability, log search, SLOs, and service health"
     },
     {
-      "version": "0.2.2",
+      "version": "0.2.3",
       "name": "elastic-security",
       "source": "./plugins/security",
       "description": "Elastic Security skills — alert triage, case management, detection rule management, and sample data generation"
     },
     {
-      "version": "0.2.2",
+      "version": "0.2.3",
       "name": "elastic-cloud",
       "source": "./plugins/cloud",
       "description": "Elastic Cloud skills — project setup, access management, network security, and Serverless project lifecycle"
