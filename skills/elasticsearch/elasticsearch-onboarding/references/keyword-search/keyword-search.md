@@ -22,7 +22,7 @@ Apply this guide when the developer signals:
 - **No semantic intent** — "red shoes" should match documents containing "red" and "shoes", not "crimson sneakers"
 
 Do **not** use this guide when: natural language queries return poor results, user expects meaning-based matching, or
-multilingual semantic similarity is needed. Point them to the semantic-search approach instead.
+multilingual semantic similarity is needed. Point them to the vector-hybrid-search guide instead.
 
 ## 2. Index Mapping
 
@@ -344,5 +344,5 @@ Suggest hybrid or semantic search when:
 - **"Find similar"** — user wants items similar to a selected item, not just keyword overlap.
 - **Synonyms and paraphrasing** — synonym lists are too large or maintenance-heavy.
 
-Direct the developer to the semantic-search guide for vector search, or to hybrid search (combining keyword + vector
-with RRF).
+Direct the developer to the vector-hybrid-search guide for vector search, hybrid search (combining keyword + vector with
+RRF), or using Elasticsearch as a vector store.

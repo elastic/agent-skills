@@ -4,11 +4,12 @@ Elasticsearch connection is configured via environment variables. Run `node scri
 connection. If the test fails, suggest these setup options to the user, then stop. Do not try to explore further until a
 successful connection test.
 
-> **Elastic Cloud Serverless:** After connecting, inspect `GET /`. If `build_flavor` is `"serverless"`, the deployment
-> often reports `version.number` as `8.11.0` — that value does **not** limit which ES|QL features you may use
-> (Serverless tracks current GA and preview ES|QL). Do not downgrade or gate queries based on that version string. For
-> the full rules (including self-managed and snapshot builds), read **Cluster Detection** in [SKILL.md](../SKILL.md) and
-> the **Serverless** callout in [ES|QL Version History](esql-version-history.md).
+> **Elastic Cloud Serverless:** After connecting, inspect `GET /`. If `build_flavor` is `"serverless"`, do **not** use
+> `version.number` to decide which ES|QL features are allowed — Serverless tracks current GA and preview ES|QL, and the
+> reported version follows the main-line / next-minor line (semver-only clients may see it as “latest”). Prefer
+> `build_flavor` for detection and gating. For the full rules (including self-managed and snapshot builds), read
+> **Cluster Detection** in [SKILL.md](../SKILL.md) and the **Serverless** callout in
+> [ES|QL Version History](esql-version-history.md).
 
 ## Option 1: Elastic Cloud (recommended for production)
 

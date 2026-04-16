@@ -22,8 +22,8 @@ Apply this guide when the developer signals:
 - **Multi-attribute filtering** — size, color, availability, shipping options
 
 Do **not** use this guide when: the developer only needs document search without structured attributes — point them to
-keyword or hybrid search. If they need meaning-based "find similar products," combine this with the semantic-search
-approach.
+keyword or hybrid search. If they need meaning-based "find similar products," combine this with the vector-hybrid-search
+guide.
 
 ## 2. Index Mapping
 
@@ -504,7 +504,7 @@ def autocomplete():
 ## 8. When to Upgrade
 
 - **Semantic product search** — When "comfortable headphones for running" should match even without exact keyword
-  overlap. Add a vector field using the semantic-search approach.
-- **Hybrid** — Combine keyword + semantic for the best of both. See the hybrid-search guide.
+  overlap. Add a vector field using the vector-hybrid-search guide.
+- **Hybrid** — Combine keyword + semantic for the best of both. See the vector-hybrid-search guide.
 - **Personalization** — Boost results based on user behavior (clicks, purchases). Requires a signals index and custom
   scoring.

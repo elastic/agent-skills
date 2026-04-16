@@ -1,6 +1,6 @@
 # Chart Types Reference
 
-Complete schema reference for each supported Lens chart type via the Kibana dashboards & visualizations API.
+Complete schema reference for each supported chart type via the Kibana dashboards & visualizations API.
 
 **Supported Chart Types:**
 
@@ -8,10 +8,31 @@ Complete schema reference for each supported Lens chart type via the Kibana dash
 - `xy` — Line, area, bar charts
 - `gauge` — Gauge visualization
 - `heatmap` — Heatmap charts
-- `tagcloud` — Tag/word cloud
-- `datatable` — Data tables
+- `tag_cloud` — Tag/word cloud
+- `data_table` — Data tables
 - `region_map` — Region/choropleth maps
-- `pie`, `donut`, `treemap`, `mosaic`, `waffle` — Partition charts
+- `pie`, `treemap`, `mosaic`, `waffle` — Partition charts (use `pie` with `donut_hole` for donuts: `"s"`, `"m"`, or
+  `"l"`)
+
+## DataView Aggregation Operations
+
+When using `data_view_reference` or `data_view_spec` datasets, the following operations are available:
+
+| Operation            | Description                          | Requires Field |
+| -------------------- | ------------------------------------ | -------------- |
+| `count`              | Document count                       | No             |
+| `average`            | Average value                        | Yes            |
+| `sum`                | Sum of values                        | Yes            |
+| `max`                | Maximum value                        | Yes            |
+| `min`                | Minimum value                        | Yes            |
+| `unique_count`       | Cardinality                          | Yes            |
+| `median`             | Median value                         | Yes            |
+| `standard_deviation` | Standard deviation                   | Yes            |
+| `percentile`         | Percentile (with `percentile` param) | Yes            |
+| `percentile_rank`    | Percentile rank (with `rank` param)  | Yes            |
+| `last_value`         | Last value (with `time_field`)       | Yes            |
+| `date_histogram`     | Time buckets (for x-axis)            | Yes            |
+| `terms`              | Top values (for x-axis/breakdown)    | Yes            |
 
 ## Metric
 
@@ -22,14 +43,13 @@ Single metric value display. Uses a `metrics` (plural) array with `type: "primar
 ```json
 {
   "type": "metric",
-  "dataset": {
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS count = COUNT()"
   },
   "metrics": [
     {
       "type": "primary",
-      "operation": "value",
       "column": "count"
     }
   ]
@@ -41,7 +61,7 @@ Single metric value display. Uses a `metrics` (plural) array with `type: "primar
 ```json
 {
   "type": "metric",
-  "dataset": { "type": "dataView", "id": "90943e30-9a47-11e8-b64d-95841ca0b247" },
+  "data_source": { "type": "data_view_reference", "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247" },
   "metrics": [
     {
       "type": "primary",
@@ -54,15 +74,31 @@ Single metric value display. Uses a `metrics` (plural) array with `type: "primar
 
 **Metric Item Properties:**
 
-| Property     | Type    | Required | Description                                                     |
-| ------------ | ------- | -------- | --------------------------------------------------------------- |
-| `type`       | string  | Yes      | `"primary"` or `"secondary"`                                    |
-| `operation`  | string  | Yes      | `"value"` for ES\|QL, or aggregation name for dataView          |
-| `column`     | string  | ES\|QL   | ES\|QL column name (required when `operation` is `"value"`)     |
-| `field`      | string  | dataView | Field name (required for dataView aggregations needing a field) |
-| `label`      | string  | No       | Display label                                                   |
-| `alignments` | object  | No       | Text alignments (`{ value: "left", labels: "left" }`)           |
-| `fit`        | boolean | No       | Whether to fit the value                                        |
+| Property    | Type   | Required | Description                                                     |
+| ----------- | ------ | -------- | --------------------------------------------------------------- |
+| `type`      | string | Yes      | `"primary"` or `"secondary"`                                    |
+| `operation` | string | dataView | Aggregation name (for dataView only; not used with ES\|QL)      |
+| `column`    | string | ES\|QL   | ES\|QL column name                                              |
+| `field`     | string | dataView | Field name (required for dataView aggregations needing a field) |
+| `label`     | string | No       | Display label                                                   |
+
+**Metric Styling:** Styling is configured at the **config root level** (sibling to `type`, `data_source`, `metrics`),
+not inside `metrics[]`. Uses `primary` and `secondary` sub-objects:
+
+```json
+{
+  "type": "metric",
+  "data_source": { ... },
+  "metrics": [{ "type": "primary", "operation": "count" }],
+  "styling": {
+    "primary": {
+      "position": "bottom",
+      "labels": { "alignment": "left" },
+      "value": { "sizing": "auto", "alignment": "right" }
+    }
+  }
+}
+```
 
 > **Tip:** For ES|QL metrics in dashboards, avoid redundant labels by leaving the panel `title` empty (`""`) and
 > aliasing the column name in ES|QL with backticks (e.g. ``STATS `Total Requests` = COUNT()`` and setting
@@ -70,7 +106,7 @@ Single metric value display. Uses a `metrics` (plural) array with `type: "primar
 
 ## XY Charts
 
-Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
+Line, area, and bar charts. For ES|QL, the `data_source` goes **inside each layer**.
 
 ### Bar Chart
 
@@ -80,12 +116,12 @@ Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
   "layers": [
     {
       "type": "bar",
-      "dataset": {
+      "data_source": {
         "type": "esql",
         "query": "FROM logs | STATS count = COUNT() BY status"
       },
-      "x": { "operation": "value", "column": "status" },
-      "y": [{ "operation": "value", "column": "count" }]
+      "x": { "column": "status" },
+      "y": [{ "column": "count" }]
     }
   ]
 }
@@ -96,15 +132,18 @@ Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
 ```json
 {
   "type": "xy",
+  "axis": {
+    "x": { "scale": "temporal", "domain": { "type": "fit", "rounding": false } }
+  },
   "layers": [
     {
       "type": "line",
-      "dataset": {
+      "data_source": {
         "type": "esql",
-        "query": "FROM logs | STATS count = COUNT() BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
+        "query": "FROM logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS count = COUNT() BY BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
       },
-      "x": { "operation": "value", "column": "bucket" },
-      "y": [{ "operation": "value", "column": "count" }]
+      "x": { "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)", "label": "@timestamp" },
+      "y": [{ "column": "count" }]
     }
   ]
 }
@@ -115,15 +154,18 @@ Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
 ```json
 {
   "type": "xy",
+  "axis": {
+    "x": { "scale": "temporal", "domain": { "type": "fit", "rounding": false } }
+  },
   "layers": [
     {
       "type": "area",
-      "dataset": {
+      "data_source": {
         "type": "esql",
-        "query": "FROM metrics | STATS avg_cpu = AVG(cpu) BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
+        "query": "FROM metrics | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS avg_cpu = AVG(cpu) BY BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
       },
-      "x": { "operation": "value", "column": "bucket" },
-      "y": [{ "operation": "value", "column": "avg_cpu" }]
+      "x": { "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)", "label": "@timestamp" },
+      "y": [{ "column": "avg_cpu" }]
     }
   ]
 }
@@ -134,17 +176,20 @@ Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
 ```json
 {
   "type": "xy",
+  "axis": {
+    "x": { "scale": "temporal", "domain": { "type": "fit", "rounding": false } }
+  },
   "layers": [
     {
       "type": "line",
-      "dataset": {
+      "data_source": {
         "type": "esql",
-        "query": "FROM logs | STATS count = COUNT(), errors = COUNT(CASE(level == \"error\", 1, null)) BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
+        "query": "FROM logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS count = COUNT(), errors = COUNT(CASE(level == \"error\", 1, null)) BY BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
       },
-      "x": { "operation": "value", "column": "bucket" },
+      "x": { "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)", "label": "@timestamp" },
       "y": [
-        { "operation": "value", "column": "count", "label": "Total" },
-        { "operation": "value", "column": "errors", "label": "Errors" }
+        { "column": "count", "label": "Total" },
+        { "column": "errors", "label": "Errors" }
       ]
     }
   ]
@@ -156,16 +201,19 @@ Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
 ```json
 {
   "type": "xy",
+  "axis": {
+    "x": { "scale": "temporal", "domain": { "type": "fit", "rounding": false } }
+  },
   "layers": [
     {
       "type": "line",
-      "dataset": {
+      "data_source": {
         "type": "esql",
-        "query": "FROM logs | STATS count = COUNT() BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend), host"
+        "query": "FROM logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS count = COUNT() BY BUCKET(@timestamp, 75, ?_tstart, ?_tend), host"
       },
-      "x": { "operation": "value", "column": "bucket" },
-      "y": [{ "operation": "value", "column": "count" }],
-      "breakdown_by": { "operation": "value", "column": "host" }
+      "x": { "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)", "label": "@timestamp" },
+      "y": [{ "column": "count" }],
+      "breakdown_by": { "column": "host" }
     }
   ]
 }
@@ -186,77 +234,70 @@ Line, area, and bar charts. For ES|QL, the `dataset` goes **inside each layer**.
 
 ## Gauge
 
-For ES|QL, uses `metric` with `operation: "value"`. Do not pass `min`/`max`/`goal` for ES|QL gauges — the API injects
-defaults.
+For ES|QL, reference the query output column directly. Do not pass `min`/`max`/`goal` for ES|QL gauges — the API injects
+defaults. Do **not** include `operation` in `metric` — it is not a valid property for gauge and will be rejected.
 
 ```json
 {
   "type": "gauge",
-  "dataset": {
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS success_rate = COUNT(CASE(TO_INTEGER(status) == 200, 1, null)) * 100.0 / COUNT()"
   },
-  "metric": {
-    "operation": "value",
-    "column": "success_rate"
-  }
+  "metric": { "column": "success_rate" }
 }
 ```
 
 **Gauge Properties:**
 
-| Property           | Type   | Required | Description          |
-| ------------------ | ------ | -------- | -------------------- |
-| `metric.operation` | string | Yes      | `"value"` for ES\|QL |
-| `metric.column`    | string | Yes      | ES\|QL column name   |
+| Property        | Type   | Required | Description        |
+| --------------- | ------ | -------- | ------------------ |
+| `metric.column` | string | Yes      | ES\|QL column name |
 
 ## Heatmap
 
 ```json
 {
   "type": "heatmap",
-  "dataset": {
+  "data_source": {
     "type": "esql",
-    "query": "FROM logs | STATS count = COUNT() BY hour = DATE_EXTRACT(hour, @timestamp), day = DATE_EXTRACT(dayofweek, @timestamp)"
+    "query": "FROM kibana_sample_data_logs | STATS count = COUNT() BY hour = DATE_EXTRACT(\"hour_of_day\", @timestamp), day = DATE_EXTRACT(\"day_of_week\", @timestamp)"
   },
-  "xAxis": { "operation": "value", "column": "hour" },
-  "yAxis": { "operation": "value", "column": "day" },
-  "metric": { "operation": "value", "column": "count" }
+  "x": { "column": "hour" },
+  "y": { "column": "day" },
+  "metric": { "column": "count" }
 }
 ```
 
 ## Tag Cloud
 
-Uses `tag_by` (not `tag`) and `metric` with `operation: "value"` for ES|QL.
+Uses `tag_by` for the tag dimension and `metric` for the value.
 
 ```json
 {
-  "type": "tagcloud",
-  "dataset": {
+  "type": "tag_cloud",
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS count = COUNT() BY keyword"
   },
-  "tag_by": { "operation": "value", "column": "keyword" },
-  "metric": { "operation": "value", "column": "count" }
+  "tag_by": { "column": "keyword" },
+  "metric": { "column": "count" }
 }
 ```
 
 ## Datatable
 
-For ES|QL, uses `metrics` and `rows` arrays (not `columns`). Each entry uses `{ operation: "value", column: "..." }`.
+For ES|QL, uses `metrics` and `rows` arrays. Each entry uses `{ column: "..." }`.
 
 ```json
 {
-  "type": "datatable",
-  "dataset": {
+  "type": "data_table",
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS count = COUNT(), avg_bytes = AVG(bytes) BY host"
   },
-  "metrics": [
-    { "operation": "value", "column": "count" },
-    { "operation": "value", "column": "avg_bytes" }
-  ],
-  "rows": [{ "operation": "value", "column": "host" }]
+  "metrics": [{ "column": "count" }, { "column": "avg_bytes" }],
+  "rows": [{ "column": "host" }]
 }
 ```
 
@@ -264,37 +305,38 @@ For ES|QL, uses `metrics` and `rows` arrays (not `columns`). Each entry uses `{ 
 
 ```json
 {
-  "type": "datatable",
-  "dataset": { "type": "dataView", "id": "90943e30-9a47-11e8-b64d-95841ca0b247" },
+  "type": "data_table",
+  "data_source": { "type": "data_view_reference", "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247" },
   "metrics": [{ "operation": "count" }, { "operation": "average", "field": "bytes" }],
   "rows": [
     {
       "operation": "terms",
       "fields": ["host.keyword"],
-      "size": 15,
-      "rank_by": { "type": "column", "metric": 0, "direction": "desc" }
+      "limit": 15,
+      "rank_by": { "type": "metric", "metric_index": 0, "direction": "desc" }
     }
   ]
 }
 ```
 
-## Partition (Pie, Donut, Treemap, Mosaic, Waffle)
+## Partition (Pie, Treemap, Mosaic, Waffle)
 
 Partition charts display parts of a whole. Uses a flat structure (no `layers`) with `metrics` for the slice sizes and
 `group_by` for the rings or groupings. The schema is identical for all partition types—simply change `"type": "pie"` to
-`"donut"`, `"treemap"`, `"mosaic"`, or `"waffle"`.
+`"treemap"`, `"mosaic"`, or `"waffle"`. To create a donut, use `"type": "pie"` with `"donut_hole"` set to `"s"`, `"m"`,
+or `"l"`.
 
 **ES|QL Example:**
 
 ```json
 {
   "type": "pie",
-  "dataset": {
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS count = COUNT() BY os"
   },
-  "metrics": [{ "operation": "value", "column": "count" }],
-  "group_by": [{ "operation": "value", "column": "os" }]
+  "metrics": [{ "column": "count" }],
+  "group_by": [{ "column": "os" }]
 }
 ```
 
@@ -303,12 +345,12 @@ Partition charts display parts of a whole. Uses a flat structure (no `layers`) w
 ```json
 {
   "type": "region_map",
-  "dataset": {
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS count = COUNT() BY geo.country_iso_code"
   },
-  "region": { "operation": "value", "column": "geo.country_iso_code" },
-  "metric": { "operation": "value", "column": "count" }
+  "region": { "column": "geo.country_iso_code" },
+  "metric": { "column": "count" }
 }
 ```
 
@@ -319,11 +361,11 @@ Partition charts display parts of a whole. Uses a flat structure (no `layers`) w
 ```json
 {
   "type": "metric",
-  "dataset": {
+  "data_source": {
     "type": "esql",
     "query": "FROM logs | STATS total_events = COUNT(), error_count = COUNT(CASE(level == \"error\", 1, null)) | EVAL error_rate = ROUND(error_count * 100.0 / total_events, 2)"
   },
-  "metrics": [{ "type": "primary", "operation": "value", "column": "error_rate" }]
+  "metrics": [{ "type": "primary", "column": "error_rate" }]
 }
 ```
 
@@ -331,8 +373,25 @@ Partition charts display parts of a whole. Uses a flat structure (no `layers`) w
 
 **Auto buckets (Recommended):**
 
+Do **not** reassign the BUCKET result. Use the full expression as both the `BY` clause and the `column` reference, with
+a `label` for display:
+
 ```esql
-STATS count = COUNT() BY bucket = BUCKET(@timestamp, 75, ?_tstart, ?_tend)
+WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS count = COUNT() BY BUCKET(@timestamp, 75, ?_tstart, ?_tend)
+```
+
+```json
+"x": { "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)", "label": "@timestamp" }
+```
+
+**Important:** Always set `"scale": "temporal"` on the x-axis for time series charts. Without it, Kibana treats the
+bucket column as categorical text and renders unsorted, verbose timestamp strings instead of a proper multilevel time
+axis.
+
+```json
+"axis": {
+  "x": { "scale": "temporal", "domain": { "type": "fit", "rounding": false } }
+}
 ```
 
 **Hourly buckets:**
@@ -351,6 +410,43 @@ STATS count = COUNT() BY bucket = DATE_TRUNC(1 day, @timestamp)
 
 ```esql
 STATS count = COUNT() BY bucket = DATE_TRUNC(5 minutes, @timestamp)
+```
+
+### Number Formatting
+
+Use the `format` property on metrics, y-axis columns, and gauge metrics to display values with proper units.
+
+| Format     | Properties                                                        | Example Output |
+| ---------- | ----------------------------------------------------------------- | -------------- |
+| `bytes`    | `{ "type": "bytes", "decimals": 0 }`                              | 5 KB, 19 KB    |
+| `bits`     | `{ "type": "bits", "decimals": 1 }`                               | 40.2 kbit      |
+| `number`   | `{ "type": "number", "decimals": 2, "compact": true }`            | 5.75K          |
+| `percent`  | `{ "type": "percent", "decimals": 1 }`                            | 42.5%          |
+| `duration` | `{ "type": "duration", "from": "milliseconds", "to": "seconds" }` | 1.5 s          |
+| `custom`   | `{ "type": "custom", "pattern": "0,0.00" }`                       | 5,750.16       |
+
+All formats accept an optional `"suffix"` (e.g., `" /s"` for rate displays).
+
+**Percent formatting:** Two options depending on the value range. `"type": "percent"` expects a decimal fraction (0.425
+→ 42.5%). `{ "type": "number", "decimals": 1, "suffix": "%" }` works when the value is already a whole-number percentage
+(42.5 → 42.5%).
+
+**dataView operation example:**
+
+```json
+{ "operation": "average", "field": "bytes", "format": { "type": "bytes", "decimals": 0 } }
+```
+
+**ES|QL column example:**
+
+```json
+{ "column": "avg_bytes", "format": { "type": "bytes", "decimals": 0 } }
+```
+
+**Gauge metric example:**
+
+```json
+"metric": { "operation": "max", "field": "bytes", "format": { "type": "bytes", "decimals": 0 } }
 ```
 
 ### Filtering in ES|QL

@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 
 /**
- * CRUD operations for Kibana Dashboards and Lens visualizations using the API.
+ * CRUD operations for Kibana Dashboards and Visualizations using the API.
  *
  * Usage:
  *   ./kibana-dashboards.js dashboard get <id>              - Get dashboard definition
  *   ./kibana-dashboards.js dashboard create <file|->       - Create dashboard
  *   ./kibana-dashboards.js dashboard update <id> <file|->  - Update dashboard
+ *   ./kibana-dashboards.js dashboard upsert <id> <file|->  - Create or update dashboard
  *   ./kibana-dashboards.js dashboard delete <id>           - Delete dashboard
  *
- *   ./kibana-dashboards.js lens list [search]              - List Lens visualizations
- *   ./kibana-dashboards.js lens get <id>                   - Get Lens visualization
- *   ./kibana-dashboards.js lens create <file|->            - Create Lens visualization
- *   ./kibana-dashboards.js lens update <id> <file|->       - Update Lens visualization
- *   ./kibana-dashboards.js lens delete <id>                - Delete Lens visualization
+ *   ./kibana-dashboards.js vis list [search]              - List Visualizations
+ *   ./kibana-dashboards.js vis get <id>                   - Get Visualization
+ *   ./kibana-dashboards.js vis create <file|->            - Create Visualization
+ *   ./kibana-dashboards.js vis update <id> <file|->       - Update Visualization
+ *   ./kibana-dashboards.js vis upsert <id> <file|->       - Create or update Visualization
+ *   ./kibana-dashboards.js vis delete <id>                - Delete Visualization
  *
  *   ./kibana-dashboards.js test                            - Test Kibana connection
  */
@@ -221,7 +223,7 @@ async function kibanaFetch(path, options = {}) {
  */
 async function getDashboard(id) {
   return kibanaFetch(`/api/dashboards/${encodeURIComponent(id)}`, {
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
   });
 }
 
@@ -234,6 +236,7 @@ async function getDashboard(id) {
  *   - Flat: { title, panels, ... }
  *   - Wrapped (legacy): { id?, data: { title, panels, ... }, spaces? }
  * The API expects the flat format; this function unwraps if needed.
+ * POST does not accept an id parameter. Use PUT for upserts.
  */
 async function createDashboard(definition) {
   const body = definition.data
@@ -245,7 +248,7 @@ async function createDashboard(definition) {
 
   return kibanaFetch("/api/dashboards", {
     method: "POST",
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
     body: JSON.stringify(body),
   });
 }
@@ -269,7 +272,7 @@ async function updateDashboard(id, definition) {
 
   return kibanaFetch(`/api/dashboards/${encodeURIComponent(id)}`, {
     method: "PUT",
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
     body: JSON.stringify(body),
   });
 }
@@ -281,72 +284,72 @@ async function updateDashboard(id, definition) {
 async function deleteDashboard(id) {
   return kibanaFetch(`/api/dashboards/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
   });
 }
 
 // =============================================================================
-// Lens Visualizations API
+// Visualizations API
 // =============================================================================
 
 /**
- * List Lens visualizations
- * GET /api/visualizations?apiVersion=1&query=&page=&per_page=
+ * List Visualizations
+ * GET /api/visualizations?query=&page=&per_page=
  */
-async function listLensVisualizations(query = "", page = 1, per_page = 100) {
-  const params = new URLSearchParams({ apiVersion: "1", page: String(page), per_page: String(per_page) });
+async function listVisualizations(query = "", page = 1, per_page = 100) {
+  const params = new URLSearchParams({ page: String(page), per_page: String(per_page) });
   if (query) {
     params.set("query", query);
   }
   return kibanaFetch(`/api/visualizations?${params.toString()}`, {
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
   });
 }
 
 /**
- * Get a Lens visualization by ID
- * GET /api/visualizations/:id?apiVersion=1
+ * Get a Visualization by ID
+ * GET /api/visualizations/:id
  */
-async function getLensVisualization(id) {
-  return kibanaFetch(`/api/visualizations/${id}?apiVersion=1`, {
-    headers: { "Elastic-Api-Version": "1" },
+async function getVisualization(id) {
+  return kibanaFetch(`/api/visualizations/${id}`, {
+    headers: { "Elastic-Api-Version": "2023-10-31" },
   });
 }
 
 /**
- * Create a Lens visualization
- * POST /api/visualizations?apiVersion=1
+ * Create a Visualization
+ * POST /api/visualizations
  * Body: visualization definition (without id)
  */
-async function createLensVisualization(definition) {
-  return kibanaFetch("/api/visualizations?apiVersion=1", {
+async function createVisualization(definition) {
+  return kibanaFetch("/api/visualizations", {
     method: "POST",
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
     body: JSON.stringify(definition),
   });
 }
 
 /**
- * Update a Lens visualization
- * PUT /api/visualizations/:id?apiVersion=1
+ * Update a Visualization
+ * PUT /api/visualizations/:id
  * Body: visualization definition
  */
-async function updateLensVisualization(id, definition) {
-  return kibanaFetch(`/api/visualizations/${id}?apiVersion=1`, {
+async function updateVisualization(id, definition) {
+  return kibanaFetch(`/api/visualizations/${id}`, {
     method: "PUT",
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
     body: JSON.stringify(definition),
   });
 }
 
 /**
- * Delete a Lens visualization
- * DELETE /api/visualizations/:id?apiVersion=1
+ * Delete a Visualization
+ * DELETE /api/visualizations/:id
  */
-async function deleteLensVisualization(id) {
-  return kibanaFetch(`/api/visualizations/${id}?apiVersion=1`, {
+async function deleteVisualization(id) {
+  return kibanaFetch(`/api/visualizations/${id}`, {
     method: "DELETE",
-    headers: { "Elastic-Api-Version": "1" },
+    headers: { "Elastic-Api-Version": "2023-10-31" },
   });
 }
 
@@ -422,12 +425,12 @@ function formatDashboard(item) {
   return lines.join("\n");
 }
 
-function formatLensList(response) {
+function formatVisList(response) {
   const items = response.data || [];
   const meta = response.meta || {};
 
   if (!items || items.length === 0) {
-    return "No Lens visualizations found.";
+    return "No Visualizations found.";
   }
 
   const lines = ["ID".padEnd(40) + " | " + "Type".padEnd(15) + " | " + "Title"];
@@ -448,9 +451,9 @@ function formatLensList(response) {
   return lines.join("\n");
 }
 
-function formatLensVisualization(item) {
+function formatVisualization(item) {
   const lines = [];
-  lines.push("=== Lens Visualization ===");
+  lines.push("=== Visualization ===");
   lines.push(`ID: ${item.id}`);
 
   if (item.meta) {
@@ -491,8 +494,8 @@ async function main() {
         await handleDashboard(action, params);
         break;
 
-      case "lens":
-        await handleLens(action, params);
+      case "vis":
+        await handleVis(action, params);
         break;
 
       default:
@@ -535,13 +538,13 @@ async function handleTest() {
       console.log("✗ Dashboards API check failed:", dashResult.error);
     }
 
-    // Check if Lens API is available
-    console.log("\n=== Lens API Check ===");
-    const lensResult = await listLensVisualizations("", 1, 1);
-    if (lensResult.success) {
-      console.log("✓ Lens API is available");
+    // Check if Visualizations API is available
+    console.log("\n=== Visualizations API Check ===");
+    const visResult = await listVisualizations("", 1, 1);
+    if (visResult.success) {
+      console.log("✓ Visualizations API is available");
     } else {
-      console.log("✗ Lens API check failed:", lensResult.error);
+      console.log("✗ Visualizations API check failed:", visResult.error);
     }
   } else {
     console.error("✗ Connection failed:", result.error);
@@ -636,6 +639,33 @@ async function handleDashboard(action, params) {
       break;
     }
 
+    case "upsert": {
+      const id = params[0];
+      const file = params[1];
+
+      if (!id || !file) {
+        console.error("Error: Dashboard ID and definition file/stdin required");
+        console.error("Usage: ./kibana-dashboards.js dashboard upsert <id> <file.json>");
+        process.exit(1);
+      }
+
+      const definition = await loadSpec(file);
+      const result = await updateDashboard(id, definition);
+
+      if (result.success) {
+        console.log("✓ Dashboard upserted successfully!");
+        console.log(`  ID: ${result.data.id}`);
+        console.log(`  Title: ${result.data.data?.title || "Untitled"}`);
+      } else {
+        console.error("Error:", result.error);
+        if (result.details) {
+          console.error("Details:", JSON.stringify(result.details, null, 2));
+        }
+        process.exit(1);
+      }
+      break;
+    }
+
     case "delete":
     case "rm": {
       const id = params[0];
@@ -658,21 +688,21 @@ async function handleDashboard(action, params) {
 
     default:
       console.error(`Unknown dashboard action: ${action}`);
-      console.error("Available actions: get, create, update, delete");
+      console.error("Available actions: get, create, update, upsert, delete");
       process.exit(1);
   }
 }
 
-async function handleLens(action, params) {
+async function handleVis(action, params) {
   switch (action) {
     case "list":
     case "ls": {
       const query = params[0] || "";
-      const result = await listLensVisualizations(query);
+      const result = await listVisualizations(query);
 
       if (result.success) {
-        console.log("=== Lens Visualizations ===\n");
-        console.log(formatLensList(result.data));
+        console.log("=== Visualizations ===\n");
+        console.log(formatVisList(result.data));
       } else {
         console.error("Error:", result.error);
         process.exit(1);
@@ -684,14 +714,14 @@ async function handleLens(action, params) {
       const id = params[0];
       if (!id) {
         console.error("Error: Visualization ID required");
-        console.error("Usage: ./kibana-dashboards.js lens get <id>");
+        console.error("Usage: ./kibana-dashboards.js vis get <id>");
         process.exit(1);
       }
 
-      const result = await getLensVisualization(id);
+      const result = await getVisualization(id);
 
       if (result.success) {
-        console.log(formatLensVisualization(result.data));
+        console.log(formatVisualization(result.data));
       } else {
         console.error("Error:", result.error);
         process.exit(1);
@@ -704,16 +734,16 @@ async function handleLens(action, params) {
 
       if (!file) {
         console.error("Error: Definition file/stdin required");
-        console.error("Usage: ./kibana-dashboards.js lens create <file.json>");
-        console.error('       echo \'{"type":"metric",...}\' | ./kibana-dashboards.js lens create -');
+        console.error("Usage: ./kibana-dashboards.js vis create <file.json>");
+        console.error('       echo \'{"type":"metric",...}\' | ./kibana-dashboards.js vis create -');
         process.exit(1);
       }
 
       const definition = await loadSpec(file);
-      const result = await createLensVisualization(definition);
+      const result = await createVisualization(definition);
 
       if (result.success) {
-        console.log("✓ Lens visualization created successfully!");
+        console.log("✓ Visualization created successfully!");
         console.log(`  ID: ${result.data.id}`);
         console.log(`  Type: ${result.data.data?.type || "unknown"}`);
       } else {
@@ -732,16 +762,42 @@ async function handleLens(action, params) {
 
       if (!id || !file) {
         console.error("Error: Visualization ID and definition file/stdin required");
-        console.error("Usage: ./kibana-dashboards.js lens update <id> <file.json>");
-        console.error('       echo \'{"type":"metric",...}\' | ./kibana-dashboards.js lens update <id> -');
+        console.error("Usage: ./kibana-dashboards.js vis update <id> <file.json>");
+        console.error('       echo \'{"type":"metric",...}\' | ./kibana-dashboards.js vis update <id> -');
         process.exit(1);
       }
 
       const definition = await loadSpec(file);
-      const result = await updateLensVisualization(id, definition);
+      const result = await updateVisualization(id, definition);
 
       if (result.success) {
-        console.log("✓ Lens visualization updated successfully!");
+        console.log("✓ Visualization updated successfully!");
+        console.log(`  ID: ${result.data.id}`);
+      } else {
+        console.error("Error:", result.error);
+        if (result.details) {
+          console.error("Details:", JSON.stringify(result.details, null, 2));
+        }
+        process.exit(1);
+      }
+      break;
+    }
+
+    case "upsert": {
+      const id = params[0];
+      const file = params[1];
+
+      if (!id || !file) {
+        console.error("Error: Visualization ID and definition file/stdin required");
+        console.error("Usage: ./kibana-dashboards.js vis upsert <id> <file.json>");
+        process.exit(1);
+      }
+
+      const definition = await loadSpec(file);
+      const result = await updateVisualization(id, definition);
+
+      if (result.success) {
+        console.log("✓ Visualization upserted successfully!");
         console.log(`  ID: ${result.data.id}`);
       } else {
         console.error("Error:", result.error);
@@ -758,14 +814,14 @@ async function handleLens(action, params) {
       const id = params[0];
       if (!id) {
         console.error("Error: Visualization ID required");
-        console.error("Usage: ./kibana-dashboards.js lens delete <id>");
+        console.error("Usage: ./kibana-dashboards.js vis delete <id>");
         process.exit(1);
       }
 
-      const result = await deleteLensVisualization(id);
+      const result = await deleteVisualization(id);
 
       if (result.success) {
-        console.log("✓ Lens visualization deleted successfully!");
+        console.log("✓ Visualization deleted successfully!");
       } else {
         console.error("Error:", result.error);
         process.exit(1);
@@ -774,35 +830,37 @@ async function handleLens(action, params) {
     }
 
     default:
-      console.error(`Unknown lens action: ${action}`);
-      console.error("Available actions: list, get, create, update, delete");
+      console.error(`Unknown vis action: ${action}`);
+      console.error("Available actions: list, get, create, update, upsert, delete");
       process.exit(1);
   }
 }
 
 function printUsage() {
   console.log(`
-Kibana as Code - Dashboards & Lens Visualizations API
+Kibana as Code - Dashboards & Visualizations API
 
 Usage:
   ./kibana-dashboards.js <resource> <action> [options]
 
 Resources:
   dashboard  Manage dashboards via API
-  lens       Manage Lens visualizations via API
+  vis        Manage visualizations via API
   test       Test Kibana connection and API availability
 
 Dashboard Actions:
   get <id>                         Get dashboard definition
   create <file|->                  Create from JSON file (use - for stdin)
   update <id> <file|->             Update from JSON file (use - for stdin)
+  upsert <id> <file|->             Create or update (use - for stdin)
   delete <id>                      Delete dashboard
 
-Lens Actions:
-  list [search]                    List Lens visualizations (optional search)
+Visualization Actions:
+  list [search]                    List Visualizations (optional search)
   get <id>                         Get visualization definition
   create <file|->                  Create from JSON file (use - for stdin)
   update <id> <file|->             Update from JSON file (use - for stdin)
+  upsert <id> <file|->             Create or update (use - for stdin)
   delete <id>                      Delete visualization
 
 Environment Variables:
@@ -815,16 +873,16 @@ Environment Variables:
   KIBANA_INSECURE            Set to "true" to skip TLS verification
 
 Dashboard Panel Types:
-  lens                     Lens visualization panel
-  DASHBOARD_MARKDOWN       Markdown panel
+  vis                      Visualization panel
+  markdown       Markdown panel
   links                    Links panel
   map                      Maps panel
-  search                   Saved search panel
+  discover_session         Saved search panel
   (and more embeddable types)
 
-Lens Chart Types:
-  metric, xy, gauge, heatmap, tagcloud,
-  region_map, datatable, pie, donut, treemap, mosaic, waffle
+Chart Types:
+  metric, xy, gauge, heatmap, tag_cloud,
+  region_map, data_table, pie, treemap, mosaic, waffle
 
 Examples:
   # Test connection and API availability
@@ -847,12 +905,12 @@ Examples:
   # Delete a dashboard
   ./kibana-dashboards.js dashboard delete my-dashboard-id
 
-  # List all Lens visualizations
-  ./kibana-dashboards.js lens list
+  # List all Visualizations
+  ./kibana-dashboards.js vis list
 
   # Create metric visualization from stdin
-  echo '{"type":"metric","dataset":{"type":"esql","query":"FROM logs | STATS count=COUNT()"},"metrics":[{"type":"primary","operation":"value","column":"count"}]}' | \\
-    ./kibana-dashboards.js lens create -
+  echo '{"type":"metric","data_source":{"type":"esql","query":"FROM logs | STATS count=COUNT()"},"metrics":[{"type":"primary","column":"count"}]}' | \\
+    ./kibana-dashboards.js vis create -
 
   # Copy dashboard: get from source, create on destination
   ./kibana-dashboards.js dashboard get source-id > dashboard.json

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.3
+
+### Updated Skills
+
+- `skills/elasticsearch/elasticsearch-esql` (v0.1.1)
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.1.0)
+- `skills/kibana/kibana-dashboards` (v0.1.0 → v0.1.1)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.2.2
 
 ### Fixes

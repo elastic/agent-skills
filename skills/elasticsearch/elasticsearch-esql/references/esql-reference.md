@@ -5,8 +5,9 @@ Elasticsearch. It uses pipes (`|`) to chain commands together.
 
 > **Serverless vs Self-Managed:** Version annotations in this document (e.g., "9.2+") apply to self-managed
 > Elasticsearch. Detect cluster type via `build_flavor` in the `GET /` response: `"serverless"` means all GA and preview
-> features are available (ignore the reported `8.11.0` version). For self-managed, use `version.number` (strip any
-> `-SNAPSHOT` suffix) for feature checks.
+> features are available — **do not** gate on `version.number` for Serverless (it tracks the next minor from main;
+> semver-only checks may treat it as “latest”). For self-managed, use `version.number` (strip any `-SNAPSHOT` suffix)
+> for feature checks.
 
 ## Table of Contents
 

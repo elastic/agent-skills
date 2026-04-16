@@ -122,14 +122,14 @@ you building?" Then wait.
 
 Listen for signals that tell you which approach to recommend:
 
-| Signal                                                                                                      | Approach          | Output                               |
-| ----------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------ |
-| "search bar", "filter by", "facets", "autocomplete"                                                         | keyword-search    | Ranked results                       |
-| "find similar", "natural language", "meaning-based"                                                         | semantic-search   | Ranked results (by meaning)          |
-| "both keyword and semantic", "hybrid"                                                                       | hybrid-search     | Ranked results (combined)            |
-| "chatbot", "Q&A", "answer from my docs", "RAG"                                                              | rag-chatbot       | Generated answers (not just results) |
-| "product search", "e-commerce", "catalog"                                                                   | catalog-ecommerce | Ranked results with facets           |
-| "vector store", "embeddings", "LangChain", "LlamaIndex", "AI app", "agent", "similarity", "recommendations" | vector-database   | Vectors for downstream AI            |
+| Signal                                                                                                      | Approach             | Output                               |
+| ----------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------ |
+| "search bar", "filter by", "facets", "autocomplete"                                                         | keyword-search       | Ranked results                       |
+| "find similar", "natural language", "meaning-based"                                                         | vector-hybrid-search | Ranked results (by meaning)          |
+| "both keyword and semantic", "hybrid"                                                                       | vector-hybrid-search | Ranked results (combined)            |
+| "chatbot", "Q&A", "answer from my docs", "RAG"                                                              | rag-chatbot          | Generated answers (not just results) |
+| "product search", "e-commerce", "catalog"                                                                   | catalog-ecommerce    | Ranked results with facets           |
+| "vector store", "embeddings", "LangChain", "LlamaIndex", "AI app", "agent", "similarity", "recommendations" | vector-hybrid-search | Vectors for downstream AI            |
 
 **Semantic vs RAG — a key distinction.** Semantic search returns a _list of relevant results_ ranked by meaning. RAG
 retrieves relevant documents and then feeds them to an LLM to _generate an answer_. If the developer says "I want to
@@ -167,7 +167,7 @@ AI-pipeline use cases. Ask something like:
 > retrieves data programmatically, like a LangChain agent, an AI assistant, or a recommendation engine?"
 
 If the answer is **people searching directly**, continue to the natural language follow-up below. If the answer is **an
-AI application**, route to the **vector-database** approach — the developer needs Elasticsearch as a vector store, not
+AI application**, route to the **vector-hybrid-search** guide — the developer needs Elasticsearch as a vector store, not
 as a human-facing search engine. The architecture, mapping, and integration patterns are fundamentally different.
 
 **Follow-up (for human-facing search): "Will users also search in natural language?"** Once you know people are
@@ -377,15 +377,12 @@ You have access to detailed implementation guides for each search pattern. Use t
 
 - [keyword-search/keyword-search.md](keyword-search/keyword-search.md) — Full-text search, filters, facets,
   autocomplete, typo tolerance
-- [semantic-search/semantic-search.md](semantic-search/semantic-search.md) — Vector/embedding-based search, kNN,
-  meaning-based matching
-- [hybrid-search/hybrid-search.md](hybrid-search/hybrid-search.md) — BM25 + kNN with Reciprocal Rank Fusion (RRF)
+- [vector-hybrid-search/vector-hybrid-search.md](vector-hybrid-search/vector-hybrid-search.md) — Vector search, semantic
+  search, hybrid BM25 + kNN (RRF), and Elasticsearch as a vector store for AI pipelines
 - [rag-chatbot/rag-chatbot.md](rag-chatbot/rag-chatbot.md) — Retrieval-augmented generation, Q&A, chatbots over
   documents
 - [catalog-ecommerce/ecommerce.md](catalog-ecommerce/ecommerce.md) — Product search, faceted navigation, merchandising,
   autocomplete
-- [vector-database/vector-database.md](vector-database/vector-database.md) — Elasticsearch as a vector store for AI apps
-  (LangChain, LlamaIndex)
 
 ## Code Standards
 

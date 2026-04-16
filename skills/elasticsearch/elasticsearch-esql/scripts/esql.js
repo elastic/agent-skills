@@ -117,15 +117,16 @@ async function getClusterInfo(client) {
     };
   } catch {
     // GET / requires cluster:monitor — fall back to SHOW INFO (ES|QL only needs query privileges).
-    // SHOW INFO returns version/date/hash. On Serverless the version field is a build hash
-    // (e.g. "a]b1c2d3e4f5") rather than a semver string — we use this to detect Serverless.
+    // SHOW INFO returns version/date/hash. On Serverless the version field can still be a non-semver build id
+    // (e.g. "a]b1c2d3e4f5") even when GET / would return a semver — we use that to detect Serverless here.
     try {
       const result = await client.esql.query({ query: "SHOW INFO", format: "json" });
       if (result.values?.[0]) {
         const [version] = result.values[0];
         const isSemver = /^\d+\.\d+\.\d+/.test(version);
         const isServerless = !isSemver;
-        const parsed = isSemver ? parseVersion(version) : parseVersion("8.11.0");
+        // Synthetic high version when SHOW INFO is non-semver: capability checks must use isServerless, not parsed.
+        const parsed = isSemver ? parseVersion(version) : parseVersion("99.0.0");
         return {
           success: true,
           cluster: "(unknown — limited API key)",

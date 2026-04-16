@@ -7,10 +7,11 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 > appears in one, assume it is in both unless explicitly noted otherwise. Paired versions: **8.18 / 9.0**, **8.19 /
 > 9.1**.
 >
-> **Serverless:** Elastic Cloud Serverless clusters report version `8.11.0` from `GET /`, but this does not reflect
-> actual feature support. Check `build_flavor` in the `GET /` response — if it returns `"serverless"`, all GA and
-> preview features are available. Ignore the version number for Serverless clusters. For snapshot builds (e.g.,
-> `9.4.0-SNAPSHOT`), strip the `-SNAPSHOT` suffix and use the major.minor for version checks.
+> **Serverless:** Elastic Cloud Serverless reports a forward-moving `version.number` from `GET /` (aligned with the next
+> minor from main), so clients that only semver-compare often behave as if the cluster is “latest.” **Do not** rely on
+> that for feature gating: check `build_flavor` — if it is `"serverless"`, all GA and preview features are available and
+> you should skip version-based gates. For snapshot builds (e.g., `9.4.0-SNAPSHOT`), strip the `-SNAPSHOT` suffix and
+> use the major.minor for version checks.
 
 ## Table of Contents
 
@@ -393,8 +394,8 @@ Use `INLINE STATS` (9.2+) for some subquery-like patterns.
 To check ES|QL availability and version:
 
 ```bash
-# Check Elasticsearch version
-curl -s localhost:9200 | jq '.version.number'
+# Check Elasticsearch version and build flavor (use build_flavor to detect Serverless)
+curl -s localhost:9200 | jq '.version | {number, build_flavor}'
 
 # Test ES|QL availability
 curl -X POST localhost:9200/_query \

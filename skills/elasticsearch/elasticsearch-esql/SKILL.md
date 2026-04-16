@@ -35,8 +35,10 @@ ES|QL uses pipes (`|`) to chain commands:
 >
 > **Cluster Detection:** Use the `GET /` response to determine the cluster type and version:
 >
-> - `build_flavor: "serverless"` — Elastic Cloud Serverless. Reports version `8.11.0` but supports all latest ES|QL
->   features. Ignore the version number and assume all GA and preview features are available.
+> - `build_flavor: "serverless"` — Elastic Cloud Serverless. `version.number` tracks the stack line under active
+>   development (next minor from main), so clients that only semver-compare may treat Serverless as “latest.” **Do not**
+>   use `version.number` to gate features: if `build_flavor` is `"serverless"`, assume all GA and preview ES|QL features
+>   are available.
 > - `build_flavor: "default"` — Self-managed or Elastic Cloud Hosted. Use `version.number` for feature availability.
 > - **Snapshot builds** have `version.number` like `9.4.0-SNAPSHOT`. Strip the `-SNAPSHOT` suffix and use the
 >   major.minor for version checks. Snapshot builds include all features from that version plus potentially unreleased

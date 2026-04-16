@@ -2,8 +2,9 @@
 
 Guidelines for generating accurate ES|QL queries from natural language.
 
-> **Cluster detection:** Check `build_flavor` in the `GET /` response. Serverless (`"serverless"`) reports version
-> `8.11.0` but supports all latest features — do not restrict queries based on the version. For self-managed
+> **Cluster detection:** Check `build_flavor` in the `GET /` response. For Serverless (`"serverless"`), **do not**
+> version-gate: `version.number` tracks the next minor from main (semver-only clients may see it as “latest”), but
+> feature availability is not determined by that string — use `build_flavor` as the signal. For self-managed
 > (`"default"`), use `version.number` for feature checks (strip `-SNAPSHOT` suffix on pre-release builds).
 
 ## Table of Contents

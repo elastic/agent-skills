@@ -1,15 +1,9 @@
 {
-  "type": "datatable",
-  "dataset": {
+  "type": "data_table",
+  "data_source": {
     "type": "esql",
     "query": "FROM kibana_sample_data_logs | STATS count = COUNT(), avg_bytes = AVG(bytes), total_bytes = SUM(bytes) BY host.keyword"
   },
-  "rows": [
-    { "operation": "value", "column": "host.keyword" }
-  ],
-  "metrics": [
-    { "operation": "value", "column": "count" },
-    { "operation": "value", "column": "avg_bytes" },
-    { "operation": "value", "column": "total_bytes" }
-  ]
+  "rows": [{ "column": "host.keyword" }],
+  "metrics": [{ "column": "count" }, { "column": "avg_bytes" }, { "column": "total_bytes" }]
 }
