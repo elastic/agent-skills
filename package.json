@@ -1,0 +1,15 @@
+{
+  "name": "elastic-agent-skills",
+  "version": "0.2.3",
+  "description": "Official Elastic agent skills for Elasticsearch, Kibana, Observability, Security, and Cloud",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elastic/agent-skills.git"
+  },
+  "homepage": "https://github.com/elastic/agent-skills",
+  "bugs": {
+    "url": "https://github.com/elastic/agent-skills/issues"
+  }
+}

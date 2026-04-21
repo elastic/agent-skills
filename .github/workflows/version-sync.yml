@@ -15,6 +15,7 @@ on:
     paths:
       - '.github/.release-manifest.json'
       - '.claude-plugin/**'
+      - 'package.json'
 
 permissions:
   contents: write
@@ -41,6 +42,7 @@ jobs:
             --plugin-json plugins/observability/.claude-plugin/plugin.json \
             --plugin-json plugins/security/.claude-plugin/plugin.json \
             --plugin-json plugins/cloud/.claude-plugin/plugin.json \
+            --plugin-json package.json \
             --marketplace-json .claude-plugin/marketplace.json)
 
           echo "$output"
