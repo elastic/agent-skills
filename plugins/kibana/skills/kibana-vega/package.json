@@ -1,0 +1,11 @@
+{
+  "name": "kibana-vega",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CRUD operations for Kibana dashboards and Vega visualizations",
+  "author": "elastic",
+  "license": "tbd",
+  "dependencies": {
+    "hjson": "^3.2.2"
+  }
+}

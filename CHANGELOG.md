@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.4
+
+### Updated Skills
+
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.1.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.2.3
 
 ### Updated Skills

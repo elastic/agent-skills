@@ -1,7 +1,7 @@
 {
-  "version": "0.2.3",
+  "version": "0.2.4",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "d43db6b94b2fb5613b5ca9d224ce0441a70f5e0a",
+  "sandbox_sha": "b1798448ff8f0fd7ea371606a0e0b95d33a1d70a",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
