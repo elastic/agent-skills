@@ -1,7 +1,7 @@
 {
-  "version": "0.2.4",
+  "version": "0.2.5",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "b1798448ff8f0fd7ea371606a0e0b95d33a1d70a",
+  "sandbox_sha": "31cc9492ee88ea8dfe4db67a1a72a16c410540da",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -69,7 +69,7 @@
     },
     "skills/kibana/kibana-dashboards": {
       "name": "kibana-dashboards",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     "skills/kibana/kibana-vega": {
       "name": "kibana-vega",

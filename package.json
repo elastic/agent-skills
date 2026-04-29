@@ -1,5 +1,5 @@
 {
-  "version": "0.2.4",
+  "version": "0.2.5",
   "name": "elastic-agent-skills",
   "description": "Official Elastic agent skills for Elasticsearch, Kibana, Observability, Security, and Cloud",
   "license": "Apache-2.0",
