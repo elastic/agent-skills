@@ -143,7 +143,6 @@ function getHeaders(config) {
   const headers = {
     "Content-Type": "application/json",
     "kbn-xsrf": "true",
-    "x-elastic-internal-origin": "kibana",
     "User-Agent": "elastic-agentic",
   };
 

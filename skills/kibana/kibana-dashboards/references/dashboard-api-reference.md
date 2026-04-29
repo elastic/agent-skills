@@ -369,7 +369,7 @@ node scripts/kibana-dashboards.js dashboard create dashboard.json
 | Datatable structure     | ES\|QL data_table requires `metrics` + `rows` arrays                         |
 | XY chart fails          | Put `data_source` inside each layer (for both dataView and ES\|QL)           |
 | Heatmap property names  | Heatmap uses `x`, `y`, `metric` for axes and value                           |
-| XY axis config          | Use `axis` (singular); `y` with `anchor: "start"` for left axis              |
+| XY axis config          | Use `axis` (singular); `y` for left axis, `y2` for right axis                |
 | ref_id panels missing   | Prefer inline definitions (properties in `config`) over `ref_id`             |
 
 ## Testing from Dev Tools

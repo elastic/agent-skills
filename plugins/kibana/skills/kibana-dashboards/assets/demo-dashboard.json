@@ -91,7 +91,7 @@
         "type": "xy",
         "axis": {
           "x": { "title": { "visible": false } },
-          "y": { "anchor": "start", "title": { "visible": false } }
+          "y": { "title": { "visible": false } }
         },
         "layers": [
           {
@@ -118,7 +118,7 @@
         "type": "xy",
         "axis": {
           "x": { "title": { "visible": false } },
-          "y": { "anchor": "start", "title": { "visible": false } }
+          "y": { "title": { "visible": false } }
         },
         "layers": [
           {
@@ -195,7 +195,7 @@
         "type": "xy",
         "axis": {
           "x": { "title": { "visible": false } },
-          "y": { "anchor": "start", "title": { "visible": false } }
+          "y": { "title": { "visible": false } }
         },
         "layers": [
           {
@@ -223,7 +223,7 @@
         "type": "xy",
         "axis": {
           "x": { "title": { "visible": false } },
-          "y": { "anchor": "start", "title": { "visible": false } }
+          "y": { "title": { "visible": false } }
         },
         "layers": [
           {
