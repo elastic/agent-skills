@@ -6,7 +6,7 @@ description: >
   charts and dashboards from ES|QL results.
 metadata:
   author: elastic
-  version: 0.1.1
+  version: 0.2.0
 ---
 
 # Elasticsearch ES|QL

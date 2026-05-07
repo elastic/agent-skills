@@ -61,7 +61,7 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 | `DISSECT`      | 8.11       | 8.14     | Pattern extraction                          |
 | `GROK`         | 8.11       | 8.14     | Log parsing                                 |
 | `ENRICH`       | 8.11       | 8.14     | Data enrichment                             |
-| `MV_EXPAND`    | 8.11       | 8.14     | Multi-value expansion                       |
+| `MV_EXPAND`    | 8.11       | 9.4      | Multi-value expansion (GA)                  |
 | `SHOW`         | 8.11       | 8.14     | Metadata display                            |
 | `ROW`          | 8.11       | 8.14     | Literal row creation                        |
 | `LOOKUP JOIN`  | 8.18/9.0   | 8.19/9.1 | SQL-style LEFT JOIN with lookup indices     |
@@ -72,6 +72,9 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 | `RERANK`       | 9.2        | Preview  | Re-score results with inference             |
 | `COMPLETION`   | 9.2        | 9.2      | LLM text generation                         |
 | `SAMPLE`       | 8.19/9.1   | Preview  | Random sampling                             |
+| `URI_PARTS`    | Srvless    | Srvless  | Parse URI into structured columns           |
+| `USER_AGENT`   | Srvless    | Srvless  | Parse user agent into structured columns    |
+| `REG_DOMAIN`   | Srvless    | Srvless  | `REGISTERED_DOMAIN`: extract from hostname  |
 
 ### Full-Text Search Functions
 
@@ -157,11 +160,13 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 | `MEDIAN`, `MEDIAN_ABSOLUTE_DEVIATION` | 8.11       | Statistical                     |
 | `PERCENTILE`                          | 8.11       | Percentile calculation          |
 | `TOP`                                 | 8.15       | Top N values                    |
-| `VALUES`                              | 8.14       | Collect unique values           |
+| `VALUES`                              | 8.14       | Unique values (GA in 9.4)       |
 | `ST_EXTENT_AGG`                       | 8.18/9.0   | Spatial bounding box            |
 | `WEIGHTED_AVG`                        | 8.16       | Weighted average                |
 | `STD_DEV`                             | 8.18/9.0   | Standard deviation              |
 | `VARIANCE`                            | 8.18/9.0   | Variance                        |
+| `FIRST` / `EARLIEST`                  | Serverless | Earliest value by sort field    |
+| `LAST` / `LATEST`                     | Serverless | Latest value by sort field      |
 
 ### Grouping Functions
 
@@ -252,22 +257,32 @@ ES|QL **does not support cursor-based pagination** like the Search API's `search
 - Use `STATS` to aggregate at query time
 - For exports, use Search API with `search_after` instead
 
-### Time Zone Support (Limited)
+### Time Zone Support (Limited before Serverless / 9.4)
 
-ES|QL has **limited timezone support**.
+ES|QL has **limited timezone support** on self-managed clusters prior to 9.4. All dates are processed in UTC internally
+and there is no per-function timezone argument.
 
-**Current limitations:**
+On **Serverless**, ES|QL supports query-wide timezone via the `SET time_zone` directive (GA on Serverless). This accepts
+IANA timezone strings and UTC offsets, and applies to all date/time operations including `DATE_TRUNC`, `DATE_FORMAT`,
+`NOW()`, bucketing, and display.
 
-- `DATE_FORMAT` and `DATE_PARSE` do not support timezone parameters
-- All dates processed in UTC internally
-- Kibana charts may show timezone inconsistencies
+```esql
+SET time_zone = "America/New_York";
+FROM logs-*
+| STATS errors = COUNT(*) BY hour = DATE_TRUNC(1 hour, @timestamp)
+| SORT hour DESC
+```
+
+**Remaining limitations (all versions):**
+
+- No per-function timezone argument — `DATE_TRUNC(1 hour, @timestamp, "America/New_York")` does **not** work
+- `DATE_FORMAT` and `DATE_PARSE` do not accept timezone parameters directly; use `SET time_zone` instead
 - GitHub tracking issue: [#107560](https://github.com/elastic/elasticsearch/issues/107560)
 
-**Workarounds:**
+**Self-managed before 9.4:**
 
-- Store timezone offset in a separate field
-- Convert to UTC before querying
-- Use `EVAL` to add/subtract hours manually:
+- `SET time_zone` only accepts UTC offsets (`"+05:00"`), not IANA timezone strings
+- Workaround: use `EVAL` to add/subtract hours manually:
 
   ```esql
   | EVAL local_time = timestamp + 1 hour
@@ -285,16 +300,16 @@ returned at all** — they are silently omitted from results.
 
 These field types are not supported or have limitations:
 
-| Type           | Status                       |
-| -------------- | ---------------------------- |
-| `nested`       | Not supported - returns null |
-| `flattened`    | Not supported                |
-| `join`         | Not supported                |
-| `date_range`   | Not supported                |
-| `binary`       | Not supported                |
-| `completion`   | Not supported                |
-| `rank_feature` | Not supported                |
-| `histogram`    | Not supported                |
+| Type           | Status                                                                             |
+| -------------- | ---------------------------------------------------------------------------------- |
+| `nested`       | Not supported - returns null                                                       |
+| `flattened`    | Not natively supported; use `METADATA _source` + `JSON_EXTRACT` for sub-key access |
+| `join`         | Not supported                                                                      |
+| `date_range`   | Not supported                                                                      |
+| `binary`       | Not supported                                                                      |
+| `completion`   | Not supported                                                                      |
+| `rank_feature` | Not supported                                                                      |
+| `histogram`    | Not supported                                                                      |
 
 ### JOIN Limitations
 
@@ -317,15 +332,25 @@ These field types are not supported or have limitations:
 - Lucene-pushable predicates: `MATCH`, `QSTR`, `KQL`, `CIDR_MATCH` in join conditions
 - Further performance gains for filtered joins
 
-### No Subqueries
+### Subqueries (Limited)
 
-ES|QL does not support:
+ES|QL supports **subqueries in `FROM`** (Serverless tech preview) for combining results from multiple pipelines (UNION
+ALL semantics). These are non-correlated — each branch is independent.
 
-- Subqueries in WHERE clauses
-- Nested SELECT statements
-- CTEs (Common Table Expressions)
+```esql
+FROM
+  (FROM web_logs | WHERE status >= 500 | KEEP @timestamp, message, service.name),
+  (FROM app_logs | WHERE level == "error" | KEEP @timestamp, message, service.name)
+| SORT @timestamp DESC
+```
 
-Use `INLINE STATS` (9.2+) for some subquery-like patterns.
+**Not supported:**
+
+- Subqueries in `WHERE` clauses (no `WHERE field IN (FROM ...)`)
+- Correlated subqueries (branches cannot reference outer columns)
+- Nested SELECT / CTEs (Common Table Expressions)
+
+Use `INLINE STATS` (9.2+) for per-row vs. aggregate comparison patterns.
 
 ## Cross-Cluster Query Support
 
@@ -388,6 +413,15 @@ Use `INLINE STATS` (9.2+) for some subquery-like patterns.
 - Use `TRANGE` instead of manual `WHERE @timestamp` filters
 - Sliding window parameter for time series functions (e.g. `RATE(field, 10m)`)
 - `CLAMP`, `CLAMP_MIN`, `CLAMP_MAX` for bounding metric values
+
+### Serverless (latest)
+
+- `SET time_zone` with IANA timezone strings for query-wide timezone support (GA)
+- `LIMIT n BY field` for grouped top-N queries
+- `URI_PARTS`, `USER_AGENT`, `REGISTERED_DOMAIN` pipe commands for parsing structured strings
+- `FROM` subqueries for combining results from multiple pipelines (tech preview)
+- `EARLIEST`/`LATEST` aliases for `FIRST`/`LAST` aggregations
+- `JSON_EXTRACT` on `METADATA _source` for accessing flattened field sub-keys
 
 ## Version Detection
 

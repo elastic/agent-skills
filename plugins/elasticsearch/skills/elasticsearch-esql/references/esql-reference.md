@@ -52,23 +52,26 @@ Query directives modify the behavior of an ES|QL query. They appear before the s
 
 ### SET (9.3+, tech preview)
 
-Controls query-level settings.
+Controls query-level settings. Every `SET` directive must end with a semicolon before the source command.
 
 **Syntax:**
 
 ```esql
-SET setting = value; [SET settingN = valueN;]
+SET setting = "value"; [SET setting = "value";]
 source-command
 | processing-commands
 ```
 
 **`unmapped_fields`** (9.3+ preview) -- controls how unmapped fields are treated:
 
-- `FAIL` (default) -- the query fails if it references unmapped fields
-- `NULLIFY` -- treats unmapped fields as null values
+- `"default"` / `"fail"` -- the query fails if it references unmapped fields
+- `"nullify"` -- treats unmapped fields as null values
+- `"load"` -- loads unmapped fields dynamically. **Limitation:** `"load"` is incompatible with subqueries and views. Use
+  `"nullify"` when composing subqueries or querying views.
 
 **`time_zone`** (Serverless GA; self-managed planned) -- sets the default timezone for the query, overriding UTC
-default.
+default. Accepts any IANA timezone string or UTC offset. Applies to all date/time operations: `DATE_TRUNC`,
+`DATE_FORMAT`, `NOW()`, etc.
 
 **Examples:**
 
@@ -79,6 +82,12 @@ FROM employees
 | SORT emp_no
 | LIMIT 1
 
+SET time_zone = "America/Los_Angeles";
+FROM error_triage
+| EVAL hour = DATE_TRUNC(1 hour, @timestamp)
+| STATS errors = COUNT(*) BY hour, service
+| SORT hour DESC
+
 SET time_zone = "+05:00";
 TS k8s
 | WHERE @timestamp == "2024-05-10T00:04:49.000Z"
@@ -86,7 +95,11 @@ TS k8s
 ```
 
 > **When to use:** `unmapped_fields` is useful when querying across multiple indices where some indices may not have all
-> fields mapped. `time_zone` shifts date functions and display to a non-UTC zone.
+> fields mapped. `time_zone` shifts date functions and display to a non-UTC zone. There is no per-function timezone
+> argument — `DATE_TRUNC(1 hour, @timestamp, "America/Los_Angeles")` does **not** work.
+>
+> **Restriction:** `SET` directives cannot be used inside view definitions. The caller must apply `SET` when querying
+> the view.
 
 ---
 
@@ -122,6 +135,33 @@ FROM <logs-{now/d}>
 // Cross-cluster search
 FROM cluster_one:logs-*, cluster_two:logs-*
 ```
+
+**Subqueries (Serverless tech preview):** `FROM` supports parenthesized subqueries with UNION ALL semantics. Each branch
+is a complete ES|QL pipeline. Columns present in one branch but not another are filled with `null`.
+
+```esql
+// Combine logs from different indices with independent pipelines
+FROM
+  (FROM web_logs
+   | WHERE status_code >= 500
+   | KEEP @timestamp, message, service.name),
+  (FROM app_logs
+   | WHERE level == "error"
+   | KEEP @timestamp, message, service.name)
+| STATS errors = COUNT(*) BY service.name
+
+// Mix bare index patterns and subqueries
+FROM raw_index, (FROM other_index | WHERE active == true | KEEP id, name)
+```
+
+**Subquery constraints:**
+
+- Non-correlated only — branches cannot reference columns from the outer query
+- Columns with the same name must have compatible types across branches
+- `FORK` cannot be used inside or after subqueries
+- `SET unmapped_fields="load"` is incompatible with subqueries
+
+**Subqueries vs FORK:** Different data sources → subqueries. Same data, different analyses → FORK.
 
 **Note:** Without explicit `LIMIT`, queries default to 1000 rows (or whatever the cluster setting
 esql.query.result_truncation_default_size is set to).
@@ -464,12 +504,13 @@ FROM data
 
 ### LIMIT
 
-Limits the number of rows returned.
+Limits the number of rows returned. Supports optional grouped top-N with `BY` (Serverless).
 
 **Syntax:**
 
 ```esql
 LIMIT number
+LIMIT number BY field
 ```
 
 **Examples:**
@@ -478,7 +519,15 @@ LIMIT number
 FROM logs-*
 | SORT @timestamp DESC
 | LIMIT 100
+
+// Grouped top-N: keep top 3 rows per service after sorting
+FROM app_logs
+| STATS cnt = COUNT(*) BY service, level
+| SORT cnt DESC
+| LIMIT 3 BY service
 ```
+
+> **Note:** In `LIMIT n BY field`, the number comes **before** `BY`. `LIMIT BY field n` does not parse.
 
 ### DISSECT
 
@@ -857,24 +906,75 @@ FROM data
 | STATS count = COUNT(*) BY tags
 ```
 
-### URI_PARTS (Planned)
+### URI_PARTS (Serverless)
 
-Parses a URI string and extracts its components (domain, path, port, query, scheme, etc.) into new columns. Not yet
-released.
+Pipe command that parses a URI string into structured columns. A target prefix is **required**.
 
 **Syntax:**
 
 ```esql
-URI_PARTS prefix = expression
+URI_PARTS target = field
 ```
+
+**Output columns:** `target.domain`, `target.path`, `target.scheme`, `target.extension`, `target.port`, `target.query`,
+`target.fragment`, `target.user_info`, `target.username`, `target.password`.
 
 **Example:**
 
 ```esql
 FROM web_logs
-| URI_PARTS url_parts = request_url
-| KEEP url_parts.domain, url_parts.path, url_parts.query
+| WHERE http.response.status_code >= 400
+| URI_PARTS parts = url.full
+| STATS errors = COUNT(*) BY parts.domain, parts.path
+| SORT errors DESC
 ```
+
+### USER_AGENT (Serverless)
+
+Pipe command that parses a user agent string into structured columns. A target prefix is **required**.
+
+**Syntax:**
+
+```esql
+USER_AGENT target = field
+```
+
+**Output columns:** `target.name`, `target.version`, `target.os.name`, `target.os.version`, `target.os.full`,
+`target.device.name`.
+
+**Example:**
+
+```esql
+FROM web_logs
+| USER_AGENT ua = user_agent.original
+| STATS cnt = COUNT(*) BY ua.name, ua.version
+```
+
+### REGISTERED_DOMAIN (Serverless)
+
+Pipe command that extracts the registered domain, top-level domain, and subdomain from a hostname. A target prefix is
+**required**.
+
+**Syntax:**
+
+```esql
+REGISTERED_DOMAIN target = field
+```
+
+**Output columns:** `target.domain` (full input), `target.registered_domain`, `target.top_level_domain`,
+`target.subdomain`.
+
+**Example:**
+
+```esql
+FROM dns_logs
+| REGISTERED_DOMAIN rd = dns.question.name
+| STATS queries = COUNT(*) BY rd.registered_domain
+| SORT queries DESC
+```
+
+> **Note:** `URI_PARTS`, `USER_AGENT`, and `REGISTERED_DOMAIN` are **pipe commands** (like `DISSECT`/`GROK`), not scalar
+> functions. The syntax `URI_PARTS(field)` does not work — use `| URI_PARTS target = field`.
 
 ---
 
@@ -882,30 +982,32 @@ FROM web_logs
 
 Used with STATS command.
 
-| Function                           | Description                                       | Example                                          |
-| ---------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
-| `COUNT(*)`                         | Count all rows                                    | `STATS n = COUNT(*)`                             |
-| `COUNT(field)`                     | Count non-null values                             | `STATS n = COUNT(status)`                        |
-| `COUNT_DISTINCT(field)`            | Count unique values                               | `STATS unique = COUNT_DISTINCT(user_id)`         |
-| `SUM(field)`                       | Sum of values                                     | `STATS total = SUM(amount)`                      |
-| `AVG(field)`                       | Average                                           | `STATS avg_price = AVG(price)`                   |
-| `MIN(field)`                       | Minimum value                                     | `STATS min_temp = MIN(temperature)`              |
-| `MAX(field)`                       | Maximum value                                     | `STATS max_score = MAX(score)`                   |
-| `MEDIAN(field)`                    | Median value                                      | `STATS med = MEDIAN(response_time)`              |
-| `PERCENTILE(field, p)`             | Percentile                                        | `STATS p95 = PERCENTILE(latency, 95)`            |
-| `STD_DEV(field)`                   | Standard deviation                                | `STATS sd = STD_DEV(values)`                     |
-| `VARIANCE(field)`                  | Variance                                          | `STATS var = VARIANCE(values)`                   |
-| `VALUES(field)`                    | Collect all values                                | `STATS all_tags = VALUES(tag)`                   |
-| `TOP(field, n, order)`             | Top N values                                      | `STATS top3 = TOP(score, 3, "desc")`             |
-| `WEIGHTED_AVG(val, weight)`        | Weighted average                                  | `STATS wavg = WEIGHTED_AVG(score, weight)`       |
-| `MEDIAN_ABSOLUTE_DEVIATION(field)` | Robust variability measure                        | `STATS mad = MEDIAN_ABSOLUTE_DEVIATION(latency)` |
-| `ABSENT(field)`                    | True if no non-null values (9.2+)                 | `STATS is_absent = ABSENT(error_code)`           |
-| `PRESENT(field)`                   | True if any non-null values (9.2+)                | `STATS has_data = PRESENT(metric)`               |
-| `SAMPLE(field, n)`                 | Collect n sample values (8.19/9.1+)               | `STATS examples = SAMPLE(message, 5)`            |
-| `FIRST(field, sort_field)`         | Earliest value by sort field (Serverless preview) | `STATS earliest = FIRST(message, @timestamp)`    |
-| `LAST(field, sort_field)`          | Latest value by sort field (Serverless preview)   | `STATS latest = LAST(message, @timestamp)`       |
-| `ST_CENTROID_AGG(field)`           | Spatial centroid of points                        | `STATS center = ST_CENTROID_AGG(location)`       |
-| `ST_EXTENT_AGG(field)`             | Bounding box of geometries (8.18/9.0+, preview)   | `STATS bbox = ST_EXTENT_AGG(location)`           |
+| Function                           | Description                                     | Example                                          |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
+| `COUNT(*)`                         | Count all rows                                  | `STATS n = COUNT(*)`                             |
+| `COUNT(field)`                     | Count non-null values                           | `STATS n = COUNT(status)`                        |
+| `COUNT_DISTINCT(field)`            | Count unique values                             | `STATS unique = COUNT_DISTINCT(user_id)`         |
+| `SUM(field)`                       | Sum of values                                   | `STATS total = SUM(amount)`                      |
+| `AVG(field)`                       | Average                                         | `STATS avg_price = AVG(price)`                   |
+| `MIN(field)`                       | Minimum value                                   | `STATS min_temp = MIN(temperature)`              |
+| `MAX(field)`                       | Maximum value                                   | `STATS max_score = MAX(score)`                   |
+| `MEDIAN(field)`                    | Median value                                    | `STATS med = MEDIAN(response_time)`              |
+| `PERCENTILE(field, p)`             | Percentile                                      | `STATS p95 = PERCENTILE(latency, 95)`            |
+| `STD_DEV(field)`                   | Standard deviation                              | `STATS sd = STD_DEV(values)`                     |
+| `VARIANCE(field)`                  | Variance                                        | `STATS var = VARIANCE(values)`                   |
+| `VALUES(field)`                    | Collect all values (GA)                         | `STATS all_tags = VALUES(tag)`                   |
+| `TOP(field, n, order)`             | Top N values                                    | `STATS top3 = TOP(score, 3, "desc")`             |
+| `WEIGHTED_AVG(val, weight)`        | Weighted average                                | `STATS wavg = WEIGHTED_AVG(score, weight)`       |
+| `MEDIAN_ABSOLUTE_DEVIATION(field)` | Robust variability measure                      | `STATS mad = MEDIAN_ABSOLUTE_DEVIATION(latency)` |
+| `ABSENT(field)`                    | True if no non-null values (9.2+)               | `STATS is_absent = ABSENT(error_code)`           |
+| `PRESENT(field)`                   | True if any non-null values (9.2+)              | `STATS has_data = PRESENT(metric)`               |
+| `SAMPLE(field, n)`                 | Collect n sample values (8.19/9.1+)             | `STATS examples = SAMPLE(message, 5)`            |
+| `FIRST(field, sort_field)`         | Earliest value by sort field (Serverless GA)    | `STATS earliest = FIRST(message, @timestamp)`    |
+| `LAST(field, sort_field)`          | Latest value by sort field (Serverless GA)      | `STATS latest = LAST(message, @timestamp)`       |
+| `EARLIEST(field)`                  | Earliest value (single-arg; Serverless GA)      | `STATS e = EARLIEST(@timestamp)`                 |
+| `LATEST(field)`                    | Latest value (single-arg; Serverless GA)        | `STATS l = LATEST(@timestamp)`                   |
+| `ST_CENTROID_AGG(field)`           | Spatial centroid of points                      | `STATS center = ST_CENTROID_AGG(location)`       |
+| `ST_EXTENT_AGG(field)`             | Bounding box of geometries (8.18/9.0+, preview) | `STATS bbox = ST_EXTENT_AGG(location)`           |
 
 ### Grouping Functions
 
@@ -998,40 +1100,53 @@ TS metrics
 
 ## String Functions
 
-| Function                    | Description                                         | Example                                                              |
-| --------------------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
-| `LENGTH(s)`                 | String length                                       | `EVAL len = LENGTH(name)`                                            |
-| `CONCAT(s1, s2, ...)`       | Concatenate strings                                 | `EVAL full = CONCAT(first, " ", last)`                               |
-| `SUBSTRING(s, start, len)`  | Extract substring                                   | `EVAL sub = SUBSTRING(text, 1, 10)`                                  |
-| `LEFT(s, n)`                | Left n characters                                   | `EVAL l = LEFT(text, 5)`                                             |
-| `RIGHT(s, n)`               | Right n characters                                  | `EVAL r = RIGHT(text, 5)`                                            |
-| `TRIM(s)`                   | Remove whitespace                                   | `EVAL clean = TRIM(input)`                                           |
-| `LTRIM(s)`                  | Trim left                                           | `EVAL clean = LTRIM(input)`                                          |
-| `RTRIM(s)`                  | Trim right                                          | `EVAL clean = RTRIM(input)`                                          |
-| `TO_UPPER(s)`               | Uppercase                                           | `EVAL upper = TO_UPPER(name)`                                        |
-| `TO_LOWER(s)`               | Lowercase                                           | `EVAL lower = TO_LOWER(name)`                                        |
-| `REPLACE(s, old, new)`      | Replace text                                        | `EVAL fixed = REPLACE(msg, "err", "error")`                          |
-| `SPLIT(s, delim)`           | Split into array                                    | `EVAL parts = SPLIT(path, "/")`                                      |
-| `STARTS_WITH(s, prefix)`    | Check prefix                                        | `WHERE STARTS_WITH(url, "https")`                                    |
-| `ENDS_WITH(s, suffix)`      | Check suffix                                        | `WHERE ENDS_WITH(file, ".log")`                                      |
-| `CONTAINS(s, substr)`       | Check contains                                      | `WHERE CONTAINS(message, "error")`                                   |
-| `LOCATE(substr, s)`         | Find position                                       | `EVAL pos = LOCATE("@", email)`                                      |
-| `REVERSE(s)`                | Reverse string                                      | `EVAL rev = REVERSE(text)`                                           |
-| `REPEAT(s, n)`              | Repeat string                                       | `EVAL sep = REPEAT("-", 10)`                                         |
-| `SPACE(n)`                  | N spaces                                            | `EVAL spaces = SPACE(5)`                                             |
-| `BIT_LENGTH(s)`             | Bit length (8.17+)                                  | `EVAL bits = BIT_LENGTH(name)`                                       |
-| `BYTE_LENGTH(s)`            | Byte length (8.17+)                                 | `EVAL bytes = BYTE_LENGTH(name)`                                     |
-| `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)              | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
-| `HASH(alg, s)`              | Hash string (8.18/9.0+)                             | `EVAL h = HASH("SHA-256", msg)`                                      |
-| `MD5(s)`                    | MD5 hash (8.18/9.0+)                                | `EVAL h = MD5(content)`                                              |
-| `SHA1(s)`                   | SHA-1 hash (8.18/9.0+)                              | `EVAL h = SHA1(content)`                                             |
-| `SHA256(s)`                 | SHA-256 hash (8.18/9.0+)                            | `EVAL h = SHA256(content)`                                           |
-| `FROM_BASE64(s)`            | Decode base64                                       | `EVAL decoded = FROM_BASE64(encoded)`                                |
-| `TO_BASE64(s)`              | Encode to base64                                    | `EVAL encoded = TO_BASE64(data)`                                     |
-| `URL_DECODE(s)`             | URL-decode (9.2+)                                   | `EVAL decoded = URL_DECODE(url)`                                     |
-| `URL_ENCODE(s)`             | URL-encode (9.2+)                                   | `EVAL encoded = URL_ENCODE(text)`                                    |
-| `URL_ENCODE_COMPONENT(s)`   | URL-encode for URI components (9.2+)                | `EVAL encoded = URL_ENCODE_COMPONENT(text)`                          |
-| `JSON_EXTRACT(field, path)` | Extract value from JSON string (Serverless preview) | `EVAL name = JSON_EXTRACT(raw, "$.user.name")`                       |
+| Function                    | Description                                    | Example                                                              |
+| --------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| `LENGTH(s)`                 | String length                                  | `EVAL len = LENGTH(name)`                                            |
+| `CONCAT(s1, s2, ...)`       | Concatenate strings                            | `EVAL full = CONCAT(first, " ", last)`                               |
+| `SUBSTRING(s, start, len)`  | Extract substring                              | `EVAL sub = SUBSTRING(text, 1, 10)`                                  |
+| `LEFT(s, n)`                | Left n characters                              | `EVAL l = LEFT(text, 5)`                                             |
+| `RIGHT(s, n)`               | Right n characters                             | `EVAL r = RIGHT(text, 5)`                                            |
+| `TRIM(s)`                   | Remove whitespace                              | `EVAL clean = TRIM(input)`                                           |
+| `LTRIM(s)`                  | Trim left                                      | `EVAL clean = LTRIM(input)`                                          |
+| `RTRIM(s)`                  | Trim right                                     | `EVAL clean = RTRIM(input)`                                          |
+| `TO_UPPER(s)`               | Uppercase                                      | `EVAL upper = TO_UPPER(name)`                                        |
+| `TO_LOWER(s)`               | Lowercase                                      | `EVAL lower = TO_LOWER(name)`                                        |
+| `REPLACE(s, old, new)`      | Replace text                                   | `EVAL fixed = REPLACE(msg, "err", "error")`                          |
+| `SPLIT(s, delim)`           | Split into array                               | `EVAL parts = SPLIT(path, "/")`                                      |
+| `STARTS_WITH(s, prefix)`    | Check prefix                                   | `WHERE STARTS_WITH(url, "https")`                                    |
+| `ENDS_WITH(s, suffix)`      | Check suffix                                   | `WHERE ENDS_WITH(file, ".log")`                                      |
+| `CONTAINS(s, substr)`       | Check contains                                 | `WHERE CONTAINS(message, "error")`                                   |
+| `LOCATE(substr, s)`         | Find position                                  | `EVAL pos = LOCATE("@", email)`                                      |
+| `REVERSE(s)`                | Reverse string                                 | `EVAL rev = REVERSE(text)`                                           |
+| `REPEAT(s, n)`              | Repeat string                                  | `EVAL sep = REPEAT("-", 10)`                                         |
+| `SPACE(n)`                  | N spaces                                       | `EVAL spaces = SPACE(5)`                                             |
+| `BIT_LENGTH(s)`             | Bit length (8.17+)                             | `EVAL bits = BIT_LENGTH(name)`                                       |
+| `BYTE_LENGTH(s)`            | Byte length (8.17+)                            | `EVAL bytes = BYTE_LENGTH(name)`                                     |
+| `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)         | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
+| `HASH(alg, s)`              | Hash string (8.18/9.0+)                        | `EVAL h = HASH("SHA-256", msg)`                                      |
+| `MD5(s)`                    | MD5 hash (8.18/9.0+)                           | `EVAL h = MD5(content)`                                              |
+| `SHA1(s)`                   | SHA-1 hash (8.18/9.0+)                         | `EVAL h = SHA1(content)`                                             |
+| `SHA256(s)`                 | SHA-256 hash (8.18/9.0+)                       | `EVAL h = SHA256(content)`                                           |
+| `FROM_BASE64(s)`            | Decode base64                                  | `EVAL decoded = FROM_BASE64(encoded)`                                |
+| `TO_BASE64(s)`              | Encode to base64                               | `EVAL encoded = TO_BASE64(data)`                                     |
+| `URL_DECODE(s)`             | URL-decode (9.2+)                              | `EVAL decoded = URL_DECODE(url)`                                     |
+| `URL_ENCODE(s)`             | URL-encode (9.2+)                              | `EVAL encoded = URL_ENCODE(text)`                                    |
+| `URL_ENCODE_COMPONENT(s)`   | URL-encode for URI components (9.2+)           | `EVAL encoded = URL_ENCODE_COMPONENT(text)`                          |
+| `JSON_EXTRACT(field, path)` | Extract value from JSON string (Serverless GA) | `EVAL name = JSON_EXTRACT(raw, "$.user.name")`                       |
+
+**JSON_EXTRACT with \_source — flattened field workaround:**
+
+ES|QL does not natively access `flattened` field sub-keys. Use `METADATA _source` with `JSON_EXTRACT` to reach inside
+flattened objects. `_source` can be passed directly to `JSON_EXTRACT` — do not wrap it with `TO_STRING()`.
+
+```esql
+FROM logs-* METADATA _source
+| EVAL provider = JSON_EXTRACT(_source, "$.cloud.provider")
+| STATS count = COUNT(*) BY provider
+```
+
+This also works for any field that exists in the raw document but has no explicit mapping.
 
 ---
 
@@ -1423,15 +1538,15 @@ FROM logs-*
 Access document metadata with the `METADATA` directive on the `FROM` command. Once enabled, metadata fields behave like
 regular index fields.
 
-| Field         | Type    | Description                                                     |
-| ------------- | ------- | --------------------------------------------------------------- |
-| `_id`         | keyword | Unique document ID                                              |
-| `_index`      | keyword | Index name                                                      |
-| `_version`    | long    | Document version number                                         |
-| `_score`      | float   | Query relevance score (updated by full-text search functions)   |
-| `_ignored`    | keyword | Fields that were ignored when the document was indexed          |
-| `_index_mode` | keyword | Index mode (`standard`, `lookup`, `logsdb`, `time_series` etc.) |
-| `_source`     | special | Original JSON document body (not supported by functions)        |
+| Field         | Type    | Description                                                                            |
+| ------------- | ------- | -------------------------------------------------------------------------------------- |
+| `_id`         | keyword | Unique document ID                                                                     |
+| `_index`      | keyword | Index name                                                                             |
+| `_version`    | long    | Document version number                                                                |
+| `_score`      | float   | Query relevance score (updated by full-text search functions)                          |
+| `_ignored`    | keyword | Fields that were ignored when the document was indexed                                 |
+| `_index_mode` | keyword | Index mode (`standard`, `lookup`, `logsdb`, `time_series` etc.)                        |
+| `_source`     | special | Original JSON document body. Use `JSON_EXTRACT` to access flattened or unmapped fields |
 
 ```esql
 FROM logs METADATA _id, _index, _version
