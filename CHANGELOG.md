@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.0
+
+### New Skills
+
+- `skills/observability/k8s-investigation` (v0.2.0)
+
+### Updated Skills
+
+- `skills/elasticsearch/elasticsearch-esql` (v0.1.1 → v0.2.0)
+- `skills/kibana/kibana-dashboards` (v0.1.1 → v0.1.2)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.2.4
 
 ### Updated Skills

@@ -522,6 +522,70 @@ ES|QL before 9.2**. There is no fallback.
 When the cluster is pre-9.2 and the question requires per-row vs. aggregate comparison, explain that `INLINE STATS` is
 needed and suggest the user either upgrade or perform the comparison client-side.
 
+### Pipe Commands: URI_PARTS, USER_AGENT, REGISTERED_DOMAIN (Serverless)
+
+These are **pipe commands** (like `DISSECT`/`GROK`), not scalar functions. They must appear on their own pipeline stage
+with `target = expression` syntax. A target prefix is mandatory.
+
+```esql
+// WRONG — function-call syntax does not work
+| EVAL parts = URI_PARTS(url.full)
+
+// CORRECT — pipe command syntax with target prefix
+| URI_PARTS parts = url.full
+| KEEP parts.domain, parts.path, parts.scheme
+```
+
+When the user asks to "parse URLs", "extract domains", or "parse user agents", reach for these commands instead of
+`DISSECT`/`GROK`:
+
+| User Request              | Command             |
+| ------------------------- | ------------------- |
+| Parse/decompose a URL     | `URI_PARTS`         |
+| Parse a user agent string | `USER_AGENT`        |
+| Extract registered domain | `REGISTERED_DOMAIN` |
+
+### Grouped Top-N with LIMIT BY (Serverless)
+
+`LIMIT n BY field` keeps the top N rows per group after sorting. The number comes **before** `BY`.
+
+```esql
+// Top 3 error-producing hosts per service
+FROM logs-*
+| WHERE level == "error"
+| STATS cnt = COUNT(*) BY service.name, host.name
+| SORT cnt DESC
+| LIMIT 3 BY service.name
+```
+
+This replaces the common `INLINE STATS` + rank-and-filter pattern for simple grouped top-N.
+
+### Subqueries in FROM vs FORK
+
+**Subqueries** (Serverless tech preview) combine results from **different** data sources (UNION ALL semantics). **FORK**
+runs **different analyses** on the **same** data source.
+
+| Scenario                              | Use        |
+| ------------------------------------- | ---------- |
+| Combine errors from two index sets    | Subqueries |
+| Run multiple aggregations on one set  | FORK       |
+| Compare time windows of the same data | FORK       |
+| Union independent pipelines           | Subqueries |
+
+```esql
+// Subqueries — different sources
+FROM
+  (FROM web_logs | WHERE status >= 500 | KEEP @timestamp, message, service.name),
+  (FROM app_logs | WHERE level == "error" | KEEP @timestamp, message, service.name)
+| SORT @timestamp DESC
+
+// FORK — same source, different analyses
+FROM logs-*
+| FORK
+    ( WHERE level == "error" | STATS errors = COUNT(*) BY service.name )
+    ( WHERE level == "warning" | STATS warnings = COUNT(*) BY service.name )
+```
+
 ### External IPs — CIDR_MATCH with RFC 1918
 
 When the user asks about "external IPs" or "public IPs", exclude private (RFC 1918) ranges with `NOT CIDR_MATCH`:

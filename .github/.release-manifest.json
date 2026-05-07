@@ -1,7 +1,7 @@
 {
-  "version": "0.2.4",
+  "version": "0.3.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "b1798448ff8f0fd7ea371606a0e0b95d33a1d70a",
+  "sandbox_sha": "9cae1f89b67c70034023433f3e991ef4ea180ee4",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -37,7 +37,7 @@
     },
     "skills/elasticsearch/elasticsearch-esql": {
       "name": "elasticsearch-esql",
-      "version": "0.1.1"
+      "version": "0.2.0"
     },
     "skills/elasticsearch/elasticsearch-file-ingest": {
       "name": "elasticsearch-file-ingest",
@@ -69,7 +69,7 @@
     },
     "skills/kibana/kibana-dashboards": {
       "name": "kibana-dashboards",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     "skills/kibana/kibana-vega": {
       "name": "kibana-vega",
@@ -102,6 +102,10 @@
     "skills/observability/edot-python-migrate": {
       "name": "observability-edot-python-migrate",
       "version": "0.1.0"
+    },
+    "skills/observability/k8s-investigation": {
+      "name": "observability-k8s-investigation",
+      "version": "0.2.0"
     },
     "skills/observability/llm-obs": {
       "name": "observability-llm-obs",
