@@ -1,0 +1,26 @@
+{
+  "name": "ad_rca_correlation",
+  "description": "Find temporally correlated anomalies across different jobs. Supports two modes: (1) co_occurrence — anomalies from different jobs in overlapping time windows regardless of shared influencers, essential for cross-domain correlation (K8s + APM + logs); (2) ordered_sequence — anomalies sorted by time to detect cascading failures (network -> app -> DB propagation). The agent examines temporal ordering and job types to infer causality. Use job_id_pattern to scope to a subset of jobs (e.g. 'rcaeval-ob-*') when many jobs exist.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-anomalies-* | WHERE result_type == \"record\" AND job_id LIKE ?job_id_pattern AND record_score >= ?min_score AND timestamp >= ?start_time AND timestamp <= ?end_time | SORT timestamp ASC | KEEP job_id, timestamp, record_score, function, field_name, by_field_name, by_field_value, partition_field_name, partition_field_value, over_field_name, over_field_value, multi_bucket_impact | LIMIT 100"
+  },
+  "parameters": {
+    "job_id_pattern": {
+      "type": "string",
+      "description": "Job ID pattern using LIKE wildcards (* = multi-char). Use '*' for all jobs, 'rcaeval-*' for all RCAEval jobs, 'rcaeval-ob-*' for Online Boutique only, 'nab-*' for NAB jobs, etc."
+    },
+    "min_score": {
+      "type": "string",
+      "description": "Minimum record_score threshold"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start of time range in ISO 8601 format"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End of time range in ISO 8601 format"
+    }
+  }
+}

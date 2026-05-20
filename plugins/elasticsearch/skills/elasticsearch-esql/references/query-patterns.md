@@ -437,6 +437,60 @@ FROM flights
 | KEEP flight_id, destination, distance, avg_dist
 ```
 
+### Grouped Top-N with LIMIT BY (Serverless)
+
+```text
+"top 3 error types per service"
+→
+FROM logs-*
+| WHERE @timestamp > NOW() - 24 hours AND level == "error"
+| STATS cnt = COUNT(*) BY service.name, error.type
+| SORT cnt DESC
+| LIMIT 3 BY service.name
+```
+
+```text
+"most recent event per user"
+→
+// Serverless: use LATEST to get the most recent value per group
+FROM events-*
+| STATS last_action = LATEST(event.action), last_ts = LATEST(@timestamp) BY user.name
+
+// Alternative with LIMIT BY
+FROM events-*
+| SORT @timestamp DESC
+| LIMIT 1 BY user.name
+| KEEP user.name, @timestamp, event.action
+```
+
+### Subquery Composition (Serverless tech preview)
+
+```text
+"combine web server errors and application errors into one view"
+→
+FROM
+  (FROM web_logs
+   | WHERE @timestamp > NOW() - 1 hour AND status_code >= 500
+   | EVAL source = "web"
+   | KEEP @timestamp, message, service.name, source),
+  (FROM app_logs
+   | WHERE @timestamp > NOW() - 1 hour AND level == "error"
+   | EVAL source = "app"
+   | KEEP @timestamp, message, service.name, source)
+| SORT @timestamp DESC
+| LIMIT 100
+```
+
+```text
+"count errors from different log sources by service"
+→
+FROM
+  (FROM web_logs | WHERE status_code >= 500 | KEEP @timestamp, service.name),
+  (FROM app_logs | WHERE level == "error" | KEEP @timestamp, service.name)
+| STATS errors = COUNT(*) BY service.name
+| SORT errors DESC
+```
+
 ### MATCH_PHRASE (8.19/9.1+)
 
 ```text

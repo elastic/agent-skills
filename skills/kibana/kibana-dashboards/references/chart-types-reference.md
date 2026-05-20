@@ -11,8 +11,8 @@ Complete schema reference for each supported chart type via the Kibana dashboard
 - `tag_cloud` — Tag/word cloud
 - `data_table` — Data tables
 - `region_map` — Region/choropleth maps
-- `pie`, `treemap`, `mosaic`, `waffle` — Partition charts (use `pie` with `donut_hole` for donuts: `"s"`, `"m"`, or
-  `"l"`)
+- `pie`, `treemap`, `mosaic`, `waffle` — Partition charts (use `pie` with `styling.donut_hole` for donuts: `"s"`, `"m"`,
+  or `"l"`)
 
 ## DataView Aggregation Operations
 
@@ -323,8 +323,8 @@ For ES|QL, uses `metrics` and `rows` arrays. Each entry uses `{ column: "..." }`
 
 Partition charts display parts of a whole. Uses a flat structure (no `layers`) with `metrics` for the slice sizes and
 `group_by` for the rings or groupings. The schema is identical for all partition types—simply change `"type": "pie"` to
-`"treemap"`, `"mosaic"`, or `"waffle"`. To create a donut, use `"type": "pie"` with `"donut_hole"` set to `"s"`, `"m"`,
-or `"l"`.
+`"treemap"`, `"mosaic"`, or `"waffle"`. To create a donut, use `"type": "pie"` with `"styling": { "donut_hole": "m" }`.
+Valid `donut_hole` values are `"none"`, `"s"`, `"m"`, or `"l"`.
 
 **ES|QL Example:**
 

@@ -1,0 +1,36 @@
+name: ad_create_job
+description: >
+  Create a new anomaly detection job from a configuration. Stretch goal — for advanced agent use cases where the agent
+  helps design and create jobs based on data exploration. job_body is JSON text; the step uses Liquid json_parse and typed
+  interpolation (${{ }}) so the PUT body is a structured JSON object for the ML API, not a JSON-encoded string.
+enabled: true
+tags: ["anomaly-detection", "management"]
+
+inputs:
+  - name: job_id
+    type: string
+    description: The new job ID to create
+  - name: job_body
+    type: string
+    description: >
+      Full job configuration as JSON text (same shape as PUT /_ml/anomaly_detectors/{job_id}). Parsed with json_parse
+      before the request so the HTTP body is an object. Runners that support a native object input may still pass JSON
+      text here.
+
+triggers:
+  - type: manual
+
+steps:
+  - name: create_job
+    type: elasticsearch.request
+    with:
+      method: PUT
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}
+      body: "${{ inputs.job_body | json_parse }}"
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Created job {{ inputs.job_id }}:
+        {{ steps.create_job.output | json:2 }}

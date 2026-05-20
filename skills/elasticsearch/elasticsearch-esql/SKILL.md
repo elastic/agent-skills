@@ -6,7 +6,7 @@ description: >
   charts and dashboards from ES|QL results.
 metadata:
   author: elastic
-  version: 0.1.1
+  version: 0.3.0
 ---
 
 # Elasticsearch ES|QL
@@ -120,11 +120,24 @@ node scripts/esql.js test
    curl -s "$ELASTICSEARCH_URL/<index-name>/_settings/index.mode" -H "Authorization: ApiKey $ELASTICSEARCH_API_KEY"
    ```
 
+   For TSDS indices on 9.4+, prefer the in-language discovery commands `METRICS_INFO` and `TS_INFO` (both GA) over
+   inspecting mappings — they enumerate the metric catalogue and the dimension labels of each time series directly. Both
+   must follow `TS` and must precede `STATS`/`SORT`/`LIMIT`. See
+   [Time Series Queries](references/time-series-queries.md#metric-and-time-series-discovery).
+
+   ```bash
+   node scripts/esql.js raw "TS metrics-tsds | METRICS_INFO | SORT metric_name" --tsv
+   node scripts/esql.js raw "TS metrics-tsds | TS_INFO | KEEP metric_name, dimensions | SORT metric_name" --tsv
+   ```
+
 3. **Choose the right ES|QL feature for the task**: Before writing queries, match the user's intent to the most
    appropriate ES|QL feature. Prefer a single advanced query over multiple basic ones.
    - "find patterns," "categorize," "group similar messages" → `CATEGORIZE(field)`
    - "spike," "dip," "anomaly," "when did X change" → `CHANGE_POINT value ON key`
    - "trend over time," "time series" → `STATS ... BY BUCKET(@timestamp, interval)` or `TS` for TSDB
+   - "PromQL", "Prometheus query/dashboard/alert", `sum by (instance) (...)`, label matchers like `{cluster="prod"}` →
+     `PROMQL` source command (9.4+ preview); see [PROMQL Command](references/promql-command.md). Prefer `TS` for native
+     ES|QL phrasing.
    - "search," "find documents matching" → `MATCH` (default), `QSTR` (advanced boolean), `KQL` (Kibana migration). For
      content/document relevance search, follow the [ES|QL Search Strategy](references/esql-search-strategy.md)
    - "count," "average," "breakdown" → `STATS` with aggregation functions
@@ -134,6 +147,8 @@ node scripts/esql.js test
      CIDR_MATCH), common templates, and ambiguity handling
    - [Time Series Queries](references/time-series-queries.md) - **read before any TS query**: inner/outer aggregation
      model, TBUCKET syntax, RATE constraints
+   - [PROMQL Command](references/promql-command.md) — **read before any PROMQL query**: options, output schema,
+     limitations, and `PROMQL` vs `TS` decision matrix (9.4+ preview)
    - [ES|QL Complete Reference](references/esql-reference.md) - full syntax for all commands and functions
    - [ES|QL Search Strategy](references/esql-search-strategy.md) — for content/document relevance search (retrieve →
      fuse → rerank)
@@ -281,6 +296,25 @@ TS metrics-tsds
 | SORT bucket
 ```
 
+**Time series with PromQL syntax (9.4+ preview):** Use the `PROMQL` source command when the user explicitly asks for
+PromQL, references Prometheus syntax (`sum by (instance) (...)`, label matchers like `{cluster="prod"}`), or is
+migrating a Prometheus dashboard or alert. The `PROMQL` command accepts standard PromQL with optional `index`, `step`,
+`buckets`, `start`, `end`, and `scrape_interval` options, and produces a table that the rest of the ES|QL pipeline can
+process. Range selectors are optional — when omitted, the window is `max(step, scrape_interval)`. Otherwise prefer `TS`
+(GA in 9.4). `PROMQL` does **not** support group modifiers, set operators (`or`/`and`/`unless`), or functions like
+`histogram_quantile`, `predict_linear`, and `label_join` — fall back to `TS` for those. See
+[PROMQL Command](references/promql-command.md) for the full reference.
+
+```esql
+// Adaptive Kibana query — date picker drives time range and step
+PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+
+// Named result, post-processed with ES|QL
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes = MAX(bytes) BY cluster
+| SORT cluster
+```
+
 **Data enrichment with LOOKUP JOIN:** The basic `ON` clause matches fields by name in both indices
 (`LOOKUP JOIN idx ON field_name`). When the join key has a different name in the source, use `RENAME` first to align
 names. 9.2+ tech preview also supports expression predicates (`ON expr == expr`); see
@@ -351,6 +385,7 @@ For complete ES|QL syntax including all commands, functions, and operators, read
 - [Query Patterns](references/query-patterns.md) - Natural language to ES|QL translation
 - [Generation Tips](references/generation-tips.md) - Best practices for query generation
 - [Time Series Queries](references/time-series-queries.md) - TS command, time series aggregation functions, TBUCKET
+- [PROMQL Command](references/promql-command.md) - PromQL source command for TSDS indices (9.4+ preview)
 - [DSL to ES|QL Migration](references/dsl-to-esql-migration.md) - Convert Query DSL to ES|QL
 - [Environment Setup](references/environment-setup.md) - Connection configuration options
 

@@ -1,0 +1,50 @@
+name: ad_wf_ts_field_cardinality
+description: >
+  Estimate cardinality of a split field (by_field, over_field, partition_field) in SOURCE data via ES|QL
+  POST /_query. The column for COUNT_DISTINCT is interpolated into the query text (not a ? parameter - those bind only
+  literals). Pass split_field_esql as a valid ES|QL column reference (for example service.keyword or `host.name.keyword`)
+  from ad_get_job_datafeed_config. Compare distinct_count with total_*_count from ad_ts_model_memory_health; if source
+  cardinality is much larger, entities may be dropped. For CCS, run per cluster and sum. Prefer ad_estimate_memory_requirement
+  for full sizing; this workflow answers how many distinct values the field has in the window.
+enabled: true
+tags: ["anomaly-detection", "diagnostics"]
+
+inputs:
+  - name: source_index
+    type: string
+    description: >
+      Source index name or LIKE pattern (* wildcard). From the job datafeed config (same as ES|QL FROM * METADATA _index filter).
+  - name: split_field_esql
+    type: string
+    description: >
+      Exact ES|QL column expression for COUNT_DISTINCT (not quoted as a string). Examples: service.keyword, `host.name.keyword`.
+      Must match a field on matched documents; use only values taken from job analysis config to avoid query injection.
+  - name: start_time
+    type: string
+    description: Start of time range in ISO 8601 format
+  - name: end_time
+    type: string
+    description: End of time range in ISO 8601 format
+
+triggers:
+  - type: manual
+
+steps:
+  - name: cardinality_esql
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_query
+      body:
+        query: "FROM * METADATA _index | WHERE _index LIKE ?source_index AND @timestamp >= ?start_time AND @timestamp <= ?end_time | STATS distinct_count = COUNT_DISTINCT({{ inputs.split_field_esql }}) | LIMIT 1"
+        params:
+          source_index: "{{ inputs.source_index }}"
+          start_time: "{{ inputs.start_time }}"
+          end_time: "{{ inputs.end_time }}"
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Split-field cardinality ({{ inputs.split_field_esql }}) on indices matching {{ inputs.source_index }} ({{ inputs.start_time }}-{{ inputs.end_time }}):
+        {{ steps.cardinality_esql.output | json:2 }}

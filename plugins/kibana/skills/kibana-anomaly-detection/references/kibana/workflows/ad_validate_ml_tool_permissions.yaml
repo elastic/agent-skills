@@ -1,0 +1,41 @@
+name: ad_validate_ml_tool_permissions
+description: >
+  Preflight check for core ML result and config indices via _has_privileges. Verifies read + view_index_metadata on
+  .ml-anomalies-*, .ml-config, .ml-annotations-*, and .ml-notifications-*. Does not check privileges on job-specific
+  source data indices — validate those separately before ad_rca_source_evidence, datafeed preview, or ad_wf_ts_field_cardinality.
+enabled: true
+tags: ["anomaly-detection", "diagnostics"]
+
+triggers:
+  - type: manual
+
+steps:
+  - name: check_security
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_security/_authenticate
+
+  - name: check_ml_privileges
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_security/user/_has_privileges
+      body:
+        index:
+          - names: [".ml-anomalies-*"]
+            privileges: ["read", "view_index_metadata"]
+          - names: [".ml-config"]
+            privileges: ["read", "view_index_metadata"]
+          - names: [".ml-annotations-*"]
+            privileges: ["read", "view_index_metadata"]
+          - names: [".ml-notifications-*"]
+            privileges: ["read", "view_index_metadata"]
+
+  - name: result
+    type: console
+    with:
+      message: |
+        User: {{ steps.check_security.output.username }}
+        Roles: {{ steps.check_security.output.roles | json }}
+        ML index privileges: {{ steps.check_ml_privileges.output | json:2 }}

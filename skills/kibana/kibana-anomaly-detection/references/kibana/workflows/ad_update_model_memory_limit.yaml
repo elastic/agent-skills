@@ -1,0 +1,60 @@
+name: ad_update_model_memory_limit
+description: >
+  Remediation workflow to change analysis_limits.model_memory_limit on an anomaly detector (for example after
+  ad_estimate_memory_requirement). Stops the datafeed, closes the job, POSTs /_ml/anomaly_detectors/{job_id}/_update with
+  the new limit, opens the job, and starts the datafeed again. Expects the default datafeed id datafeed-{job_id}. You
+  cannot decrease model_memory_limit below current model_bytes — clone the job to shrink.
+enabled: true
+tags: ["anomaly-detection", "remediation"]
+
+inputs:
+  - name: job_id
+    type: string
+    description: The anomaly detection job ID
+  - name: model_memory_limit
+    type: string
+    description: "New model_memory_limit value (e.g., '512mb', '1gb')"
+
+triggers:
+  - type: manual
+
+steps:
+  - name: stop_datafeed
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/datafeeds/datafeed-{{ inputs.job_id }}/_stop
+
+  - name: close_job
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}/_close
+
+  - name: update_model_memory_limit
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}/_update
+      body:
+        analysis_limits:
+          model_memory_limit: "{{ inputs.model_memory_limit }}"
+
+  - name: open_job
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}/_open
+
+  - name: start_datafeed
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/datafeeds/datafeed-{{ inputs.job_id }}/_start
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Updated model_memory_limit on {{ inputs.job_id }} to {{ inputs.model_memory_limit }}.
+        Job reopened and datafeed restarted.

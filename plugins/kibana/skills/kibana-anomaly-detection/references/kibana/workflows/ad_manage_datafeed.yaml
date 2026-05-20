@@ -1,0 +1,31 @@
+name: ad_manage_datafeed
+description: >
+  Start or stop a datafeed via POST _ml/datafeeds/{id}/{_start|_stop}. Used in remediation sequences (for example stop
+  before updating query_delay, then restart). For payload preview use ad_preview_datafeed_with_latency (GET
+  _ml/datafeeds/{id}/_preview); preview is not supported here because it requires GET, not POST.
+enabled: true
+tags: ["anomaly-detection", "remediation"]
+
+inputs:
+  - name: datafeed_id
+    type: string
+    description: "The datafeed ID (typically 'datafeed-{job_id}')"
+  - name: action
+    type: string
+    description: "Action to perform: _start or _stop only"
+
+triggers:
+  - type: manual
+
+steps:
+  - name: manage_datafeed
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/datafeeds/{{ inputs.datafeed_id }}/{{ inputs.action }}
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Datafeed {{ inputs.datafeed_id }} action {{ inputs.action }}: {{ steps.manage_datafeed.output | json:2 }}

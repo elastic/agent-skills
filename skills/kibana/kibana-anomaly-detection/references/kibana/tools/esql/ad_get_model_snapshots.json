@@ -1,0 +1,14 @@
+{
+  "name": "ad_get_model_snapshots",
+  "description": "List available model snapshots for a job, including timestamp, description, and size. Used for model revert operations when data quality issues have corrupted the model.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-anomalies-* | WHERE result_type == \"model_snapshot\" AND job_id == ?job_id | SORT timestamp DESC | KEEP job_id, timestamp, description, snapshot_doc_count | LIMIT 20"
+  },
+  "parameters": {
+    "job_id": {
+      "type": "string",
+      "description": "The anomaly detection job ID"
+    }
+  }
+}

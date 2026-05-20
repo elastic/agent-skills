@@ -1,0 +1,14 @@
+{
+  "name": "ad_ts_delayed_data_annotations",
+  "description": "Retrieve all delayed data annotations for a job, showing exactly when and how many documents were missed. The annotation field contains text like 'Datafeed has missed 30 documents due to ingest latency...' \u2014 frequent annotations indicate chronic ingest latency. This is the starting point for any 'missing documents' investigation.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-annotations-* | WHERE job_id == ?job_id AND event == \"delayed_data\" | SORT timestamp DESC | KEEP job_id, timestamp, end_timestamp, annotation | LIMIT 100"
+  },
+  "parameters": {
+    "job_id": {
+      "type": "string",
+      "description": "The anomaly detection job ID"
+    }
+  }
+}

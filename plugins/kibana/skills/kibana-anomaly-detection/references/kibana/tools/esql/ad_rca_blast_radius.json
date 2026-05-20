@@ -1,0 +1,26 @@
+{
+  "name": "ad_rca_blast_radius",
+  "description": "Measure how widespread a threat or issue is by counting how many hosts, partitions, or entities are affected by a specific anomalous value. Given a value (e.g. process.name: node-backdoor), counts distinct affected partitions across all jobs. Also aggregates weak signals: entities with multiple low-score anomalies across different jobs that individually are below alerting thresholds but collectively indicate a real problem.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-anomalies-* | WHERE result_type == \"record\" AND record_score >= ?min_score AND timestamp >= ?start_time AND timestamp <= ?end_time AND (by_field_value == ?anomalous_value OR over_field_value == ?anomalous_value OR partition_field_value == ?anomalous_value) | STATS affected_partitions = COUNT_DISTINCT(partition_field_value), affected_jobs = COUNT_DISTINCT(job_id), total_anomalies = COUNT(*), max_score = MAX(record_score), time_span_hours = DATE_DIFF(\"hour\", MIN(timestamp), MAX(timestamp)) BY by_field_value | SORT affected_partitions DESC"
+  },
+  "parameters": {
+    "anomalous_value": {
+      "type": "string",
+      "description": "The specific anomalous value to measure blast radius for (e.g. 'node-backdoor', 'suspicious-script.ps1')"
+    },
+    "min_score": {
+      "type": "string",
+      "description": "Minimum record_score. Use low values (10-25) for weak signal aggregation."
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start of time range in ISO 8601 format"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End of time range in ISO 8601 format"
+    }
+  }
+}
