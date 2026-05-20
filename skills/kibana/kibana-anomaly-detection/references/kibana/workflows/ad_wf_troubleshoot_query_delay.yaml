@@ -1,0 +1,131 @@
+name: ad_wf_troubleshoot_query_delay
+description: >
+  Stored workflow for troubleshooting missing documents and query_delay warnings. Implements a branching decision tree:
+  (1) checks for hard_limit categorization false alarms, (2) retrieves delayed data annotations, (3) checks bucket event
+  gaps, (4) measures ingest latency (two methods depending on available fields), (5) recommends query_delay value, (6)
+  suggests additional remediation. Trigger: 'My job reports missing documents', 'query_delay'.
+enabled: true
+tags: ["anomaly-detection", "troubleshooting", "query-delay"]
+
+inputs:
+  - name: job_id
+    type: string
+    description: The anomaly detection job ID to troubleshoot
+
+triggers:
+  - type: manual
+
+steps:
+  # Step 0: Get job/datafeed configuration
+  - name: get_config
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}
+
+  - name: get_stats
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}/_stats
+
+  # Step 1: Check for hard_limit categorization false alarm
+  # If job has categorization AND memory_status == hard_limit, the missing
+  # doc warning is a SYMPTOM of hard_limit, not ingest lag.
+  - name: log_hard_limit_check
+    type: console
+    with:
+      message: |
+        GATE CHECK: hard_limit categorization false alarm
+        Memory status: {{ steps.get_stats.output }}
+        If categorization_field_name is set AND memory_status == "hard_limit":
+          → STOP: Missing doc warning is caused by hard_limit, not ingest lag.
+            The per-partition categorizer cannot create new categories; events
+            are skipped, causing event_count mismatch.
+            Fix: Increase model_memory_limit first (use ad_update_model_memory_limit).
+
+  # Step 2: Check delayed data annotations
+  - name: check_delayed_annotations
+    type: elasticsearch.search
+    with:
+      index: .ml-annotations-*
+      size: 20
+      sort: "timestamp:desc"
+      query:
+        bool:
+          filter:
+            - term:
+                job_id: "{{ inputs.job_id }}"
+            - term:
+                type: annotation
+            - match:
+                annotation: "delayed data"
+
+  - name: log_delayed_annotations
+    type: console
+    with:
+      message: |
+        Delayed data annotations for {{ inputs.job_id }}:
+        Found {{ steps.check_delayed_annotations.output.hits.total.value }} delayed data annotations.
+        Recent annotations: {{ steps.check_delayed_annotations.output.hits.hits | json:2 }}
+
+  # Step 3: Check bucket event gaps
+  - name: check_bucket_gaps
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /.ml-anomalies-*/_search
+      body:
+        size: 0
+        query:
+          bool:
+            filter:
+              - term:
+                  job_id: "{{ inputs.job_id }}"
+              - term:
+                  result_type: bucket
+        aggs:
+          zero_count_buckets:
+            filter:
+              term:
+                event_count: 0
+          low_count_buckets:
+            filter:
+              range:
+                event_count:
+                  gt: 0
+                  lte: 5
+
+  - name: log_bucket_gaps
+    type: console
+    with:
+      message: |
+        Bucket event gap analysis for {{ inputs.job_id }}:
+        {{ steps.check_bucket_gaps.output.aggregations | json:2 }}
+
+  # Step 4-6: Recommendations
+  - name: recommendations
+    type: console
+    with:
+      message: |
+        RECOMMENDATIONS for {{ inputs.job_id }}:
+
+        1. MEASURE INGEST LATENCY:
+           - If event.ingested field exists: compare event.ingested vs @timestamp
+             to get exact latency distribution (P50, P95, P99)
+           - If not: use date_histogram comparison (recent bucket doc count vs
+             same bucket queried later) to estimate stabilization window
+
+        2. SET QUERY_DELAY:
+           - Recommended: P95 ingest latency + 30s buffer
+           - Trade-off: larger query_delay = slower anomaly alerts
+           - To update: stop datafeed → update query_delay → restart datafeed
+           - Use workflow: ad_update_datafeed_query_delay
+
+        3. ADDITIONAL REMEDIATION:
+           a) Add ingest timestamp via ingest pipeline for future diagnosis:
+              PUT _ingest/pipeline/add-ingest-ts
+              with a "set" processor that copies the _ingest.timestamp into "event.ingested"
+           b) Consider using ingest timestamp as the job's time_field
+           c) If catastrophically late data: revert model snapshot + backfill
+           d) Note: missed documents warning may persist 24h after fix

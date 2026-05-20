@@ -1,0 +1,26 @@
+{
+  "name": "ad_rca_multi_job_entities",
+  "description": "Find entities that are anomalous in MULTIPLE jobs simultaneously — the strongest root cause signal. Returns entities ranked by the number of distinct jobs they appear in, with per-job max scores and detector functions. Entities in 2+ jobs are prime root cause candidates (e.g., a service with CPU AND latency anomalies); entities in only 1 job are likely secondary effects or victims. This is the key discriminator for RCA: resource faults produce multi-job anomalies, network faults produce single-job anomalies.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-anomalies-* | WHERE result_type == \"record\" AND record_score >= ?min_score AND timestamp >= ?start_time AND timestamp <= ?end_time | STATS job_count = COUNT_DISTINCT(job_id), jobs = VALUES(job_id), max_score = MAX(record_score), total_records = COUNT(*), functions = VALUES(function), fields = VALUES(field_name) BY partition_field_value | WHERE job_count >= ?min_job_count | SORT job_count DESC, max_score DESC | LIMIT 20"
+  },
+  "parameters": {
+    "min_score": {
+      "type": "string",
+      "description": "Minimum record_score threshold. Use 25 for broader search (catches weak cascade signals), 50 for significant anomalies."
+    },
+    "min_job_count": {
+      "type": "string",
+      "description": "Minimum number of distinct jobs the entity must appear in. Use 2 to find cross-job root cause candidates, 1 to include all entities."
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start of time range in ISO 8601 format"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End of time range in ISO 8601 format"
+    }
+  }
+}

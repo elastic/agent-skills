@@ -1,0 +1,32 @@
+name: ad_get_log_categories
+description: >
+  Retrieve ML log category details — terms, regex pattern, and example messages — for a specific category from a log
+  categorization job. Use when investigating anomalies where by_field_name == "mlcategory" to understand what type of
+  log message the category represents before comparing samples across time windows.
+enabled: true
+tags: ["anomaly-detection", "log-categorization"]
+
+inputs:
+  - name: job_id
+    type: string
+    description: The categorization job ID
+  - name: category_id
+    type: string
+    description: "The category ID from the anomaly record's by_field_value"
+
+triggers:
+  - type: manual
+
+steps:
+  - name: get_categories
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}/results/categories/{{ inputs.category_id }}
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Log category {{ inputs.category_id }} for job {{ inputs.job_id }}:
+        {{ steps.get_categories.output | json:2 }}

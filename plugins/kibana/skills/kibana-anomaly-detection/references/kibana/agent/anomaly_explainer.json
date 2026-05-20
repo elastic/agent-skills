@@ -1,0 +1,14 @@
+{
+  "tools": [
+    "ad_get_available_metadata",
+    "ad_get_jobs",
+    "ad_query_anomaly_records",
+    "ad_query_influencers",
+    "ad_rca_score_reassessment",
+    "ad_get_model_plot",
+    "ad_get_categories",
+    "ad_get_forecast_results",
+    "ad_wf_troubleshoot_anomaly_score",
+    "ad_get_job_datafeed_config"
+  ]
+}

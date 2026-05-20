@@ -1,0 +1,28 @@
+name: ad_preview_datafeed_with_latency
+description: >
+  Preview a datafeed's source payload and measure effective latency before tuning query_delay. Shows what data the
+  datafeed would see at query time, helping identify fields available for latency measurement.
+enabled: true
+tags: ["anomaly-detection", "troubleshooting"]
+
+inputs:
+  - name: datafeed_id
+    type: string
+    description: The datafeed ID to preview
+
+triggers:
+  - type: manual
+
+steps:
+  - name: preview_datafeed
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/datafeeds/{{ inputs.datafeed_id }}/_preview
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Datafeed preview for {{ inputs.datafeed_id }}:
+        {{ steps.preview_datafeed.output | json:2 }}
