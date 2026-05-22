@@ -60,7 +60,7 @@ Skills in this repository focus on:
 | [elasticsearch-authn](skills/elasticsearch/elasticsearch-authn/SKILL.md) | Authenticate to Elasticsearch using native, file-based, LDAP/AD, SAML, OIDC, Kerberos, JWT, or certificate realms. Use when connecting with credentials, choosing a realm, or managing API keys. Assumes the target realms are already configured. | 0.1.0 | elastic |
 | [elasticsearch-authz](skills/elasticsearch/elasticsearch-authz/SKILL.md) | Manage Elasticsearch RBAC: native users, roles, role mappings, document- and field-level security. Use when creating users or roles, assigning privileges, or mapping external realms like LDAP/SAML. | 0.1.1 | elastic |
 | [elasticsearch-esql](skills/elasticsearch/elasticsearch-esql/SKILL.md) | Execute ES\|QL (Elasticsearch Query Language) queries, use when the user wants to query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create charts and dashboards from ES\|QL results. | 0.1.1 | elastic |
-| [elasticsearch-file-ingest](skills/elasticsearch/elasticsearch-file-ingest/SKILL.md) | Ingest and transform data files (CSV/JSON/Parquet/Arrow IPC) into Elasticsearch with stream processing, custom transforms, and cross-version reindexing. Use when loading files, batch importing data, or migrating indices across versions — not for general ingest pipeline design or bulk API patterns. | 0.1.0 | elastic |
+| [elasticsearch-file-ingest](skills/elasticsearch/elasticsearch-file-ingest/SKILL.md) | Ingest and transform data files (CSV/JSON/Parquet/Arrow IPC) into Elasticsearch with stream processing and custom transforms. Use when loading files or batch importing data — not for reindexing, general ingest pipeline design, or bulk API patterns. | 0.2.0 | elastic |
 | [elasticsearch-onboarding](skills/elasticsearch/elasticsearch-onboarding/SKILL.md) | Help developers new to Elasticsearch get from zero to a working search experience. Guide them through understanding their intent, mapping their data, and building a search experience with best practices baked in. Use this when developers are new to Elasticsearch and need help getting started with their search use case. | 0.1.0 | elastic |
 | [elasticsearch-security-troubleshooting](skills/elasticsearch/elasticsearch-security-troubleshooting/SKILL.md) | Diagnose and resolve Elasticsearch security errors: 401/403 failures, TLS problems, expired API keys, role mapping mismatches, and Kibana login issues. Use when the user reports a security error. | 0.1.0 | elastic |
 
@@ -75,7 +75,7 @@ Skills in this repository focus on:
 | [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules via REST API or Terraform. Use when creating, updating, or managing rule lifecycle (enable, disable, mute, snooze) or rules-as-code workflows. | 0.1.0 | elastic |
 | [kibana-audit](skills/kibana/kibana-audit/SKILL.md) | Enable and configure Kibana audit logging for saved object access, logins, and space operations. Use when setting up Kibana audit, filtering events, or correlating Kibana and ES audit logs. | 0.1.0 | elastic |
 | [kibana-connectors](skills/kibana/kibana-connectors/SKILL.md) | Create and manage Kibana connectors for Slack, PagerDuty, Jira, webhooks, and more via REST API or Terraform. Use when configuring third-party integrations or managing connectors as code. | 0.1.1 | elastic |
-| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.1.0 | elastic |
+| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.1.1 | elastic |
 | [kibana-vega](skills/kibana/kibana-vega/SKILL.md) | Create Vega and Vega-Lite visualizations with ES\|QL data sources in Kibana. Use when building custom charts, dashboards, or programmatic panel layouts beyond standard Lens charts. | 0.1.0 | elastic |
 | [kibana-streams](skills/kibana/streams/SKILL.md) | List, inspect, enable, disable, and resync Kibana Streams via the REST API. Use when the user needs stream details, ingest/query settings, queries, significant events, or attachments. | 0.1.0 | elastic |
 
@@ -170,7 +170,7 @@ The fastest way to install skills is with the [`skills`](https://github.com/verc
 npx skills add elastic/agent-skills
 ```
 
-This launches an interactive prompt to select skills and target agents. The CLI copies each skill folder into the correct location for the agent to discover.
+This launches an interactive prompt to select skills and [target agents](https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents). The CLI copies each skill folder into the correct location for the agent to discover.
 
 Install a specific skill by name:
 
@@ -184,7 +184,7 @@ Or use the `@` shorthand to specify the skill directly as `repo@skill` (equivale
 npx skills add elastic/agent-skills@elasticsearch-esql
 ```
 
-Install to specific agents:
+Install to specific agents (see [supported agents](https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents)):
 
 ```sh
 npx skills add elastic/agent-skills -a cursor -a claude-code
@@ -204,7 +204,7 @@ npx skills add elastic/agent-skills --all
 
 | Flag              | Description                                       |
 | ----------------- | ------------------------------------------------- |
-| `-a, --agent`     | Target specific agents                            |
+| `-a, --agent`     | Target specific agents (see [Supported agents](https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents)) |
 | `-s, --skill`     | Install specific skills by name                   |
 | `-g, --global`    | Install to user home instead of project directory |
 | `-y, --yes`       | Skip confirmation prompts                         |

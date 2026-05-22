@@ -1,0 +1,18 @@
+{
+  "version": "0.2.4",
+  "name": "elastic-elasticsearch",
+  "description": "Elasticsearch skills - ES|QL queries, data ingestion, security (authn, authz, audit), and troubleshooting",
+  "author": {
+    "name": "Elastic"
+  },
+  "repository": "https://github.com/elastic/agent-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "elasticsearch",
+    "esql",
+    "search",
+    "ingest",
+    "security",
+    "elastic"
+  ]
+}

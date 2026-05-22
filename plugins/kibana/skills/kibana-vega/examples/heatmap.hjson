@@ -1,0 +1,65 @@
+{
+  // Heatmap showing activity by hour and day of week
+  
+  $schema: https://vega.github.io/schema/vega-lite/v6.json
+  title: Activity Heatmap (Hour vs Day)
+  
+  data: {
+    url: {
+      "%type%": "esql"
+      "%context%": true
+      "%timefield%": "@timestamp"
+      query: '''
+        FROM logs-*
+        | WHERE @timestamp >= ?_tstart AND @timestamp <= ?_tend
+        | EVAL hour = DATE_EXTRACT("HOUR_OF_DAY", @timestamp)
+        | EVAL day = DATE_EXTRACT("DAY_OF_WEEK", @timestamp)
+        | EVAL day_name = CASE(
+            day == 1, "Mon",
+            day == 2, "Tue",
+            day == 3, "Wed",
+            day == 4, "Thu",
+            day == 5, "Fri",
+            day == 6, "Sat",
+            day == 7, "Sun",
+            "Unknown"
+          )
+        | STATS count = COUNT() BY hour, day_name
+      '''
+    }
+  }
+  
+  mark: rect
+  
+  encoding: {
+    x: {
+      field: hour
+      type: ordinal
+      axis: { 
+        title: "Hour of Day"
+        labelAngle: 0
+      }
+    }
+    y: {
+      field: day_name
+      type: ordinal
+      sort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+      axis: { title: "Day of Week" }
+    }
+    color: {
+      field: count
+      type: quantitative
+      scale: { scheme: "blues" }
+      legend: { title: "Events" }
+    }
+    tooltip: [
+      { field: day_name, type: nominal, title: "Day" }
+      { field: hour, type: quantitative, title: "Hour" }
+      { field: count, type: quantitative, title: "Events" }
+    ]
+  }
+  
+  config: {
+    axis: { grid: true, tickBand: "extent" }
+  }
+}

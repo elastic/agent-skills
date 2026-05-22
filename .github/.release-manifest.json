@@ -1,7 +1,7 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.4",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "5255f3069ac23ba77264c83c269fba9fb9995c9a",
+  "sandbox_sha": "b1798448ff8f0fd7ea371606a0e0b95d33a1d70a",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -41,7 +41,7 @@
     },
     "skills/elasticsearch/elasticsearch-file-ingest": {
       "name": "elasticsearch-file-ingest",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     "skills/elasticsearch/elasticsearch-onboarding": {
       "name": "elasticsearch-onboarding",
@@ -69,7 +69,7 @@
     },
     "skills/kibana/kibana-dashboards": {
       "name": "kibana-dashboards",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     "skills/kibana/kibana-vega": {
       "name": "kibana-vega",
