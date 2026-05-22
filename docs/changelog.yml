@@ -252,14 +252,14 @@ bundle:
   # The 'output', 'output_products', 'repo', 'owner', and 'hide_features' fields are
   # bundle-specific and are ignored for removal.
   profiles:
-    # Example: Elasticsearch release profile (filter by changelog fields)
-    # elasticsearch-release:
-    #   # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
-    #   products: "elasticsearch {version} {lifecycle}"
-    #   # Output filename ({version} is substituted at runtime)
-    #   output: "elasticsearch-{version}.yaml"
-    #   # Optional: override the products array written to the bundle output.
-    #   # output_products: "elasticsearch {version}"
+    agent-skills-release:
+    # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
+      # products: "agent-skills {version} {lifecycle}"
+      output: "agent-skills-{version}.yaml"
+      output_products: "agent-skills {version}"
+    #   # Feature IDs to hide when bundling with this profile (accepts string or list)
+      # hide_features:
+      #   - feature-flag-1
     #   # Optional: profile-specific description (overrides bundle.description)
     #   # description: |
     #   #   Elasticsearch {version} includes:
@@ -267,6 +267,7 @@ bundle:
     #   #   - Bug fixes and stability enhancements
     #   #   
     #   #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
+
     # Example: GitHub release profile (fetches PR list directly from a GitHub release)
     # Use when you want to bundle or remove changelogs based on a published GitHub release.
     # elasticsearch-gh-release:
@@ -275,22 +276,3 @@ bundle:
     #   owner: elastic               # GitHub owner (optional; defaults to bundle.owner or "elastic")
     #   output: "elasticsearch-{version}.yaml"
     #   output_products: "elasticsearch {version} {lifecycle}"
-
-    # Example: Serverless release profile (filter by promotion report, PR, or issue list)
-    # serverless-release:
-    #   output: "serverless-{version}.yaml"
-    #   output_products: "cloud-serverless {version}"
-    #   # Optional: profile-specific GitHub repo name (overrides bundle.repo if set).
-    #   # Only needed when this profile's product ID differs from the repository name.
-    #     repo: elasticsearch
-    #     owner: elastic
-    #   # Feature IDs to hide when bundling with this profile (accepts string or list)
-    #   hide_features:
-    #     - feature-flag-1
-    #     - feature-flag-2
-
-    # Example: Multi-product profile (Mode 3 rule context = first product alphabetically, e.g. kibana).
-    # For security-only rules, add a separate profile with output_products listing only security.
-    # kibana-security-release:
-    #   output: "kibana-security-{version}.yaml"
-    #   output_products: "kibana {version}, security {version}"
