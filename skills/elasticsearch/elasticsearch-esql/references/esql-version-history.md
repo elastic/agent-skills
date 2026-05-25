@@ -27,51 +27,58 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 
 ## Version Timeline Overview
 
-| Version | Release  | Status       | Key Additions                                                                                    |
-| ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------ |
-| 8.11    | Nov 2023 | Tech Preview | Initial ES\|QL release                                                                           |
-| 8.12    | Jan 2024 | Tech Preview | Spatial types, PROFILE                                                                           |
-| 8.13    | Mar 2024 | Tech Preview | Async queries, cross-cluster ENRICH                                                              |
-| 8.14    | May 2024 | **GA**       | Spatial functions, regex optimization                                                            |
-| 8.15    | Aug 2024 | GA           | Type casting (`::`), Arrow output                                                                |
-| 8.16    | Oct 2024 | GA           | Per-aggregation WHERE, new math/string functions                                                 |
-| 8.17    | Dec 2024 | GA           | MATCH, QSTR full-text functions                                                                  |
-| 8.18    | Feb 2025 | GA           | LOOKUP JOIN (preview), scoring, KQL                                                              |
-| 8.19    | Apr 2025 | GA           | MATCH_PHRASE, FORK, CHANGE_POINT (preview)                                                       |
-| 9.0     | Feb 2025 | GA           | Released with 8.18 features                                                                      |
-| 9.1     | Jun 2025 | GA           | Full-text functions GA, FORK (preview)                                                           |
-| 9.2     | Oct 2025 | GA           | Multi-field joins, TS, INLINE STATS (preview), CHANGE_POINT GA, FUSE (preview), RERANK (preview) |
-| 9.3     | Jan 2026 | GA           | INLINE STATS GA, SET directive (preview), Lucene-pushable JOIN predicates                        |
+| Version | Release  | Status       | Key Additions                                                                                           |
+| ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| 8.11    | Nov 2023 | Tech Preview | Initial ES\|QL release                                                                                  |
+| 8.12    | Jan 2024 | Tech Preview | Spatial types, PROFILE                                                                                  |
+| 8.13    | Mar 2024 | Tech Preview | Async queries, cross-cluster ENRICH                                                                     |
+| 8.14    | May 2024 | **GA**       | Spatial functions, regex optimization                                                                   |
+| 8.15    | Aug 2024 | GA           | Type casting (`::`), Arrow output                                                                       |
+| 8.16    | Oct 2024 | GA           | Per-aggregation WHERE, new math/string functions                                                        |
+| 8.17    | Dec 2024 | GA           | MATCH, QSTR full-text functions                                                                         |
+| 8.18    | Feb 2025 | GA           | LOOKUP JOIN (preview), scoring, KQL                                                                     |
+| 8.19    | Apr 2025 | GA           | MATCH_PHRASE, FORK, CHANGE_POINT (preview)                                                              |
+| 9.0     | Feb 2025 | GA           | Released with 8.18 features                                                                             |
+| 9.1     | Jun 2025 | GA           | Full-text functions GA, FORK (preview)                                                                  |
+| 9.2     | Oct 2025 | GA           | Multi-field joins, TS, INLINE STATS (preview), CHANGE_POINT GA, FUSE (preview), RERANK (preview)        |
+| 9.3     | Jan 2026 | GA           | INLINE STATS GA, SET directive (preview), Lucene-pushable JOIN predicates                               |
+| 9.4     | May 2026 | GA           | TS GA, time series functions GA, WITHOUT/METRICS_INFO/TS_INFO GA, PROMQL (preview), MV_EXPAND/VALUES GA |
 
 ## Feature Availability by Version
 
 ### Commands
 
-| Command        | Introduced | GA       | Notes                                       |
-| -------------- | ---------- | -------- | ------------------------------------------- |
-| `FROM`         | 8.11       | 8.14     | Source command                              |
-| `WHERE`        | 8.11       | 8.14     | Filtering                                   |
-| `EVAL`         | 8.11       | 8.14     | Computed columns                            |
-| `STATS ... BY` | 8.11       | 8.14     | Aggregations with grouping                  |
-| `SORT`         | 8.11       | 8.14     | Ordering results                            |
-| `LIMIT`        | 8.11       | 8.14     | Result set size                             |
-| `KEEP`         | 8.11       | 8.14     | Column selection                            |
-| `DROP`         | 8.11       | 8.14     | Column removal                              |
-| `RENAME`       | 8.11       | 8.14     | Column renaming                             |
-| `DISSECT`      | 8.11       | 8.14     | Pattern extraction                          |
-| `GROK`         | 8.11       | 8.14     | Log parsing                                 |
-| `ENRICH`       | 8.11       | 8.14     | Data enrichment                             |
-| `MV_EXPAND`    | 8.11       | 8.14     | Multi-value expansion                       |
-| `SHOW`         | 8.11       | 8.14     | Metadata display                            |
-| `ROW`          | 8.11       | 8.14     | Literal row creation                        |
-| `LOOKUP JOIN`  | 8.18/9.0   | 8.19/9.1 | SQL-style LEFT JOIN with lookup indices     |
-| `INLINE STATS` | 9.2        | 9.3      | Inline aggregations (like window functions) |
-| `FORK`         | 8.19/9.1   | Preview  | Multiple execution branches                 |
-| `FUSE`         | 9.2        | Preview  | Combine results from FORK branches          |
-| `TS`           | 9.2        | 9.2      | Time series mode                            |
-| `RERANK`       | 9.2        | Preview  | Re-score results with inference             |
-| `COMPLETION`   | 9.2        | 9.2      | LLM text generation                         |
-| `SAMPLE`       | 8.19/9.1   | Preview  | Random sampling                             |
+| Command        | Introduced | GA       | Notes                                           |
+| -------------- | ---------- | -------- | ----------------------------------------------- |
+| `FROM`         | 8.11       | 8.14     | Source command                                  |
+| `WHERE`        | 8.11       | 8.14     | Filtering                                       |
+| `EVAL`         | 8.11       | 8.14     | Computed columns                                |
+| `STATS ... BY` | 8.11       | 8.14     | Aggregations with grouping                      |
+| `SORT`         | 8.11       | 8.14     | Ordering results                                |
+| `LIMIT`        | 8.11       | 8.14     | Result set size                                 |
+| `KEEP`         | 8.11       | 8.14     | Column selection                                |
+| `DROP`         | 8.11       | 8.14     | Column removal                                  |
+| `RENAME`       | 8.11       | 8.14     | Column renaming                                 |
+| `DISSECT`      | 8.11       | 8.14     | Pattern extraction                              |
+| `GROK`         | 8.11       | 8.14     | Log parsing                                     |
+| `ENRICH`       | 8.11       | 8.14     | Data enrichment                                 |
+| `MV_EXPAND`    | 8.11       | 9.4      | Multi-value expansion (GA)                      |
+| `SHOW`         | 8.11       | 8.14     | Metadata display                                |
+| `ROW`          | 8.11       | 8.14     | Literal row creation                            |
+| `LOOKUP JOIN`  | 8.18/9.0   | 8.19/9.1 | SQL-style LEFT JOIN with lookup indices         |
+| `INLINE STATS` | 9.2        | 9.3      | Inline aggregations (like window functions)     |
+| `FORK`         | 8.19/9.1   | Preview  | Multiple execution branches                     |
+| `FUSE`         | 9.2        | Preview  | Combine results from FORK branches              |
+| `TS`           | 9.2        | 9.4      | Time series source command                      |
+| `PROMQL`       | 9.4        | Preview  | Source command using PromQL syntax on TSDS      |
+| `METRICS_INFO` | 9.4        | 9.4      | TSDS metric catalogue (after `TS`)              |
+| `TS_INFO`      | 9.4        | 9.4      | Per-(metric, time series) metadata (after `TS`) |
+| `RERANK`       | 9.2        | Preview  | Re-score results with inference                 |
+| `COMPLETION`   | 9.2        | 9.2      | LLM text generation                             |
+| `SAMPLE`       | 8.19/9.1   | Preview  | Random sampling                                 |
+| `URI_PARTS`    | Srvless    | Srvless  | Parse URI into structured columns               |
+| `USER_AGENT`   | Srvless    | Srvless  | Parse user agent into structured columns        |
+| `REG_DOMAIN`   | Srvless    | Srvless  | `REGISTERED_DOMAIN`: extract from hostname      |
 
 ### Full-Text Search Functions
 
@@ -157,19 +164,22 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 | `MEDIAN`, `MEDIAN_ABSOLUTE_DEVIATION` | 8.11       | Statistical                     |
 | `PERCENTILE`                          | 8.11       | Percentile calculation          |
 | `TOP`                                 | 8.15       | Top N values                    |
-| `VALUES`                              | 8.14       | Collect unique values           |
+| `VALUES`                              | 8.14       | Unique values (GA in 9.4)       |
 | `ST_EXTENT_AGG`                       | 8.18/9.0   | Spatial bounding box            |
 | `WEIGHTED_AVG`                        | 8.16       | Weighted average                |
 | `STD_DEV`                             | 8.18/9.0   | Standard deviation              |
 | `VARIANCE`                            | 8.18/9.0   | Variance                        |
+| `FIRST` / `EARLIEST`                  | Serverless | Earliest value by sort field    |
+| `LAST` / `LATEST`                     | Serverless | Latest value by sort field      |
 
 ### Grouping Functions
 
-| Function     | Introduced    | Notes                                             |
-| ------------ | ------------- | ------------------------------------------------- |
-| `BUCKET`     | 8.11          | Numeric/date bucketing in `BY` clause             |
-| `CATEGORIZE` | 8.18/9.0      | Auto-categorization of text in `BY` clause        |
-| `TBUCKET`    | 9.2 (preview) | Time bucketing from `@timestamp`; preferred in TS |
+| Function     | Introduced | Notes                                                            |
+| ------------ | ---------- | ---------------------------------------------------------------- |
+| `BUCKET`     | 8.11       | Numeric/date bucketing in `BY` clause                            |
+| `CATEGORIZE` | 8.18/9.0   | Auto-categorization of text in `BY` clause                       |
+| `TBUCKET`    | 9.2        | Time bucketing from `@timestamp`; preferred in TS (GA in 9.4)    |
+| `WITHOUT`    | 9.4        | Group time series by every dimension except the listed ones (GA) |
 
 ### Per-Aggregation WHERE
 
@@ -189,31 +199,39 @@ Available since 8.16. Allows filtering individual aggregations without affecting
 
 ### Time Series Aggregation Functions
 
-Available under `TS ... | STATS`. See [time-series-queries.md](time-series-queries.md) for full reference.
+Available under `TS ... | STATS`. See [time-series-queries.md](time-series-queries.md) for full reference. All time
+series aggregation functions in this table — both the 9.2-introduced set and the 9.3-introduced set (`DERIV`,
+`PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`, `VARIANCE_OVER_TIME`) — are **GA since 9.4**.
 
-| Function                   | Introduced    | Notes                                           |
-| -------------------------- | ------------- | ----------------------------------------------- |
-| `RATE`                     | 9.2 (preview) | Per-second rate of counter increase             |
-| `IRATE`                    | 9.2 (preview) | Instant rate (last two data points)             |
-| `INCREASE`                 | 9.2 (preview) | Absolute counter increase in window             |
-| `DELTA`                    | 9.2 (preview) | Absolute change of a gauge                      |
-| `IDELTA`                   | 9.2 (preview) | Change between last two data points             |
-| `AVG_OVER_TIME`            | 9.2 (preview) | Average value over time                         |
-| `SUM_OVER_TIME`            | 9.2 (preview) | Sum of values over time                         |
-| `MIN_OVER_TIME`            | 9.2 (preview) | Minimum value over time                         |
-| `MAX_OVER_TIME`            | 9.2 (preview) | Maximum value over time                         |
-| `FIRST_OVER_TIME`          | 9.2 (preview) | Earliest value by `@timestamp`                  |
-| `LAST_OVER_TIME`           | 9.2 (preview) | Latest value by `@timestamp` (implicit default) |
-| `COUNT_OVER_TIME`          | 9.2 (preview) | Count of values over time                       |
-| `COUNT_DISTINCT_OVER_TIME` | 9.2 (preview) | Count of distinct values over time              |
-| `PRESENT_OVER_TIME`        | 9.2 (preview) | `true` if field has values in window            |
-| `ABSENT_OVER_TIME`         | 9.2 (preview) | `true` if field has no values in window         |
-| `DERIV`                    | 9.3 (preview) | Derivative via linear regression                |
-| `PERCENTILE_OVER_TIME`     | 9.3 (preview) | Percentile of values over time                  |
-| `STDDEV_OVER_TIME`         | 9.3 (preview) | Population standard deviation over time         |
-| `VARIANCE_OVER_TIME`       | 9.3 (preview) | Population variance over time                   |
+| Function                   | Introduced    | Status   | Notes                                           |
+| -------------------------- | ------------- | -------- | ----------------------------------------------- |
+| `RATE`                     | 9.2 (preview) | GA (9.4) | Per-second rate of counter increase             |
+| `IRATE`                    | 9.2 (preview) | GA (9.4) | Instant rate (last two data points)             |
+| `INCREASE`                 | 9.2 (preview) | GA (9.4) | Absolute counter increase in window             |
+| `DELTA`                    | 9.2 (preview) | GA (9.4) | Absolute change of a gauge                      |
+| `IDELTA`                   | 9.2 (preview) | GA (9.4) | Change between last two data points             |
+| `AVG_OVER_TIME`            | 9.2 (preview) | GA (9.4) | Average value over time                         |
+| `SUM_OVER_TIME`            | 9.2 (preview) | GA (9.4) | Sum of values over time                         |
+| `MIN_OVER_TIME`            | 9.2 (preview) | GA (9.4) | Minimum value over time                         |
+| `MAX_OVER_TIME`            | 9.2 (preview) | GA (9.4) | Maximum value over time                         |
+| `FIRST_OVER_TIME`          | 9.2 (preview) | GA (9.4) | Earliest value by `@timestamp`                  |
+| `LAST_OVER_TIME`           | 9.2 (preview) | GA (9.4) | Latest value by `@timestamp` (implicit default) |
+| `COUNT_OVER_TIME`          | 9.2 (preview) | GA (9.4) | Count of values over time                       |
+| `COUNT_DISTINCT_OVER_TIME` | 9.2 (preview) | GA (9.4) | Count of distinct values over time              |
+| `PRESENT_OVER_TIME`        | 9.2 (preview) | GA (9.4) | `true` if field has values in window            |
+| `ABSENT_OVER_TIME`         | 9.2 (preview) | GA (9.4) | `true` if field has no values in window         |
+| `DERIV`                    | 9.3 (preview) | GA (9.4) | Derivative via linear regression                |
+| `PERCENTILE_OVER_TIME`     | 9.3 (preview) | GA (9.4) | Percentile of values over time                  |
+| `STDDEV_OVER_TIME`         | 9.3 (preview) | GA (9.4) | Population standard deviation over time         |
+| `VARIANCE_OVER_TIME`       | 9.3 (preview) | GA (9.4) | Population variance over time                   |
 
-Sliding window parameter (second argument) available since 9.3 preview.
+**Sliding window parameter (second argument):**
+
+- 9.2-9.3 (preview) — accepted window values are limited to multiples of the `TBUCKET` interval in the `BY` clause; if
+  no window is specified, the bucket interval is used implicitly.
+- 9.4+ (GA) — all window values are accepted, with performance optimizations when the window is a multiple of the
+  `TBUCKET` interval. Mixing windows that are smaller than the time bucket for one metric with windows larger than the
+  time bucket for another metric in the same query is not allowed.
 
 ### Conditional Functions
 
@@ -252,22 +270,32 @@ ES|QL **does not support cursor-based pagination** like the Search API's `search
 - Use `STATS` to aggregate at query time
 - For exports, use Search API with `search_after` instead
 
-### Time Zone Support (Limited)
+### Time Zone Support (Limited before Serverless / 9.4)
 
-ES|QL has **limited timezone support**.
+ES|QL has **limited timezone support** on self-managed clusters prior to 9.4. All dates are processed in UTC internally
+and there is no per-function timezone argument.
 
-**Current limitations:**
+On **Serverless**, ES|QL supports query-wide timezone via the `SET time_zone` directive (GA on Serverless). This accepts
+IANA timezone strings and UTC offsets, and applies to all date/time operations including `DATE_TRUNC`, `DATE_FORMAT`,
+`NOW()`, bucketing, and display.
 
-- `DATE_FORMAT` and `DATE_PARSE` do not support timezone parameters
-- All dates processed in UTC internally
-- Kibana charts may show timezone inconsistencies
+```esql
+SET time_zone = "America/New_York";
+FROM logs-*
+| STATS errors = COUNT(*) BY hour = DATE_TRUNC(1 hour, @timestamp)
+| SORT hour DESC
+```
+
+**Remaining limitations (all versions):**
+
+- No per-function timezone argument — `DATE_TRUNC(1 hour, @timestamp, "America/New_York")` does **not** work
+- `DATE_FORMAT` and `DATE_PARSE` do not accept timezone parameters directly; use `SET time_zone` instead
 - GitHub tracking issue: [#107560](https://github.com/elastic/elasticsearch/issues/107560)
 
-**Workarounds:**
+**Self-managed before 9.4:**
 
-- Store timezone offset in a separate field
-- Convert to UTC before querying
-- Use `EVAL` to add/subtract hours manually:
+- `SET time_zone` only accepts UTC offsets (`"+05:00"`), not IANA timezone strings
+- Workaround: use `EVAL` to add/subtract hours manually:
 
   ```esql
   | EVAL local_time = timestamp + 1 hour
@@ -285,16 +313,16 @@ returned at all** — they are silently omitted from results.
 
 These field types are not supported or have limitations:
 
-| Type           | Status                       |
-| -------------- | ---------------------------- |
-| `nested`       | Not supported - returns null |
-| `flattened`    | Not supported                |
-| `join`         | Not supported                |
-| `date_range`   | Not supported                |
-| `binary`       | Not supported                |
-| `completion`   | Not supported                |
-| `rank_feature` | Not supported                |
-| `histogram`    | Not supported                |
+| Type           | Status                                                                             |
+| -------------- | ---------------------------------------------------------------------------------- |
+| `nested`       | Not supported - returns null                                                       |
+| `flattened`    | Not natively supported; use `METADATA _source` + `JSON_EXTRACT` for sub-key access |
+| `join`         | Not supported                                                                      |
+| `date_range`   | Not supported                                                                      |
+| `binary`       | Not supported                                                                      |
+| `completion`   | Not supported                                                                      |
+| `rank_feature` | Not supported                                                                      |
+| `histogram`    | Not supported                                                                      |
 
 ### JOIN Limitations
 
@@ -317,15 +345,25 @@ These field types are not supported or have limitations:
 - Lucene-pushable predicates: `MATCH`, `QSTR`, `KQL`, `CIDR_MATCH` in join conditions
 - Further performance gains for filtered joins
 
-### No Subqueries
+### Subqueries (Limited)
 
-ES|QL does not support:
+ES|QL supports **subqueries in `FROM`** (Serverless tech preview) for combining results from multiple pipelines (UNION
+ALL semantics). These are non-correlated — each branch is independent.
 
-- Subqueries in WHERE clauses
-- Nested SELECT statements
-- CTEs (Common Table Expressions)
+```esql
+FROM
+  (FROM web_logs | WHERE status >= 500 | KEEP @timestamp, message, service.name),
+  (FROM app_logs | WHERE level == "error" | KEEP @timestamp, message, service.name)
+| SORT @timestamp DESC
+```
 
-Use `INLINE STATS` (9.2+) for some subquery-like patterns.
+**Not supported:**
+
+- Subqueries in `WHERE` clauses (no `WHERE field IN (FROM ...)`)
+- Correlated subqueries (branches cannot reference outer columns)
+- Nested SELECT / CTEs (Common Table Expressions)
+
+Use `INLINE STATS` (9.2+) for per-row vs. aggregate comparison patterns.
 
 ## Cross-Cluster Query Support
 
@@ -378,16 +416,47 @@ Use `INLINE STATS` (9.2+) for some subquery-like patterns.
 
 ### 9.2+
 
-- Use `TS` with `RATE`, `AVG_OVER_TIME`, etc. for time series metrics aggregations
-- Use `TBUCKET` for time bucketing in TS queries
+- Use `TS` with `RATE`, `AVG_OVER_TIME`, etc. for time series metrics aggregations (preview in 9.2-9.3, GA in 9.4)
+- Use `TBUCKET` for time bucketing in TS queries (GA in 9.4)
 - Multi-field `LOOKUP JOIN` for complex correlations
 - `FUSE` for hybrid search scoring
 
 ### 9.3+
 
 - Use `TRANGE` instead of manual `WHERE @timestamp` filters
-- Sliding window parameter for time series functions (e.g. `RATE(field, 10m)`)
+- Sliding window parameter for time series functions (e.g. `RATE(field, 10m)`); in 9.2-9.3 the window must be a multiple
+  of the `TBUCKET` interval, this restriction is lifted in 9.4
 - `CLAMP`, `CLAMP_MIN`, `CLAMP_MAX` for bounding metric values
+
+### 9.4+
+
+- `TS` source command and **all** time series aggregation functions are now **GA** — both the 9.2-introduced set
+  (`RATE`, `IRATE`, `INCREASE`, `DELTA`, `IDELTA`, `*_OVER_TIME`, `PRESENT_OVER_TIME`, `ABSENT_OVER_TIME`) and the
+  9.3-introduced set (`DERIV`, `PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`, `VARIANCE_OVER_TIME`).
+- `TBUCKET` grouping function is **GA**.
+- New `WITHOUT(...)` grouping function (GA) for time series queries: `BY WITHOUT(dim1, ...)` groups by every dimension
+  except the listed ones; `BY WITHOUT()` (no args) is equivalent to the implicit "group by all dimensions" behavior.
+- New `METRICS_INFO` and `TS_INFO` processing commands (both **GA**) for discovering the metric catalogue and dimension
+  labels of TSDS data without inspecting index mappings. Both must come after a `TS` source command and must appear
+  before pipeline-breaking commands (`STATS`/`SORT`/`LIMIT`). `METRICS_INFO` returns one row per distinct metric
+  signature; `TS_INFO` returns one row per (metric, time series) combination with the identifying dimension labels.
+- Sliding window parameter (`RATE(field, 10m)`) accepts arbitrary durations — no longer limited to multiples of the
+  `TBUCKET` interval. Note: a single query cannot mix windows smaller than the bucket for one metric with windows larger
+  than the bucket for another metric.
+- New `PROMQL` source command (preview) to run Prometheus Query Language directly against TSDS indices, with implicit
+  range selectors and a Kibana-aware `step`/`buckets` model. See [promql-command.md](promql-command.md). Prefer `PROMQL`
+  only when the user explicitly thinks in PromQL or is migrating Prometheus dashboards/alerts; otherwise prefer `TS`.
+- `MV_EXPAND` is GA
+- `VALUES` aggregation is GA
+
+### Serverless (latest)
+
+- `SET time_zone` with IANA timezone strings for query-wide timezone support (GA)
+- `LIMIT n BY field` for grouped top-N queries
+- `URI_PARTS`, `USER_AGENT`, `REGISTERED_DOMAIN` pipe commands for parsing structured strings
+- `FROM` subqueries for combining results from multiple pipelines (tech preview)
+- `EARLIEST`/`LATEST` aliases for `FIRST`/`LAST` aggregations
+- `JSON_EXTRACT` on `METADATA _source` for accessing flattened field sub-keys
 
 ## Version Detection
 

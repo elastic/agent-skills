@@ -123,7 +123,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }
@@ -170,7 +169,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }
@@ -217,7 +215,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }
@@ -265,7 +262,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }
@@ -313,7 +309,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }
@@ -453,7 +448,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }
@@ -500,7 +494,6 @@
             }
           },
           "y": {
-            "anchor": "start",
             "title": {
               "visible": false
             }

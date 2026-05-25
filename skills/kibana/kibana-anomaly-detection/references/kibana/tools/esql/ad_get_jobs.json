@@ -1,0 +1,9 @@
+{
+  "name": "ad_get_jobs",
+  "description": "List all anomaly detection jobs with their full configuration: bucket_span, detector functions, monitored field names, entity split fields (partition/by/over), influencers, memory limit, groups, and description. Reads from .ml-config so ALL jobs appear regardless of whether they have run or produced any anomaly results. Use this early in any investigation to understand what jobs exist and how they are configured.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-config | WHERE job_type == \"anomaly_detector\" | KEEP job_id, `analysis_config.bucket_span`, `analysis_config.detectors.function`, `analysis_config.detectors.field_name`, `analysis_config.detectors.partition_field_name`, `analysis_config.detectors.by_field_name`, `analysis_config.detectors.over_field_name`, `analysis_config.influencers`, `analysis_limits.model_memory_limit`, groups, description | SORT job_id ASC | LIMIT 100"
+  },
+  "parameters": {}
+}

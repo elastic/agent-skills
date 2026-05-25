@@ -958,28 +958,29 @@ FROM sales
 
 Features not available in ES|QL as of version 9.3:
 
-| Feature                      | Query DSL | ES\|QL                              |
-| ---------------------------- | --------- | ----------------------------------- |
-| Highlighting                 | ✅        | ❌                                  |
-| Nested queries               | ✅        | ❌                                  |
-| Parent-child queries         | ✅        | ❌                                  |
-| Scroll/pagination beyond 10k | ✅        | ❌                                  |
-| Percolate queries            | ✅        | ❌                                  |
-| Complex boosting             | ✅        | Limited                             |
-| Geo distance sorting         | ✅        | ❌                                  |
-| Runtime fields               | ✅        | Use EVAL                            |
-| Suggest API                  | ✅        | ❌                                  |
-| Collapse (field collapsing)  | ✅        | ❌                                  |
-| Inner hits                   | ✅        | ❌                                  |
-| Timezone in date functions   | ✅        | ❌ (UTC only)                       |
-| JOIN (non-lookup)            | N/A       | ❌ (only LEFT JOIN on lookup index) |
+| Feature                      | Query DSL | ES\|QL                                    |
+| ---------------------------- | --------- | ----------------------------------------- |
+| Highlighting                 | ✅        | ❌                                        |
+| Nested queries               | ✅        | ❌                                        |
+| Parent-child queries         | ✅        | ❌                                        |
+| Scroll/pagination beyond 10k | ✅        | ❌                                        |
+| Percolate queries            | ✅        | ❌                                        |
+| Complex boosting             | ✅        | Limited                                   |
+| Geo distance sorting         | ✅        | ❌                                        |
+| Runtime fields               | ✅        | Use EVAL                                  |
+| Suggest API                  | ✅        | ❌                                        |
+| Collapse (field collapsing)  | ✅        | ❌                                        |
+| Inner hits                   | ✅        | ❌                                        |
+| Timezone support             | ✅        | ✅ `SET time_zone` (Serverless GA)        |
+| JOIN (non-lookup)            | N/A       | ❌ (only LEFT JOIN on lookup index)       |
+| Subqueries / UNION ALL       | N/A       | ✅ `FROM` subqueries (Serverless preview) |
 
 ### Unsupported Field Types in ES|QL
 
 - `nested`
 - `binary`
 - `completion`
-- `flattened`
+- `flattened` (use `METADATA _source` + `JSON_EXTRACT` to access sub-keys)
 - Range types (`date_range`, `integer_range`, etc.)
 - `rank_feature`, `rank_features`
 - `search_as_you_type`

@@ -218,8 +218,8 @@ explanations:
 > Does this look right, or would you add/remove anything?
 
 **Surface the hybrid option when it adds value.** If the use case involves descriptive or natural-language queries,
-recommend semantic search alongside keyword. Explain the tradeoff: requires an embedding model (ELSER built-in, or
-OpenAI/Cohere), slightly slower indexing — but catches meaning-based queries keywords miss.
+recommend semantic search alongside keyword. Explain the tradeoff: requires an embedding model served via EIS (managed)
+or a user-provided inference endpoint, slightly slower indexing — but catches meaning-based queries keywords miss.
 
 **For RAG retrieval**, recommend hybrid if documents contain specific terms or codes users will search for exactly
 (policy names, product IDs, error codes).

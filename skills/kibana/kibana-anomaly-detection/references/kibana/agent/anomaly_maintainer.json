@@ -1,0 +1,28 @@
+{
+  "tools": [
+    "ad_get_available_metadata",
+    "ad_get_jobs",
+    "ad_get_job_messages",
+    "ad_get_model_snapshots",
+    "ad_ts_bucket_event_gaps",
+    "ad_ts_delayed_data_annotations",
+    "ad_ts_ingest_latency_estimate",
+    "ad_ts_model_memory_health",
+    "ad_wf_ts_field_cardinality",
+    "ad_get_job_datafeed_config",
+    "ad_manage_datafeed",
+    "ad_preview_datafeed_with_latency",
+    "ad_create_job",
+    "ad_revert_model_snapshot",
+    "ad_create_calendar_event",
+    "ad_get_calendar_events",
+    "ad_update_datafeed_query_delay",
+    "ad_update_delayed_data_check_config",
+    "ad_update_model_memory_limit",
+    "ad_estimate_memory_requirement",
+    "ad_validate_ml_tool_permissions",
+    "ad_ts_ccs_diagnostics",
+    "ad_wf_troubleshoot_query_delay",
+    "ad_wf_troubleshoot_memory_limit"
+  ]
+}

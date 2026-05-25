@@ -52,23 +52,26 @@ Query directives modify the behavior of an ES|QL query. They appear before the s
 
 ### SET (9.3+, tech preview)
 
-Controls query-level settings.
+Controls query-level settings. Every `SET` directive must end with a semicolon before the source command.
 
 **Syntax:**
 
 ```esql
-SET setting = value; [SET settingN = valueN;]
+SET setting = "value"; [SET setting = "value";]
 source-command
 | processing-commands
 ```
 
 **`unmapped_fields`** (9.3+ preview) -- controls how unmapped fields are treated:
 
-- `FAIL` (default) -- the query fails if it references unmapped fields
-- `NULLIFY` -- treats unmapped fields as null values
+- `"default"` / `"fail"` -- the query fails if it references unmapped fields
+- `"nullify"` -- treats unmapped fields as null values
+- `"load"` -- loads unmapped fields dynamically. **Limitation:** `"load"` is incompatible with subqueries and views. Use
+  `"nullify"` when composing subqueries or querying views.
 
 **`time_zone`** (Serverless GA; self-managed planned) -- sets the default timezone for the query, overriding UTC
-default.
+default. Accepts any IANA timezone string or UTC offset. Applies to all date/time operations: `DATE_TRUNC`,
+`DATE_FORMAT`, `NOW()`, etc.
 
 **Examples:**
 
@@ -79,6 +82,12 @@ FROM employees
 | SORT emp_no
 | LIMIT 1
 
+SET time_zone = "America/Los_Angeles";
+FROM error_triage
+| EVAL hour = DATE_TRUNC(1 hour, @timestamp)
+| STATS errors = COUNT(*) BY hour, service
+| SORT hour DESC
+
 SET time_zone = "+05:00";
 TS k8s
 | WHERE @timestamp == "2024-05-10T00:04:49.000Z"
@@ -86,7 +95,11 @@ TS k8s
 ```
 
 > **When to use:** `unmapped_fields` is useful when querying across multiple indices where some indices may not have all
-> fields mapped. `time_zone` shifts date functions and display to a non-UTC zone.
+> fields mapped. `time_zone` shifts date functions and display to a non-UTC zone. There is no per-function timezone
+> argument — `DATE_TRUNC(1 hour, @timestamp, "America/Los_Angeles")` does **not** work.
+>
+> **Restriction:** `SET` directives cannot be used inside view definitions. The caller must apply `SET` when querying
+> the view.
 
 ---
 
@@ -123,6 +136,33 @@ FROM <logs-{now/d}>
 FROM cluster_one:logs-*, cluster_two:logs-*
 ```
 
+**Subqueries (Serverless tech preview):** `FROM` supports parenthesized subqueries with UNION ALL semantics. Each branch
+is a complete ES|QL pipeline. Columns present in one branch but not another are filled with `null`.
+
+```esql
+// Combine logs from different indices with independent pipelines
+FROM
+  (FROM web_logs
+   | WHERE status_code >= 500
+   | KEEP @timestamp, message, service.name),
+  (FROM app_logs
+   | WHERE level == "error"
+   | KEEP @timestamp, message, service.name)
+| STATS errors = COUNT(*) BY service.name
+
+// Mix bare index patterns and subqueries
+FROM raw_index, (FROM other_index | WHERE active == true | KEEP id, name)
+```
+
+**Subquery constraints:**
+
+- Non-correlated only — branches cannot reference columns from the outer query
+- Columns with the same name must have compatible types across branches
+- `FORK` cannot be used inside or after subqueries
+- `SET unmapped_fields="load"` is incompatible with subqueries
+
+**Subqueries vs FORK:** Different data sources → subqueries. Same data, different analyses → FORK.
+
 **Note:** Without explicit `LIMIT`, queries default to 1000 rows (or whatever the cluster setting
 esql.query.result_truncation_default_size is set to).
 
@@ -147,7 +187,7 @@ ROW greeting = "hello", pi = 3.14159
 ### TS
 
 Retrieves data from time series data streams (TSDS). Similar to `FROM` but enables time series aggregation functions in
-`STATS` and targets only time series indices. Available since 9.2.
+`STATS` and targets only time series indices. **Preview from 9.2 to 9.3, GA since 9.4**; GA on Elastic Cloud Serverless.
 
 **Syntax:**
 
@@ -161,6 +201,11 @@ TS index_pattern [METADATA fields]
 - Time series functions are evaluated per time series first, then aggregated by group using an outer function
 - If no inner time series function is specified, `LAST_OVER_TIME()` is assumed implicitly
 - Cannot be combined with `FORK` before `STATS` is applied
+- When the query has no `STATS`, `TS` returns rows sorted by `@timestamp` descending by default
+- When the first `STATS` after `TS` uses a **bare** time series function (not wrapped in an outer aggregation like
+  `AVG()` / `SUM()`), results are implicitly grouped by every dimension and include a `_timeseries` JSON column. Use
+  `BY WITHOUT(dim, ...)` (GA in 9.4) to narrow this grouping. Bare dimension columns in `BY` are rejected; only grouping
+  functions (`TBUCKET`, `WITHOUT`) are allowed alongside a bare time series function.
 
 **Examples:**
 
@@ -177,6 +222,11 @@ TS metrics
 // Average of per-time-series averages (explicit inner function)
 TS metrics
 | STATS AVG(AVG_OVER_TIME(memory_usage))
+
+// Bare time series function — group by every dimension except `pod` (9.4+ GA)
+TS k8s
+| STATS total_cost = SUM(network.cost) BY WITHOUT(pod)
+| SORT total_cost
 ```
 
 **Best practices:**
@@ -184,6 +234,69 @@ TS metrics
 - Add a time range filter on `@timestamp` to limit data volume
 - Use `TS` instead of `FROM` for aggregations on time series data
 - Avoid aggregating metrics with different dimensional cardinalities in the same query
+
+### PROMQL
+
+Queries time series data streams (TSDS) using **Prometheus Query Language (PromQL)** instead of ES|QL syntax. Like `TS`,
+it produces a table that the rest of the ES|QL pipeline can process. Available since **9.4 (preview)** and on Elastic
+Cloud Serverless. See [promql-command.md](promql-command.md) for the full reference.
+
+**Syntax:**
+
+```esql
+PROMQL [ <option> ... ] [ <result_name> = ] ( <PromQL expression> )
+```
+
+**Options:**
+
+- `index` — indices/streams/aliases (default `metrics-*`)
+- `step` — query resolution step width
+- `buckets` — target bucket count for auto-step (default `100`, mutually exclusive with `step`)
+- `start`, `end` — explicit time range (defaults to Kibana date picker, otherwise unrestricted)
+- `scrape_interval` — expected metric collection interval (default `1m`); used for the implicit range selector window
+- `<result_name>=( ... )` — name the metric output column
+
+**Output columns:**
+
+- The PromQL expression (or `<result_name>`) as `double` — the metric value
+- `step` (`date`) — timestamp for each evaluation step
+- One `keyword` column per `by`/`without` grouping label, or a single `_timeseries` JSON column when there is no
+  cross-series aggregation
+
+**Examples:**
+
+```esql
+// Fully adaptive Kibana query — date picker drives time range and step
+PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+
+// Explicit range query with a named result column
+PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
+| SORT cluster
+
+// Post-process with ES|QL after the PROMQL stage
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes = MAX(bytes) BY cluster
+| SORT cluster
+
+// Enrich PromQL results with a lookup index
+PROMQL index=metrics-*
+  http_rate=(sum by (instance) (rate(http_requests_total)))
+| LOOKUP JOIN instance_metadata ON instance
+```
+
+**Implicit range selectors:** Range vector functions can omit the range selector (`rate(http_requests_total)` instead of
+`rate(http_requests_total[5m])`); the engine uses `max(step, scrape_interval)` as the window. This makes the query scale
+with the date picker.
+
+**Limitations (9.4 preview):**
+
+- Group modifiers (`on(...) group_left(...)`) are not supported
+- Set operators (`or`, `and`, `unless`) are not supported
+- Some PromQL functions are not available, including `histogram_quantile`, `predict_linear`, and `label_join`
+- Time buckets align to fixed calendar boundaries rather than the query start time, which can cause slight differences
+  from native Prometheus for short ranges or large step sizes
+
+When any of these are required, use the [`TS` command](#ts) and express the equivalent computation in ES|QL.
 
 ### SHOW
 
@@ -464,12 +577,13 @@ FROM data
 
 ### LIMIT
 
-Limits the number of rows returned.
+Limits the number of rows returned. Supports optional grouped top-N with `BY` (Serverless).
 
 **Syntax:**
 
 ```esql
 LIMIT number
+LIMIT number BY field
 ```
 
 **Examples:**
@@ -478,7 +592,15 @@ LIMIT number
 FROM logs-*
 | SORT @timestamp DESC
 | LIMIT 100
+
+// Grouped top-N: keep top 3 rows per service after sorting
+FROM app_logs
+| STATS cnt = COUNT(*) BY service, level
+| SORT cnt DESC
+| LIMIT 3 BY service
 ```
+
+> **Note:** In `LIMIT n BY field`, the number comes **before** `BY`. `LIMIT BY field n` does not parse.
 
 ### DISSECT
 
@@ -857,24 +979,198 @@ FROM data
 | STATS count = COUNT(*) BY tags
 ```
 
-### URI_PARTS (Planned)
+### METRICS_INFO
 
-Parses a URI string and extracts its components (domain, path, port, query, scheme, etc.) into new columns. Not yet
-released.
+Returns one row per distinct metric available in the targeted time series data stream(s), with applicable dimensions and
+metadata. Use it to discover the metric catalogue without inspecting index mappings or calling the field capabilities
+API. **GA since 9.4** (and on Elastic Cloud Serverless).
 
 **Syntax:**
 
 ```esql
-URI_PARTS prefix = expression
+METRICS_INFO
 ```
+
+Takes no parameters.
+
+**Output columns** (all `keyword`):
+
+- `metric_name` — the metric field name (single-valued)
+- `data_stream` — data stream(s) containing this metric (multi-valued when several streams align on
+  unit/metric_type/field_type)
+- `unit` — declared unit from field mapping (e.g., `bytes`, `packets`); may be `null` or multi-valued
+- `metric_type` — `counter`, `gauge`, etc. (multi-valued when definitions differ across backing indices)
+- `field_type` — Elasticsearch field type (e.g., `long`, `double`, `integer`)
+- `dimension_fields` — union of dimension field names across all time series for that metric
+
+**Restrictions:**
+
+- Can only be used after a `TS` source command — `FROM | METRICS_INFO` is rejected.
+- Must appear before pipeline-breaking commands (`STATS`, `SORT`, `LIMIT`).
+- The output replaces the original table — downstream commands operate on the metadata rows, not the raw documents.
+
+**Examples:**
+
+```esql
+// List every metric in a TSDS, alphabetically
+TS k8s
+| METRICS_INFO
+| SORT metric_name
+
+// Narrow to metrics that have data matching a filter, then keep only key columns
+TS k8s
+| WHERE cluster == "prod"
+| METRICS_INFO
+| KEEP metric_name, metric_type
+| SORT metric_name
+
+// Count metrics by type
+TS k8s
+| METRICS_INFO
+| STATS metric_count = COUNT(*) BY metric_type
+| SORT metric_type
+
+// Find metrics matching a name pattern
+TS k8s
+| METRICS_INFO
+| WHERE metric_name LIKE "network.eth0*"
+| SORT metric_name
+```
+
+### TS_INFO
+
+Returns one row per (metric, time series) combination in the targeted TSDS, including the dimension key/value pairs that
+identify each series. Use it to enumerate the actual time series — and their labels — that exist for each metric. **GA
+since 9.4** (and on Elastic Cloud Serverless).
+
+**Syntax:**
+
+```esql
+TS_INFO
+```
+
+Takes no parameters.
+
+**Output columns** (all `keyword`):
+
+- All columns from `METRICS_INFO` (`metric_name`, `data_stream`, `unit`, `metric_type`, `field_type`,
+  `dimension_fields`)
+- `dimensions` — JSON-encoded object with the dimension key/value pairs identifying the time series, e.g.
+  `{"job":"elasticsearch","instance":"instance_1"}`. Single-valued.
+
+**Restrictions:**
+
+- Can only be used after a `TS` source command — `FROM | TS_INFO` is rejected.
+- Must appear before pipeline-breaking commands (`STATS`, `SORT`, `LIMIT`).
+- The output replaces the original table — downstream commands operate on the metadata rows, not the raw documents.
+
+**Examples:**
+
+```esql
+// Every (metric, time series) pair in a TSDS
+TS k8s
+| TS_INFO
+| SORT metric_name, dimensions
+
+// Restrict to series with data matching a filter, keep only key columns
+TS k8s
+| WHERE cluster == "prod"
+| TS_INFO
+| KEEP metric_name, dimensions
+| SORT metric_name, dimensions
+
+// Filter by metadata after TS_INFO
+TS k8s
+| TS_INFO
+| WHERE metric_type == "gauge"
+| SORT metric_name, dimensions
+
+// Count distinct time series per metric
+TS k8s
+| TS_INFO
+| STATS series_count = COUNT(*) BY metric_name
+| SORT metric_name
+
+// Count distinct metrics per time series — useful to spot under- or over-reporting series
+TS k8s
+| TS_INFO
+| STATS metric_count = COUNT_DISTINCT(metric_name) BY dimensions
+| SORT dimensions
+```
+
+> **`METRICS_INFO` vs `TS_INFO`:** `METRICS_INFO` returns one row **per distinct metric**; `TS_INFO` returns one row
+> **per (metric, time series) combination** and adds a `dimensions` column with the labels identifying each series. Use
+> `METRICS_INFO` to enumerate _what_ is being measured, and `TS_INFO` to enumerate _which_ time series exist.
+
+### URI_PARTS (Serverless)
+
+Pipe command that parses a URI string into structured columns. A target prefix is **required**.
+
+**Syntax:**
+
+```esql
+URI_PARTS target = field
+```
+
+**Output columns:** `target.domain`, `target.path`, `target.scheme`, `target.extension`, `target.port`, `target.query`,
+`target.fragment`, `target.user_info`, `target.username`, `target.password`.
 
 **Example:**
 
 ```esql
 FROM web_logs
-| URI_PARTS url_parts = request_url
-| KEEP url_parts.domain, url_parts.path, url_parts.query
+| WHERE http.response.status_code >= 400
+| URI_PARTS parts = url.full
+| STATS errors = COUNT(*) BY parts.domain, parts.path
+| SORT errors DESC
 ```
+
+### USER_AGENT (Serverless)
+
+Pipe command that parses a user agent string into structured columns. A target prefix is **required**.
+
+**Syntax:**
+
+```esql
+USER_AGENT target = field
+```
+
+**Output columns:** `target.name`, `target.version`, `target.os.name`, `target.os.version`, `target.os.full`,
+`target.device.name`.
+
+**Example:**
+
+```esql
+FROM web_logs
+| USER_AGENT ua = user_agent.original
+| STATS cnt = COUNT(*) BY ua.name, ua.version
+```
+
+### REGISTERED_DOMAIN (Serverless)
+
+Pipe command that extracts the registered domain, top-level domain, and subdomain from a hostname. A target prefix is
+**required**.
+
+**Syntax:**
+
+```esql
+REGISTERED_DOMAIN target = field
+```
+
+**Output columns:** `target.domain` (full input), `target.registered_domain`, `target.top_level_domain`,
+`target.subdomain`.
+
+**Example:**
+
+```esql
+FROM dns_logs
+| REGISTERED_DOMAIN rd = dns.question.name
+| STATS queries = COUNT(*) BY rd.registered_domain
+| SORT queries DESC
+```
+
+> **Note:** `URI_PARTS`, `USER_AGENT`, and `REGISTERED_DOMAIN` are **pipe commands** (like `DISSECT`/`GROK`), not scalar
+> functions. The syntax `URI_PARTS(field)` does not work — use `| URI_PARTS target = field`.
 
 ---
 
@@ -882,40 +1178,43 @@ FROM web_logs
 
 Used with STATS command.
 
-| Function                           | Description                                       | Example                                          |
-| ---------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
-| `COUNT(*)`                         | Count all rows                                    | `STATS n = COUNT(*)`                             |
-| `COUNT(field)`                     | Count non-null values                             | `STATS n = COUNT(status)`                        |
-| `COUNT_DISTINCT(field)`            | Count unique values                               | `STATS unique = COUNT_DISTINCT(user_id)`         |
-| `SUM(field)`                       | Sum of values                                     | `STATS total = SUM(amount)`                      |
-| `AVG(field)`                       | Average                                           | `STATS avg_price = AVG(price)`                   |
-| `MIN(field)`                       | Minimum value                                     | `STATS min_temp = MIN(temperature)`              |
-| `MAX(field)`                       | Maximum value                                     | `STATS max_score = MAX(score)`                   |
-| `MEDIAN(field)`                    | Median value                                      | `STATS med = MEDIAN(response_time)`              |
-| `PERCENTILE(field, p)`             | Percentile                                        | `STATS p95 = PERCENTILE(latency, 95)`            |
-| `STD_DEV(field)`                   | Standard deviation                                | `STATS sd = STD_DEV(values)`                     |
-| `VARIANCE(field)`                  | Variance                                          | `STATS var = VARIANCE(values)`                   |
-| `VALUES(field)`                    | Collect all values                                | `STATS all_tags = VALUES(tag)`                   |
-| `TOP(field, n, order)`             | Top N values                                      | `STATS top3 = TOP(score, 3, "desc")`             |
-| `WEIGHTED_AVG(val, weight)`        | Weighted average                                  | `STATS wavg = WEIGHTED_AVG(score, weight)`       |
-| `MEDIAN_ABSOLUTE_DEVIATION(field)` | Robust variability measure                        | `STATS mad = MEDIAN_ABSOLUTE_DEVIATION(latency)` |
-| `ABSENT(field)`                    | True if no non-null values (9.2+)                 | `STATS is_absent = ABSENT(error_code)`           |
-| `PRESENT(field)`                   | True if any non-null values (9.2+)                | `STATS has_data = PRESENT(metric)`               |
-| `SAMPLE(field, n)`                 | Collect n sample values (8.19/9.1+)               | `STATS examples = SAMPLE(message, 5)`            |
-| `FIRST(field, sort_field)`         | Earliest value by sort field (Serverless preview) | `STATS earliest = FIRST(message, @timestamp)`    |
-| `LAST(field, sort_field)`          | Latest value by sort field (Serverless preview)   | `STATS latest = LAST(message, @timestamp)`       |
-| `ST_CENTROID_AGG(field)`           | Spatial centroid of points                        | `STATS center = ST_CENTROID_AGG(location)`       |
-| `ST_EXTENT_AGG(field)`             | Bounding box of geometries (8.18/9.0+, preview)   | `STATS bbox = ST_EXTENT_AGG(location)`           |
+| Function                           | Description                                     | Example                                          |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
+| `COUNT(*)`                         | Count all rows                                  | `STATS n = COUNT(*)`                             |
+| `COUNT(field)`                     | Count non-null values                           | `STATS n = COUNT(status)`                        |
+| `COUNT_DISTINCT(field)`            | Count unique values                             | `STATS unique = COUNT_DISTINCT(user_id)`         |
+| `SUM(field)`                       | Sum of values                                   | `STATS total = SUM(amount)`                      |
+| `AVG(field)`                       | Average                                         | `STATS avg_price = AVG(price)`                   |
+| `MIN(field)`                       | Minimum value                                   | `STATS min_temp = MIN(temperature)`              |
+| `MAX(field)`                       | Maximum value                                   | `STATS max_score = MAX(score)`                   |
+| `MEDIAN(field)`                    | Median value                                    | `STATS med = MEDIAN(response_time)`              |
+| `PERCENTILE(field, p)`             | Percentile                                      | `STATS p95 = PERCENTILE(latency, 95)`            |
+| `STD_DEV(field)`                   | Standard deviation                              | `STATS sd = STD_DEV(values)`                     |
+| `VARIANCE(field)`                  | Variance                                        | `STATS var = VARIANCE(values)`                   |
+| `VALUES(field)`                    | Collect all values (GA)                         | `STATS all_tags = VALUES(tag)`                   |
+| `TOP(field, n, order)`             | Top N values                                    | `STATS top3 = TOP(score, 3, "desc")`             |
+| `WEIGHTED_AVG(val, weight)`        | Weighted average                                | `STATS wavg = WEIGHTED_AVG(score, weight)`       |
+| `MEDIAN_ABSOLUTE_DEVIATION(field)` | Robust variability measure                      | `STATS mad = MEDIAN_ABSOLUTE_DEVIATION(latency)` |
+| `ABSENT(field)`                    | True if no non-null values (9.2+)               | `STATS is_absent = ABSENT(error_code)`           |
+| `PRESENT(field)`                   | True if any non-null values (9.2+)              | `STATS has_data = PRESENT(metric)`               |
+| `SAMPLE(field, n)`                 | Collect n sample values (8.19/9.1+)             | `STATS examples = SAMPLE(message, 5)`            |
+| `FIRST(field, sort_field)`         | Earliest value by sort field (Serverless GA)    | `STATS earliest = FIRST(message, @timestamp)`    |
+| `LAST(field, sort_field)`          | Latest value by sort field (Serverless GA)      | `STATS latest = LAST(message, @timestamp)`       |
+| `EARLIEST(field)`                  | Earliest value (single-arg; Serverless GA)      | `STATS e = EARLIEST(@timestamp)`                 |
+| `LATEST(field)`                    | Latest value (single-arg; Serverless GA)        | `STATS l = LATEST(@timestamp)`                   |
+| `ST_CENTROID_AGG(field)`           | Spatial centroid of points                      | `STATS center = ST_CENTROID_AGG(location)`       |
+| `ST_EXTENT_AGG(field)`             | Bounding box of geometries (8.18/9.0+, preview) | `STATS bbox = ST_EXTENT_AGG(location)`           |
 
 ### Grouping Functions
 
 Used in the `BY` clause of `STATS` and `INLINE STATS` to create dynamic groups.
 
-| Function              | Description                                       | Example                                               |
-| --------------------- | ------------------------------------------------- | ----------------------------------------------------- |
-| `BUCKET(field, size)` | Create fixed-size buckets for numbers or dates    | `STATS count = COUNT(*) BY b = BUCKET(price, 10)`     |
-| `TBUCKET(interval)`   | Time-based bucketing (9.2+, for use with `TS`)    | `STATS SUM(RATE(reqs)) BY TBUCKET(1 hour)`            |
-| `CATEGORIZE(field)`   | Auto-categorize text values (8.18/9.0+, Platinum) | `STATS count = COUNT(*) BY cat = CATEGORIZE(message)` |
+| Function              | Description                                                          | Example                                               |
+| --------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- |
+| `BUCKET(field, size)` | Create fixed-size buckets for numbers or dates                       | `STATS count = COUNT(*) BY b = BUCKET(price, 10)`     |
+| `TBUCKET(interval)`   | Time-based bucketing (preview 9.2-9.3, GA in 9.4)                    | `STATS SUM(RATE(reqs)) BY TBUCKET(1 hour)`            |
+| `WITHOUT(dim, ...)`   | Group time series by every dimension except those listed (GA in 9.4) | `STATS total = SUM(network.cost) BY WITHOUT(pod)`     |
+| `CATEGORIZE(field)`   | Auto-categorize text values (8.18/9.0+, Platinum)                    | `STATS count = COUNT(*) BY cat = CATEGORIZE(message)` |
 
 **CATEGORIZE options (9.2+):**
 
@@ -951,7 +1250,18 @@ FROM logs-*
 
 Used with the `STATS` command after a `TS` source command. These functions evaluate per time series first, then
 aggregate by group using an outer function (e.g., `SUM`, `AVG`). An optional second argument specifies a sliding time
-window. Available since 9.2.
+window.
+
+**Availability:** **All** time series aggregation functions are **GA since 9.4** — both the 9.2-introduced set (`RATE`,
+`IRATE`, `INCREASE`, `DELTA`, `IDELTA`, `AVG_OVER_TIME`, `SUM_OVER_TIME`, `MIN_OVER_TIME`, `MAX_OVER_TIME`,
+`FIRST_OVER_TIME`, `LAST_OVER_TIME`, `COUNT_OVER_TIME`, `COUNT_DISTINCT_OVER_TIME`, `PRESENT_OVER_TIME`,
+`ABSENT_OVER_TIME`) and the 9.3-introduced set (`DERIV`, `PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`,
+`VARIANCE_OVER_TIME`). On clusters in 9.2-9.3 these functions are still in tech preview.
+
+**Sliding window parameter (second argument):** in 9.2-9.3 (preview) the window must be a multiple of the `TBUCKET`
+interval; **9.4+ (GA)** accepts arbitrary durations, with performance optimizations when the window is a multiple of the
+bucket interval. Within a single query, you cannot mix windows smaller than the bucket interval for one metric with
+windows larger than the bucket interval for another metric.
 
 | Function                            | Description                    | Metric Types   |
 | ----------------------------------- | ------------------------------ | -------------- |
@@ -998,40 +1308,53 @@ TS metrics
 
 ## String Functions
 
-| Function                    | Description                                         | Example                                                              |
-| --------------------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
-| `LENGTH(s)`                 | String length                                       | `EVAL len = LENGTH(name)`                                            |
-| `CONCAT(s1, s2, ...)`       | Concatenate strings                                 | `EVAL full = CONCAT(first, " ", last)`                               |
-| `SUBSTRING(s, start, len)`  | Extract substring                                   | `EVAL sub = SUBSTRING(text, 1, 10)`                                  |
-| `LEFT(s, n)`                | Left n characters                                   | `EVAL l = LEFT(text, 5)`                                             |
-| `RIGHT(s, n)`               | Right n characters                                  | `EVAL r = RIGHT(text, 5)`                                            |
-| `TRIM(s)`                   | Remove whitespace                                   | `EVAL clean = TRIM(input)`                                           |
-| `LTRIM(s)`                  | Trim left                                           | `EVAL clean = LTRIM(input)`                                          |
-| `RTRIM(s)`                  | Trim right                                          | `EVAL clean = RTRIM(input)`                                          |
-| `TO_UPPER(s)`               | Uppercase                                           | `EVAL upper = TO_UPPER(name)`                                        |
-| `TO_LOWER(s)`               | Lowercase                                           | `EVAL lower = TO_LOWER(name)`                                        |
-| `REPLACE(s, old, new)`      | Replace text                                        | `EVAL fixed = REPLACE(msg, "err", "error")`                          |
-| `SPLIT(s, delim)`           | Split into array                                    | `EVAL parts = SPLIT(path, "/")`                                      |
-| `STARTS_WITH(s, prefix)`    | Check prefix                                        | `WHERE STARTS_WITH(url, "https")`                                    |
-| `ENDS_WITH(s, suffix)`      | Check suffix                                        | `WHERE ENDS_WITH(file, ".log")`                                      |
-| `CONTAINS(s, substr)`       | Check contains                                      | `WHERE CONTAINS(message, "error")`                                   |
-| `LOCATE(substr, s)`         | Find position                                       | `EVAL pos = LOCATE("@", email)`                                      |
-| `REVERSE(s)`                | Reverse string                                      | `EVAL rev = REVERSE(text)`                                           |
-| `REPEAT(s, n)`              | Repeat string                                       | `EVAL sep = REPEAT("-", 10)`                                         |
-| `SPACE(n)`                  | N spaces                                            | `EVAL spaces = SPACE(5)`                                             |
-| `BIT_LENGTH(s)`             | Bit length (8.17+)                                  | `EVAL bits = BIT_LENGTH(name)`                                       |
-| `BYTE_LENGTH(s)`            | Byte length (8.17+)                                 | `EVAL bytes = BYTE_LENGTH(name)`                                     |
-| `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)              | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
-| `HASH(alg, s)`              | Hash string (8.18/9.0+)                             | `EVAL h = HASH("SHA-256", msg)`                                      |
-| `MD5(s)`                    | MD5 hash (8.18/9.0+)                                | `EVAL h = MD5(content)`                                              |
-| `SHA1(s)`                   | SHA-1 hash (8.18/9.0+)                              | `EVAL h = SHA1(content)`                                             |
-| `SHA256(s)`                 | SHA-256 hash (8.18/9.0+)                            | `EVAL h = SHA256(content)`                                           |
-| `FROM_BASE64(s)`            | Decode base64                                       | `EVAL decoded = FROM_BASE64(encoded)`                                |
-| `TO_BASE64(s)`              | Encode to base64                                    | `EVAL encoded = TO_BASE64(data)`                                     |
-| `URL_DECODE(s)`             | URL-decode (9.2+)                                   | `EVAL decoded = URL_DECODE(url)`                                     |
-| `URL_ENCODE(s)`             | URL-encode (9.2+)                                   | `EVAL encoded = URL_ENCODE(text)`                                    |
-| `URL_ENCODE_COMPONENT(s)`   | URL-encode for URI components (9.2+)                | `EVAL encoded = URL_ENCODE_COMPONENT(text)`                          |
-| `JSON_EXTRACT(field, path)` | Extract value from JSON string (Serverless preview) | `EVAL name = JSON_EXTRACT(raw, "$.user.name")`                       |
+| Function                    | Description                                    | Example                                                              |
+| --------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| `LENGTH(s)`                 | String length                                  | `EVAL len = LENGTH(name)`                                            |
+| `CONCAT(s1, s2, ...)`       | Concatenate strings                            | `EVAL full = CONCAT(first, " ", last)`                               |
+| `SUBSTRING(s, start, len)`  | Extract substring                              | `EVAL sub = SUBSTRING(text, 1, 10)`                                  |
+| `LEFT(s, n)`                | Left n characters                              | `EVAL l = LEFT(text, 5)`                                             |
+| `RIGHT(s, n)`               | Right n characters                             | `EVAL r = RIGHT(text, 5)`                                            |
+| `TRIM(s)`                   | Remove whitespace                              | `EVAL clean = TRIM(input)`                                           |
+| `LTRIM(s)`                  | Trim left                                      | `EVAL clean = LTRIM(input)`                                          |
+| `RTRIM(s)`                  | Trim right                                     | `EVAL clean = RTRIM(input)`                                          |
+| `TO_UPPER(s)`               | Uppercase                                      | `EVAL upper = TO_UPPER(name)`                                        |
+| `TO_LOWER(s)`               | Lowercase                                      | `EVAL lower = TO_LOWER(name)`                                        |
+| `REPLACE(s, old, new)`      | Replace text                                   | `EVAL fixed = REPLACE(msg, "err", "error")`                          |
+| `SPLIT(s, delim)`           | Split into array                               | `EVAL parts = SPLIT(path, "/")`                                      |
+| `STARTS_WITH(s, prefix)`    | Check prefix                                   | `WHERE STARTS_WITH(url, "https")`                                    |
+| `ENDS_WITH(s, suffix)`      | Check suffix                                   | `WHERE ENDS_WITH(file, ".log")`                                      |
+| `CONTAINS(s, substr)`       | Check contains                                 | `WHERE CONTAINS(message, "error")`                                   |
+| `LOCATE(substr, s)`         | Find position                                  | `EVAL pos = LOCATE("@", email)`                                      |
+| `REVERSE(s)`                | Reverse string                                 | `EVAL rev = REVERSE(text)`                                           |
+| `REPEAT(s, n)`              | Repeat string                                  | `EVAL sep = REPEAT("-", 10)`                                         |
+| `SPACE(n)`                  | N spaces                                       | `EVAL spaces = SPACE(5)`                                             |
+| `BIT_LENGTH(s)`             | Bit length (8.17+)                             | `EVAL bits = BIT_LENGTH(name)`                                       |
+| `BYTE_LENGTH(s)`            | Byte length (8.17+)                            | `EVAL bytes = BYTE_LENGTH(name)`                                     |
+| `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)         | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
+| `HASH(alg, s)`              | Hash string (8.18/9.0+)                        | `EVAL h = HASH("SHA-256", msg)`                                      |
+| `MD5(s)`                    | MD5 hash (8.18/9.0+)                           | `EVAL h = MD5(content)`                                              |
+| `SHA1(s)`                   | SHA-1 hash (8.18/9.0+)                         | `EVAL h = SHA1(content)`                                             |
+| `SHA256(s)`                 | SHA-256 hash (8.18/9.0+)                       | `EVAL h = SHA256(content)`                                           |
+| `FROM_BASE64(s)`            | Decode base64                                  | `EVAL decoded = FROM_BASE64(encoded)`                                |
+| `TO_BASE64(s)`              | Encode to base64                               | `EVAL encoded = TO_BASE64(data)`                                     |
+| `URL_DECODE(s)`             | URL-decode (9.2+)                              | `EVAL decoded = URL_DECODE(url)`                                     |
+| `URL_ENCODE(s)`             | URL-encode (9.2+)                              | `EVAL encoded = URL_ENCODE(text)`                                    |
+| `URL_ENCODE_COMPONENT(s)`   | URL-encode for URI components (9.2+)           | `EVAL encoded = URL_ENCODE_COMPONENT(text)`                          |
+| `JSON_EXTRACT(field, path)` | Extract value from JSON string (Serverless GA) | `EVAL name = JSON_EXTRACT(raw, "$.user.name")`                       |
+
+**JSON_EXTRACT with \_source — flattened field workaround:**
+
+ES|QL does not natively access `flattened` field sub-keys. Use `METADATA _source` with `JSON_EXTRACT` to reach inside
+flattened objects. `_source` can be passed directly to `JSON_EXTRACT` — do not wrap it with `TO_STRING()`.
+
+```esql
+FROM logs-* METADATA _source
+| EVAL provider = JSON_EXTRACT(_source, "$.cloud.provider")
+| STATS count = COUNT(*) BY provider
+```
+
+This also works for any field that exists in the raw document but has no explicit mapping.
 
 ---
 
@@ -1423,15 +1746,15 @@ FROM logs-*
 Access document metadata with the `METADATA` directive on the `FROM` command. Once enabled, metadata fields behave like
 regular index fields.
 
-| Field         | Type    | Description                                                     |
-| ------------- | ------- | --------------------------------------------------------------- |
-| `_id`         | keyword | Unique document ID                                              |
-| `_index`      | keyword | Index name                                                      |
-| `_version`    | long    | Document version number                                         |
-| `_score`      | float   | Query relevance score (updated by full-text search functions)   |
-| `_ignored`    | keyword | Fields that were ignored when the document was indexed          |
-| `_index_mode` | keyword | Index mode (`standard`, `lookup`, `logsdb`, `time_series` etc.) |
-| `_source`     | special | Original JSON document body (not supported by functions)        |
+| Field         | Type    | Description                                                                            |
+| ------------- | ------- | -------------------------------------------------------------------------------------- |
+| `_id`         | keyword | Unique document ID                                                                     |
+| `_index`      | keyword | Index name                                                                             |
+| `_version`    | long    | Document version number                                                                |
+| `_score`      | float   | Query relevance score (updated by full-text search functions)                          |
+| `_ignored`    | keyword | Fields that were ignored when the document was indexed                                 |
+| `_index_mode` | keyword | Index mode (`standard`, `lookup`, `logsdb`, `time_series` etc.)                        |
+| `_source`     | special | Original JSON document body. Use `JSON_EXTRACT` to access flattened or unmapped fields |
 
 ```esql
 FROM logs METADATA _id, _index, _version

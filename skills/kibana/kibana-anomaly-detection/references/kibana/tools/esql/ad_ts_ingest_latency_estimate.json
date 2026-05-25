@@ -1,0 +1,22 @@
+{
+  "name": "ad_ts_ingest_latency_estimate",
+  "description": "Measure actual ingest latency by comparing event timestamps with ingestion timestamps in the SOURCE data. Determines whether the current query_delay is sufficient. If P95(event.ingested - @timestamp) > query_delay, data will be lost. Requires the source index to have an event.ingested or _ingest.timestamp field.\n\nUsage: Get the source index from the job's datafeed config (via ad_get_job_datafeed_config). Pass it as source_index using LIKE wildcards if needed.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM * METADATA _index | WHERE _index LIKE ?source_index AND @timestamp >= ?start_time AND @timestamp <= ?end_time AND event.ingested IS NOT NULL | EVAL latency_seconds = DATE_DIFF(\"second\", @timestamp, event.ingested) | STATS p50_latency = PERCENTILE(latency_seconds, 50), p95_latency = PERCENTILE(latency_seconds, 95), p99_latency = PERCENTILE(latency_seconds, 99), max_latency = MAX(latency_seconds), doc_count = COUNT(*) | LIMIT 1"
+  },
+  "parameters": {
+    "source_index": {
+      "type": "string",
+      "description": "Source data index name or LIKE pattern (* = multi-char wildcard). Get this from the job's datafeed config. Examples: 'rcaeval-re1-ob', 'nab', 'otel-flat-*', 'smd'"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start of time range in ISO 8601 format"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End of time range in ISO 8601 format"
+    }
+  }
+}

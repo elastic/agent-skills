@@ -1,0 +1,14 @@
+{
+  "name": "ad_discover_related_jobs",
+  "description": "Given a job of interest, find all other jobs that share the same entity field name (partition, by, or over field) by reading job configs from .ml-config. Returns the shared field name, the full list of sibling jobs in that group, their configured influencer fields, and the total sibling count. A job appears in its primary entity field group (partition > by > over). Call this early in investigation to find sibling jobs even when job names and prefixes differ completely. Complement with ad_discover_jobs_by_datafeed_index for source index overlap.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-config | WHERE job_type == \"anomaly_detector\" | EVAL entity_field = COALESCE(`analysis_config.detectors.partition_field_name`, `analysis_config.detectors.by_field_name`, `analysis_config.detectors.over_field_name`) | MV_EXPAND entity_field | WHERE entity_field IS NOT NULL | STATS job_count = COUNT_DISTINCT(job_id), jobs = VALUES(job_id), influencers = VALUES(`analysis_config.influencers`) BY entity_field | WHERE MV_CONTAINS(jobs, ?job_id) | SORT job_count DESC | LIMIT 50"
+  },
+  "parameters": {
+    "job_id": {
+      "type": "string",
+      "description": "The job ID of interest. Returns all other jobs that share the same entity split field (partition, by, or over field) as this job."
+    }
+  }
+}

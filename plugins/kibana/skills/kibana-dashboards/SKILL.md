@@ -6,7 +6,7 @@ description: >
   deployment.
 metadata:
   author: elastic
-  version: 0.1.1
+  version: 0.1.2
 ---
 
 # Kibana Dashboards and Visualizations
@@ -231,8 +231,8 @@ scrolling. Design for density—place primary KPIs and key trends above the fold
 | `region_map`                         | Region/choropleth maps      | Yes            |
 | `pie`, `treemap`, `mosaic`, `waffle` | Partition charts            | Yes            |
 
-> **Note:** To create donut charts, use `pie` with `donut_hole` set to `"s"`, `"m"`, or `"l"` (small, medium, large
-> hole). Use `"none"` for a solid pie.
+> **Note:** To create donut charts, use `pie` with `styling.donut_hole` set to `"s"`, `"m"`, or `"l"` (small, medium,
+> large hole). Use `"none"` for a solid pie. Example: `"styling": { "donut_hole": "m" }`.
 
 ### Dataset Types
 
@@ -325,7 +325,7 @@ For detailed schemas and all chart type options, see [Chart Types Reference](ref
 {
   "title": "Top Hosts",
   "type": "xy",
-  "axis": { "x": { "title": { "visible": false } }, "y": { "anchor": "start", "title": { "visible": false } } },
+  "axis": { "x": { "title": { "visible": false } }, "y": { "title": { "visible": false } } },
   "layers": [
     {
       "type": "bar_horizontal",
@@ -345,7 +345,7 @@ For detailed schemas and all chart type options, see [Chart Types Reference](ref
   "type": "xy",
   "axis": {
     "x": { "title": { "visible": false }, "scale": "temporal", "domain": { "type": "fit", "rounding": false } },
-    "y": { "anchor": "start", "title": { "visible": false } }
+    "y": { "title": { "visible": false } }
   },
   "layers": [
     {

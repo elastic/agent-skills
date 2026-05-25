@@ -147,7 +147,7 @@ FROM my-index-2024.*  // Dated indices
 ```
 
 For time series data streams (TSDS), use `TS` instead of `FROM` to enable time series aggregation functions like `RATE`,
-`AVG_OVER_TIME`, etc. (9.2+):
+`AVG_OVER_TIME`, etc. (preview from 9.2 to 9.3, **GA since 9.4**):
 
 ```esql
 TS metrics-*          // Time series source — enables RATE, AVG_OVER_TIME, etc.
@@ -503,6 +503,12 @@ TS metrics-tsds
 
 See [Time Series Queries](time-series-queries.md) for the full inner/outer aggregation model.
 
+**Version status:** `TS`, `TBUCKET`, the new `WITHOUT(...)` grouping function, the new `METRICS_INFO` / `TS_INFO`
+discovery commands, and **all** time series aggregation functions are **GA since 9.4** — including the 9.2-introduced
+set (`RATE`, `IRATE`, `INCREASE`, `DELTA`, `IDELTA`, all `*_OVER_TIME`, `PRESENT_OVER_TIME`, `ABSENT_OVER_TIME`) and the
+9.3-introduced set (`DERIV`, `PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`, `VARIANCE_OVER_TIME`). On clusters in 9.2-9.3
+these features are tech preview. `TRANGE` remains in preview.
+
 **Pre-9.2 limitation:** The `TS` command, `RATE()`, `TBUCKET()`, and `AVG_OVER_TIME()` all require Elasticsearch
 **9.2+**. On older clusters, counter fields (`counter_long`, `counter_double`) cannot be aggregated meaningfully —
 standard aggregation functions like `MAX()`, `SUM()`, and `AVG()` reject counter field types. There is no workaround.
@@ -511,6 +517,10 @@ the `TS` command and `RATE()` are required (9.2+) and the query cannot be expres
 
 For **gauge** fields in time-series indices on pre-9.2 clusters, `FROM` with standard aggregations (`AVG`, `MAX`, `MIN`)
 still works — only counter fields are affected.
+
+**Sliding window restriction (9.2-9.3):** When the user wants a per-time-series aggregation window different from the
+`TBUCKET` interval (`RATE(field, 10m) BY TBUCKET(1m)`), the window must be a multiple of the bucket interval on preview
+clusters. **9.4+** (GA) accepts arbitrary windows.
 
 ### INLINE STATS (9.2+)
 
@@ -521,6 +531,70 @@ ES|QL before 9.2**. There is no fallback.
 
 When the cluster is pre-9.2 and the question requires per-row vs. aggregate comparison, explain that `INLINE STATS` is
 needed and suggest the user either upgrade or perform the comparison client-side.
+
+### Pipe Commands: URI_PARTS, USER_AGENT, REGISTERED_DOMAIN (Serverless)
+
+These are **pipe commands** (like `DISSECT`/`GROK`), not scalar functions. They must appear on their own pipeline stage
+with `target = expression` syntax. A target prefix is mandatory.
+
+```esql
+// WRONG — function-call syntax does not work
+| EVAL parts = URI_PARTS(url.full)
+
+// CORRECT — pipe command syntax with target prefix
+| URI_PARTS parts = url.full
+| KEEP parts.domain, parts.path, parts.scheme
+```
+
+When the user asks to "parse URLs", "extract domains", or "parse user agents", reach for these commands instead of
+`DISSECT`/`GROK`:
+
+| User Request              | Command             |
+| ------------------------- | ------------------- |
+| Parse/decompose a URL     | `URI_PARTS`         |
+| Parse a user agent string | `USER_AGENT`        |
+| Extract registered domain | `REGISTERED_DOMAIN` |
+
+### Grouped Top-N with LIMIT BY (Serverless)
+
+`LIMIT n BY field` keeps the top N rows per group after sorting. The number comes **before** `BY`.
+
+```esql
+// Top 3 error-producing hosts per service
+FROM logs-*
+| WHERE level == "error"
+| STATS cnt = COUNT(*) BY service.name, host.name
+| SORT cnt DESC
+| LIMIT 3 BY service.name
+```
+
+This replaces the common `INLINE STATS` + rank-and-filter pattern for simple grouped top-N.
+
+### Subqueries in FROM vs FORK
+
+**Subqueries** (Serverless tech preview) combine results from **different** data sources (UNION ALL semantics). **FORK**
+runs **different analyses** on the **same** data source.
+
+| Scenario                              | Use        |
+| ------------------------------------- | ---------- |
+| Combine errors from two index sets    | Subqueries |
+| Run multiple aggregations on one set  | FORK       |
+| Compare time windows of the same data | FORK       |
+| Union independent pipelines           | Subqueries |
+
+```esql
+// Subqueries — different sources
+FROM
+  (FROM web_logs | WHERE status >= 500 | KEEP @timestamp, message, service.name),
+  (FROM app_logs | WHERE level == "error" | KEEP @timestamp, message, service.name)
+| SORT @timestamp DESC
+
+// FORK — same source, different analyses
+FROM logs-*
+| FORK
+    ( WHERE level == "error" | STATS errors = COUNT(*) BY service.name )
+    ( WHERE level == "warning" | STATS warnings = COUNT(*) BY service.name )
+```
 
 ### External IPs — CIDR_MATCH with RFC 1918
 
