@@ -37,6 +37,7 @@ jobs:
         run: |
           output=$(uv run --project scripts/ci-tools ci-tools release sync \
             --manifest .github/.release-manifest.json \
+            --plugin-json plugins/elasticsearch/plugin.json \
             --plugin-json plugins/elasticsearch/.claude-plugin/plugin.json \
             --plugin-json plugins/kibana/.claude-plugin/plugin.json \
             --plugin-json plugins/observability/.claude-plugin/plugin.json \
