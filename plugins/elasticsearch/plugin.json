@@ -16,14 +16,5 @@
     "ingest",
     "security",
     "elastic"
-  ],
-  "skills": [
-    "./skills/elasticsearch-audit/",
-    "./skills/elasticsearch-authn/",
-    "./skills/elasticsearch-authz/",
-    "./skills/elasticsearch-esql/",
-    "./skills/elasticsearch-file-ingest/",
-    "./skills/elasticsearch-onboarding/",
-    "./skills/elasticsearch-security-troubleshooting/"
   ]
 }
