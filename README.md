@@ -162,6 +162,30 @@ Or use the interactive plugin browser inside any Claude Code session:
 
 This opens a menu to browse available plugins from all configured marketplaces, select what to install, and manage what is already installed.
 
+### GitHub Copilot CLI
+
+GitHub Copilot CLI has a native plugin system. Add this repository as a marketplace source:
+
+```sh
+copilot plugin marketplace add elastic/agent-skills
+```
+
+Once added, install individual plugins by name:
+
+```sh
+copilot plugin install elastic-elasticsearch@elastic-agent-skills
+copilot plugin install elastic-kibana@elastic-agent-skills
+copilot plugin install elastic-observability@elastic-agent-skills
+copilot plugin install elastic-security@elastic-agent-skills
+copilot plugin install elastic-cloud@elastic-agent-skills
+```
+
+Or browse available plugins interactively inside a Copilot session:
+
+```
+/plugin list
+```
+
 ### npx (Recommended)
 
 The fastest way to install skills is with the [`skills`](https://github.com/vercel-labs/skills) CLI. No need to clone this repository — just run:
@@ -272,6 +296,20 @@ claude plugin update elastic-elasticsearch
 To keep plugins up to date automatically, enable auto-update using `/plugins` within Claude Code.
 
 When auto-update is on, Claude Code checks for new plugin versions at startup and updates in the background.
+
+### GitHub Copilot CLI
+
+Update all installed plugins to their latest versions:
+
+```sh
+copilot plugin update
+```
+
+Update a specific plugin:
+
+```sh
+copilot plugin update elastic-elasticsearch
+```
 
 ### npx
 
