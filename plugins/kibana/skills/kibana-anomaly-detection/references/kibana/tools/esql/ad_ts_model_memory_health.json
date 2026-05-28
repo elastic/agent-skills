@@ -1,0 +1,18 @@
+{
+  "name": "ad_ts_model_memory_health",
+  "description": "Get memory health and growth trend for a job. Returns model_size_stats records in reverse-chronological order. Use limit=1 for a fast current-state snapshot (hard_limit/soft_limit check); use limit=500 for full memory growth trend analysis (stable plateau / linear / exponential). Interpretation: hard_limit = CRITICAL (job blind to new entities), soft_limit = WARNING (aggressive pruning), model_bytes/model_bytes_memory_limit > 0.8 = APPROACHING LIMIT.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-anomalies-* | WHERE result_type == \"model_size_stats\" AND job_id == ?job_id | SORT timestamp DESC | KEEP job_id, timestamp, model_bytes, peak_model_bytes, model_bytes_memory_limit, model_bytes_exceeded, memory_status, total_by_field_count, total_over_field_count, total_partition_field_count, bucket_allocation_failures_count | LIMIT ?limit"
+  },
+  "parameters": {
+    "job_id": {
+      "type": "string",
+      "description": "The anomaly detection job ID"
+    },
+    "limit": {
+      "type": "string",
+      "description": "Number of historical records to return. Use 1 for current memory status (fast snapshot), 500 for full memory growth trend analysis."
+    }
+  }
+}

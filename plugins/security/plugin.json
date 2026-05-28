@@ -1,7 +1,7 @@
 {
   "name": "elastic-security",
   "description": "Elastic Security skills - alert triage, case management, detection rule management, and sample data generation",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "author": {
     "name": "Elastic",
     "url": "https://www.elastic.co"
@@ -9,12 +9,5 @@
   "repository": "https://github.com/elastic/agent-skills",
   "homepage": "https://github.com/elastic/agent-skills/tree/main/plugins/security",
   "license": "Apache-2.0",
-  "keywords": [
-    "security",
-    "siem",
-    "detection",
-    "alerts",
-    "cases",
-    "elastic"
-  ]
+  "keywords": ["security", "siem", "detection", "alerts", "cases", "elastic"]
 }

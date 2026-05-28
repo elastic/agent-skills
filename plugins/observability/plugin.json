@@ -1,7 +1,7 @@
 {
   "name": "elastic-observability",
   "description": "Elastic Observability skills - OpenTelemetry instrumentation and migration (.NET, Java, Python), LLM observability, log search, SLOs, and service health",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "author": {
     "name": "Elastic",
     "url": "https://www.elastic.co"

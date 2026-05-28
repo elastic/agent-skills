@@ -1,0 +1,28 @@
+name: ad_get_calendar_events
+description: >
+  Get scheduled events from calendars (maintenance windows, holidays). These suppress anomaly detection during known
+  downtime periods.
+enabled: true
+tags: ["anomaly-detection", "config"]
+
+inputs:
+  - name: calendar_id
+    type: string
+    description: The calendar ID
+
+triggers:
+  - type: manual
+
+steps:
+  - name: get_events
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/calendars/{{ inputs.calendar_id }}/events
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Calendar events for {{ inputs.calendar_id }}:
+        {{ steps.get_events.output | json:2 }}
