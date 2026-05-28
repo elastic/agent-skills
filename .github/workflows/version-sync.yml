@@ -39,10 +39,14 @@ jobs:
             --manifest .github/.release-manifest.json \
             --plugin-json plugins/elasticsearch/plugin.json \
             --plugin-json plugins/elasticsearch/.claude-plugin/plugin.json \
-            --plugin-json plugins/kibana/.claude-plugin/plugin.json \
-            --plugin-json plugins/observability/.claude-plugin/plugin.json \
-            --plugin-json plugins/security/.claude-plugin/plugin.json \
+            --plugin-json plugins/cloud/plugin.json \
             --plugin-json plugins/cloud/.claude-plugin/plugin.json \
+            --plugin-json plugins/kibana/plugin.json \
+            --plugin-json plugins/kibana/.claude-plugin/plugin.json \
+            --plugin-json plugins/observability/plugin.json \
+            --plugin-json plugins/observability/.claude-plugin/plugin.json \
+            --plugin-json plugins/security/plugin.json \
+            --plugin-json plugins/security/.claude-plugin/plugin.json \
             --plugin-json package.json \
             --marketplace-json .claude-plugin/marketplace.json)
 
