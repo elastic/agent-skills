@@ -146,11 +146,11 @@ claude plugin marketplace add https://github.com/elastic/agent-skills
 Once added, install individual plugins by name:
 
 ```sh
-claude plugin install elastic-elasticsearch@elastic-agent-skills
-claude plugin install elastic-kibana@elastic-agent-skills
-claude plugin install elastic-observability@elastic-agent-skills
-claude plugin install elastic-security@elastic-agent-skills
-claude plugin install elastic-cloud@elastic-agent-skills
+claude plugin install elasticsearch@elastic-agent-skills
+claude plugin install kibana@elastic-agent-skills
+claude plugin install observability@elastic-agent-skills
+claude plugin install security@elastic-agent-skills
+claude plugin install cloud@elastic-agent-skills
 ```
 
 > [!NOTE]
@@ -175,11 +175,11 @@ copilot plugin marketplace add elastic/agent-skills
 Once added, install individual plugins by name:
 
 ```sh
-copilot plugin install elastic-elasticsearch@elastic-agent-skills
-copilot plugin install elastic-kibana@elastic-agent-skills
-copilot plugin install elastic-observability@elastic-agent-skills
-copilot plugin install elastic-security@elastic-agent-skills
-copilot plugin install elastic-cloud@elastic-agent-skills
+copilot plugin install elasticsearch@elastic-agent-skills
+copilot plugin install kibana@elastic-agent-skills
+copilot plugin install observability@elastic-agent-skills
+copilot plugin install security@elastic-agent-skills
+copilot plugin install cloud@elastic-agent-skills
 ```
 
 Or browse available plugins interactively inside a Copilot session:
@@ -310,7 +310,7 @@ copilot plugin update
 Update a specific plugin:
 
 ```sh
-copilot plugin update elastic-elasticsearch
+copilot plugin update elasticsearch
 ```
 
 ### npx
