@@ -17,5 +17,5 @@
     "vega",
     "elastic"
   ],
-  "skills": "./skills"
+  "skills": ["skills/"]
 }

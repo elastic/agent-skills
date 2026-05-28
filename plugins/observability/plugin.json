@@ -17,5 +17,5 @@
     "slo",
     "elastic"
   ],
-  "skills": "./skills"
+  "skills": ["skills/"]
 }

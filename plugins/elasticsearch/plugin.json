@@ -17,5 +17,5 @@
     "security",
     "elastic"
   ],
-  "skills": "./skills"
+  "skills": ["skills/"]
 }
