@@ -52,6 +52,7 @@ jobs:
             --plugin-json plugins/security/.claude-plugin/plugin.json \
             --plugin-json package.json \
             --marketplace-json .claude-plugin/marketplace.json \
+            --marketplace-json .github/plugin/marketplace.json \
             --tags-file "$RUNNER_TEMP/existing-tags.txt" \
             --initial-version "$INITIAL_VERSION" \
             | tee "$GITHUB_STEP_SUMMARY"

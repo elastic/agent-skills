@@ -48,7 +48,8 @@ jobs:
             --plugin-json plugins/security/plugin.json \
             --plugin-json plugins/security/.claude-plugin/plugin.json \
             --plugin-json package.json \
-            --marketplace-json .claude-plugin/marketplace.json)
+            --marketplace-json .claude-plugin/marketplace.json \
+            --marketplace-json .github/plugin/marketplace.json)
 
           echo "$output"
           count=$(echo "$output" | jq '.updated | length')
