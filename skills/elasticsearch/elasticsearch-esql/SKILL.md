@@ -4,9 +4,14 @@ description: >
   Execute ES|QL (Elasticsearch Query Language) queries, use when the user wants to
   query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create
   charts and dashboards from ES|QL results.
+compatibility: >
+  Requires Elasticsearch 8.14+ (ES|QL GA) with network access to the cluster. Environment
+  variables: ELASTICSEARCH_URL plus ELASTICSEARCH_API_KEY or ELASTICSEARCH_USERNAME/ELASTICSEARCH_PASSWORD.
+  Time-series (TS) features need 9.2+ (preview) or 9.4+ (GA); check references/esql-version-history.md
+  for feature availability.
 metadata:
   author: elastic
-  version: 0.3.0
+  version: 0.5.0
 ---
 
 # Elasticsearch ES|QL
@@ -39,7 +44,7 @@ ES|QL uses pipes (`|`) to chain commands:
 >   development (next minor from main), so clients that only semver-compare may treat Serverless as “latest.” **Do not**
 >   use `version.number` to gate features: if `build_flavor` is `"serverless"`, assume all GA and preview ES|QL features
 >   are available.
-> - `build_flavor: "default"` — Self-managed or Elastic Cloud Hosted. Use `version.number` for feature availability.
+> - `build_flavor: "default"` — Stack (self-managed or Cloud-hosted). Use `version.number` for feature availability.
 > - **Snapshot builds** have `version.number` like `9.4.0-SNAPSHOT`. Strip the `-SNAPSHOT` suffix and use the
 >   major.minor for version checks. Snapshot builds include all features from that version plus potentially unreleased
 >   features from development — if a query fails with an unknown function/command, it may simply not have landed yet.
@@ -120,14 +125,16 @@ node scripts/esql.js test
    curl -s "$ELASTICSEARCH_URL/<index-name>/_settings/index.mode" -H "Authorization: ApiKey $ELASTICSEARCH_API_KEY"
    ```
 
-   For TSDS indices on 9.4+, prefer the in-language discovery commands `METRICS_INFO` and `TS_INFO` (both GA) over
-   inspecting mappings — they enumerate the metric catalogue and the dimension labels of each time series directly. Both
-   must follow `TS` and must precede `STATS`/`SORT`/`LIMIT`. See
+   For TSDS indices on 9.4+, prefer `METRICS_INFO` and `TS_INFO` (both GA) over inspecting mappings — they enumerate the
+   metric catalogue and dimension labels. Use `schema` for index mode / data-stream name when needed; treat
+   `METRICS_INFO` as authoritative for `metric_type` (`counter`/`gauge`/`histogram`) and `field_type`
+   (`histogram`,`tdigest`, `exponential_histogram` for distribution metrics). Both commands must follow `TS` and must
+   precede `STATS`/`SORT`/`LIMIT`. See
    [Time Series Queries](references/time-series-queries.md#metric-and-time-series-discovery).
 
    ```bash
-   node scripts/esql.js raw "TS metrics-tsds | METRICS_INFO | SORT metric_name" --tsv
-   node scripts/esql.js raw "TS metrics-tsds | TS_INFO | KEEP metric_name, dimensions | SORT metric_name" --tsv
+   node scripts/esql.js raw "TS metrics-tsds | WHERE TRANGE(15m) | METRICS_INFO | WHERE metric_name == \"jvm.gc.duration\" | KEEP metric_name, data_stream, field_type, metric_type" --tsv
+   node scripts/esql.js raw "TS metrics-tsds | WHERE TRANGE(15m) | TS_INFO | KEEP metric_name, dimensions | SORT metric_name" --tsv
    ```
 
 3. **Choose the right ES|QL feature for the task**: Before writing queries, match the user's intent to the most
@@ -141,12 +148,14 @@ node scripts/esql.js test
    - "search," "find documents matching" → `MATCH` (default), `QSTR` (advanced boolean), `KQL` (Kibana migration). For
      content/document relevance search, follow the [ES|QL Search Strategy](references/esql-search-strategy.md)
    - "count," "average," "breakdown" → `STATS` with aggregation functions
+   - "approximate," "estimate," "rough numbers," "fast/cheap stats on huge data" → `SET approximation=true;` before a
+     `STATS` query (GA in 9.5+/Serverless, preview in 9.4); see [Query Approximation](references/query-approximation.md)
 
 4. **Read the references** before generating queries:
    - [Generation Tips](references/generation-tips.md) - key patterns (TS/TBUCKET/RATE, per-agg WHERE, LOOKUP JOIN,
      CIDR_MATCH), common templates, and ambiguity handling
    - [Time Series Queries](references/time-series-queries.md) - **read before any TS query**: inner/outer aggregation
-     model, TBUCKET syntax, RATE constraints
+     model, TBUCKET syntax, RATE constraints, histogram metrics
    - [PROMQL Command](references/promql-command.md) — **read before any PROMQL query**: options, output schema,
      limitations, and `PROMQL` vs `TS` decision matrix (9.4+ preview)
    - [ES|QL Complete Reference](references/esql-reference.md) - full syntax for all commands and functions
@@ -154,6 +163,9 @@ node scripts/esql.js test
      fuse → rerank)
    - [ES|QL Search Reference](references/esql-search.md) — for full-text search function syntax (MATCH, QSTR, KQL,
      scoring)
+   - [Query Approximation](references/query-approximation.md) — **read before using `SET approximation`**: output
+     columns, sampling/confidence-level tuning, unsupported functions and patterns (GA in 9.5+/Serverless, preview in
+     9.4)
 
 5. **Generate the query** following ES|QL syntax. Prefer the **simplest query** that answers the question — do not add
    extra indices, fields, or transformations unless the user asks for them. Only include fields in `KEEP` that directly
@@ -163,9 +175,10 @@ node scripts/esql.js test
    - Add `WHERE` for filtering (use `TRANGE` for time ranges on 9.3+)
    - Use `EVAL` for computed fields
    - Use `STATS ... BY` for aggregations
-   - For time series metrics: `TS` with `SUM(RATE(...))` for counters, `AVG(...)` for gauges, and `TBUCKET(interval)`
-     for time bucketing — see the TS section in [Generation Tips](references/generation-tips.md) for the three critical
-     syntax rules
+   - For time series metrics: `TS` with `SUM(RATE(...))` for counters, `AVG(...)` for gauges, standard aggregations
+     (`SUM`, `AVG`, `PERCENTILE`, … — not `*_OVER_TIME`) for histogram metrics, and `TBUCKET(interval)` for time
+     bucketing — see the TS section in [Generation Tips](references/generation-tips.md) and
+     [Histogram Metrics](references/time-series-queries.md#histogram-metrics)
    - For detecting spikes, dips, or anomalies, use `CHANGE_POINT` after time-bucketed aggregation
    - Add `SORT` and `LIMIT` as needed
 
@@ -294,6 +307,10 @@ TS metrics-tsds
 TS metrics-tsds
 | STATS avg_cpu = AVG(cpu) BY service.name, bucket = TBUCKET(5 minutes)
 | SORT bucket
+
+// Histogram metric: standard aggregation (merge); cast for wildcard/mixed streams
+TS metrics-*
+| STATS total_gc = SUM(jvm.gc.duration::exponential_histogram) BY TBUCKET(1 hour), service.name
 ```
 
 **Time series with PromQL syntax (9.4+ preview):** Use the `PROMQL` source command when the user explicitly asks for
@@ -372,6 +389,23 @@ FROM logs-*
 | CHANGE_POINT error_count ON bucket AS type, pvalue
 ```
 
+**Approximate STATS (GA in 9.5+/Serverless, preview in 9.4):** Prepend `SET approximation=true;` to a `STATS` query to
+get fast estimates via sampling and extrapolation on large datasets when exact values are not required. The result adds
+`_approximation_confidence_interval(col)` and `_approximation_certified(col)` columns per estimated quantity — report
+those bounds, do not present estimates as exact. `COUNT_DISTINCT`, `MIN`, `MAX`, `FIRST`, `LAST`, `TOP` (and a few
+others) are **not** supported and fall back to exact execution; use the `SAMPLE` command for those. Pipelines with 2+
+`STATS`, or using the `TS`/`PROMQL` source command, also fall back. See
+[Query Approximation](references/query-approximation.md).
+
+```esql
+SET approximation=true;
+FROM web_traffic
+| WHERE @timestamp >= NOW() - 1 week
+| STATS total_hits = COUNT(*), avg_load_time = AVG(page_load_ms) BY country_code
+| SORT total_hits DESC
+| LIMIT 5
+```
+
 ## Full Reference
 
 For complete ES|QL syntax including all commands, functions, and operators, read:
@@ -386,6 +420,8 @@ For complete ES|QL syntax including all commands, functions, and operators, read
 - [Generation Tips](references/generation-tips.md) - Best practices for query generation
 - [Time Series Queries](references/time-series-queries.md) - TS command, time series aggregation functions, TBUCKET
 - [PROMQL Command](references/promql-command.md) - PromQL source command for TSDS indices (9.4+ preview)
+- [Query Approximation](references/query-approximation.md) - Approximate STATS via sampling/extrapolation (GA in
+  9.5+/Serverless, preview in 9.4)
 - [DSL to ES|QL Migration](references/dsl-to-esql-migration.md) - Convert Query DSL to ES|QL
 - [Environment Setup](references/environment-setup.md) - Connection configuration options
 

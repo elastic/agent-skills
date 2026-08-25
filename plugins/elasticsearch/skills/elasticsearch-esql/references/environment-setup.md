@@ -7,8 +7,8 @@ successful connection test.
 > **Elastic Cloud Serverless:** After connecting, inspect `GET /`. If `build_flavor` is `"serverless"`, do **not** use
 > `version.number` to decide which ES|QL features are allowed — Serverless tracks current GA and preview ES|QL, and the
 > reported version follows the main-line / next-minor line (semver-only clients may see it as “latest”). Prefer
-> `build_flavor` for detection and gating. For the full rules (including self-managed and snapshot builds), read
-> **Cluster Detection** in [SKILL.md](../SKILL.md) and the **Serverless** callout in
+> `build_flavor` for detection and gating. For the full rules (including Stack and snapshot builds), read **Cluster
+> Detection** in [SKILL.md](../SKILL.md) and the **Serverless** callout in
 > [ES|QL Version History](esql-version-history.md).
 
 ## Option 1: Elastic Cloud (recommended for production)

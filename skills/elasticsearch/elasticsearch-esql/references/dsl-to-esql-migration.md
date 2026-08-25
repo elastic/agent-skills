@@ -958,22 +958,22 @@ FROM sales
 
 Features not available in ES|QL as of version 9.3:
 
-| Feature                      | Query DSL | ES\|QL                                    |
-| ---------------------------- | --------- | ----------------------------------------- |
-| Highlighting                 | ✅        | ❌                                        |
-| Nested queries               | ✅        | ❌                                        |
-| Parent-child queries         | ✅        | ❌                                        |
-| Scroll/pagination beyond 10k | ✅        | ❌                                        |
-| Percolate queries            | ✅        | ❌                                        |
-| Complex boosting             | ✅        | Limited                                   |
-| Geo distance sorting         | ✅        | ❌                                        |
-| Runtime fields               | ✅        | Use EVAL                                  |
-| Suggest API                  | ✅        | ❌                                        |
-| Collapse (field collapsing)  | ✅        | ❌                                        |
-| Inner hits                   | ✅        | ❌                                        |
-| Timezone support             | ✅        | ✅ `SET time_zone` (Serverless GA)        |
-| JOIN (non-lookup)            | N/A       | ❌ (only LEFT JOIN on lookup index)       |
-| Subqueries / UNION ALL       | N/A       | ✅ `FROM` subqueries (Serverless preview) |
+| Feature                      | Query DSL | ES\|QL                                   |
+| ---------------------------- | --------- | ---------------------------------------- |
+| Highlighting                 | ✅        | ❌                                       |
+| Nested queries               | ✅        | ❌                                       |
+| Parent-child queries         | ✅        | ❌                                       |
+| Scroll/pagination beyond 10k | ✅        | ❌                                       |
+| Percolate queries            | ✅        | ❌                                       |
+| Complex boosting             | ✅        | Limited                                  |
+| Geo distance sorting         | ✅        | ❌                                       |
+| Runtime fields               | ✅        | Use EVAL                                 |
+| Suggest API                  | ✅        | ❌                                       |
+| Collapse (field collapsing)  | ✅        | ❌                                       |
+| Inner hits                   | ✅        | ❌                                       |
+| Timezone support             | ✅        | ✅ `SET time_zone` (9.4+ GA; Serverless) |
+| JOIN (non-lookup)            | N/A       | ❌ (only LEFT JOIN on lookup index)      |
+| Subqueries / UNION ALL       | N/A       | ✅ `FROM` subqueries (9.4+; Serverless)  |
 
 ### Unsupported Field Types in ES|QL
 

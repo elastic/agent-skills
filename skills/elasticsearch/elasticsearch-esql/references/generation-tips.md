@@ -4,8 +4,8 @@ Guidelines for generating accurate ES|QL queries from natural language.
 
 > **Cluster detection:** Check `build_flavor` in the `GET /` response. For Serverless (`"serverless"`), **do not**
 > version-gate: `version.number` tracks the next minor from main (semver-only clients may see it as “latest”), but
-> feature availability is not determined by that string — use `build_flavor` as the signal. For self-managed
-> (`"default"`), use `version.number` for feature checks (strip `-SNAPSHOT` suffix on pre-release builds).
+> feature availability is not determined by that string — use `build_flavor` as the signal. For Stack (`"default"`), use
+> `version.number` for feature checks (strip `-SNAPSHOT` suffix on pre-release builds).
 
 ## Table of Contents
 
@@ -152,6 +152,10 @@ For time series data streams (TSDS), use `TS` instead of `FROM` to enable time s
 ```esql
 TS metrics-*          // Time series source — enables RATE, AVG_OVER_TIME, etc.
 ```
+
+**When the question asks about rates, throughput, CPU/memory trends, or metric comparisons**, prefer a `metrics-*` or
+TSDS index with `TS` over a general log index with `FROM`. Check the schema — if an index has `Index mode: time_series`,
+always use `TS`.
 
 ### 2. Determine Time Range
 
@@ -452,8 +456,7 @@ FROM support_tickets
 
 ### Time Series (TS) Queries
 
-When `schema` reports `Index mode: time_series`, use the `TS` source command instead of `FROM`. Three critical syntax
-rules:
+When `schema` reports `Index mode: time_series`, use the `TS` source command instead of `FROM`. Critical syntax rules:
 
 **1. Use the data stream name, not the resolved backing index:**
 
@@ -469,14 +472,18 @@ The `schema` command displays the data stream name when the index is a TSDS back
 
 **2. TBUCKET takes only a duration — not @timestamp:**
 
-`TBUCKET` is not `DATE_TRUNC`. Do not pass `@timestamp`:
+`TBUCKET` is not `DATE_TRUNC`. Do not pass `@timestamp`. Always assign a column alias so you can reference it in `SORT`:
 
 ```esql
 // WRONG — DATE_TRUNC-style syntax
 | STATS avg_cpu = AVG(cpu) BY bucket = TBUCKET(@timestamp, 5 minutes)
 
-// CORRECT — duration only, timestamp is implicit
+// WRONG — no alias makes SORT difficult
+| STATS avg_cpu = AVG(cpu) BY TBUCKET(5 minutes)
+
+// CORRECT — duration only with alias for SORT
 | STATS avg_cpu = AVG(cpu) BY bucket = TBUCKET(5 minutes)
+| SORT bucket
 ```
 
 **3. Counter fields need RATE() wrapped in an outer aggregation:**
@@ -494,14 +501,44 @@ TS metrics-tsds
 | STATS request_rate = SUM(RATE(requests)) BY TBUCKET(1 hour), host
 ```
 
-For gauge fields, use `AVG()` or `MAX()` as the outer function:
+For **gauge** fields, use `AVG()` or `MAX()` as the outer function. Prefer the plain form — the inner `LAST_OVER_TIME`
+is implicit and sufficient for most gauge queries. Use explicit `AVG_OVER_TIME` when you need the average of all samples
+in the window (not just the last). Do not use `AVG_OVER_TIME` for histogram fields; see the histogram tip below:
 
 ```esql
+// Preferred — plain aggregation (implicit LAST_OVER_TIME)
+TS metrics-tsds
+| STATS avg_cpu = AVG(cpu) BY TBUCKET(5 minutes), service.name
+
+// Only use explicit *_OVER_TIME when you need specific window behavior
 TS metrics-tsds
 | STATS avg_cpu = AVG(AVG_OVER_TIME(cpu)) BY TBUCKET(5 minutes), service.name
 ```
 
 See [Time Series Queries](time-series-queries.md) for the full inner/outer aggregation model.
+
+**4. Histogram fields:** Check `field_type` with `METRICS_INFO` (`histogram`, `exponential_histogram`, or `tdigest` —
+OTel is a common source; `metric_type` is `histogram` for all three). `exponential_histogram` and `tdigest` **merge by
+default as inner, per-series aggregation** — use `SUM`/`AVG`/`COUNT`/`PERCENTILE`/…, not `*_OVER_TIME`. Plain
+`histogram` is not usable without a cast. “Average over time” on a histogram means `AVG(field)`, not `AVG_OVER_TIME`:
+
+```esql
+// WRONG — *_OVER_TIME is the wrong shape for histogram metrics
+TS metrics-* | STATS SUM(SUM_OVER_TIME(jvm.gc.duration)) BY TBUCKET(1 hour)
+
+// CORRECT — exponential_histogram / tdigest: merge + standard aggregation (no cast)
+TS metrics-tsds
+| WHERE TRANGE(1 hour)
+| STATS count = COUNT(jvm.gc.duration),
+        avg = AVG(jvm.gc.duration),
+        p99 = PERCENTILE(jvm.gc.duration, 99)
+  BY jvm.gc.action, TBUCKET(5 minutes)
+```
+
+Always cast with `::exponential_histogram` when plain `histogram` is present (alone or mixed) or a type error requires
+it; omit the cast when the targeted streams are unambiguously `exponential_histogram` or `tdigest`. Prefer `::tdigest`
+only when the metric actually stores T-Digest data. Cast table:
+[Histogram Metrics](time-series-queries.md#histogram-metrics).
 
 **Version status:** `TS`, `TBUCKET`, the new `WITHOUT(...)` grouping function, the new `METRICS_INFO` / `TS_INFO`
 discovery commands, and **all** time series aggregation functions are **GA since 9.4** — including the 9.2-introduced
@@ -532,7 +569,7 @@ ES|QL before 9.2**. There is no fallback.
 When the cluster is pre-9.2 and the question requires per-row vs. aggregate comparison, explain that `INLINE STATS` is
 needed and suggest the user either upgrade or perform the comparison client-side.
 
-### Pipe Commands: URI_PARTS, USER_AGENT, REGISTERED_DOMAIN (Serverless)
+### Pipe Commands: URI_PARTS, USER_AGENT, REGISTERED_DOMAIN (9.4+; Serverless)
 
 These are **pipe commands** (like `DISSECT`/`GROK`), not scalar functions. They must appear on their own pipeline stage
 with `target = expression` syntax. A target prefix is mandatory.
@@ -555,7 +592,7 @@ When the user asks to "parse URLs", "extract domains", or "parse user agents", r
 | Parse a user agent string | `USER_AGENT`        |
 | Extract registered domain | `REGISTERED_DOMAIN` |
 
-### Grouped Top-N with LIMIT BY (Serverless)
+### Grouped Top-N with LIMIT BY (9.4+; Serverless)
 
 `LIMIT n BY field` keeps the top N rows per group after sorting. The number comes **before** `BY`.
 
@@ -572,8 +609,8 @@ This replaces the common `INLINE STATS` + rank-and-filter pattern for simple gro
 
 ### Subqueries in FROM vs FORK
 
-**Subqueries** (Serverless tech preview) combine results from **different** data sources (UNION ALL semantics). **FORK**
-runs **different analyses** on the **same** data source.
+**Subqueries** (9.4+; Serverless) combine results from **different** data sources (UNION ALL semantics). **FORK** runs
+**different analyses** on the **same** data source.
 
 | Scenario                              | Use        |
 | ------------------------------------- | ---------- |

@@ -3,11 +3,11 @@
 ES|QL (Elasticsearch Query Language) is a piped query language for filtering, transforming, and analyzing data in
 Elasticsearch. It uses pipes (`|`) to chain commands together.
 
-> **Serverless vs Self-Managed:** Version annotations in this document (e.g., "9.2+") apply to self-managed
-> Elasticsearch. Detect cluster type via `build_flavor` in the `GET /` response: `"serverless"` means all GA and preview
+> **Serverless vs Stack:** Version annotations in this document (e.g., "9.2+") apply to Elastic Stack (self-managed and
+> Cloud-hosted). Detect cluster type via `build_flavor` in the `GET /` response: `"serverless"` means all GA and preview
 > features are available — **do not** gate on `version.number` for Serverless (it tracks the next minor from main;
-> semver-only checks may treat it as “latest”). For self-managed, use `version.number` (strip any `-SNAPSHOT` suffix)
-> for feature checks.
+> semver-only checks may treat it as “latest”). For Stack, use `version.number` (strip any `-SNAPSHOT` suffix) for
+> feature checks.
 
 ## Table of Contents
 
@@ -66,12 +66,25 @@ source-command
 
 - `"default"` / `"fail"` -- the query fails if it references unmapped fields
 - `"nullify"` -- treats unmapped fields as null values
-- `"load"` -- loads unmapped fields dynamically. **Limitation:** `"load"` is incompatible with subqueries and views. Use
-  `"nullify"` when composing subqueries or querying views.
+- `"load"` (9.4+) -- loads unmapped fields dynamically as `keyword`. **Limitation:** `"load"` is incompatible with
+  subqueries and views. Use `"nullify"` when composing subqueries or querying views.
 
-**`time_zone`** (Serverless GA; self-managed planned) -- sets the default timezone for the query, overriding UTC
-default. Accepts any IANA timezone string or UTC offset. Applies to all date/time operations: `DATE_TRUNC`,
-`DATE_FORMAT`, `NOW()`, etc.
+**`time_zone`** (9.4+ GA; Serverless) -- sets the default timezone for the query, overriding UTC default. Accepts any
+IANA timezone string or UTC offset. Applies to all date/time operations: `DATE_TRUNC`, `DATE_FORMAT`, `NOW()`, etc.
+
+**`approximation`** (9.5+ GA; Serverless; preview in 9.4) -- approximates `STATS` aggregations via random sampling and
+extrapolation, returning estimates with confidence intervals for far faster results on large datasets:
+
+- `true` -- enable approximation with default settings (1,000,000 sampled rows when grouped, 100,000 otherwise; central
+  90% confidence interval)
+- `false` (default) -- exact execution
+- map value -- enable with custom settings: `{"rows":N}` (sampled rows, `N` ≥ 10,000) and/or `{"confidence_level":X}`
+  (default `0.90`; `null` disables interval computation)
+
+Adds `_approximation_confidence_interval(col)` and `_approximation_certified(col)` columns per estimated quantity.
+`COUNT_DISTINCT`, `MIN`, `MAX`, `FIRST`, `LAST`, `TOP`, and several others are **not supported** and fall back to exact
+execution — use the [`SAMPLE`](#sample) command for those. See [query-approximation.md](query-approximation.md) for the
+full reference.
 
 **Examples:**
 
@@ -92,11 +105,19 @@ SET time_zone = "+05:00";
 TS k8s
 | WHERE @timestamp == "2024-05-10T00:04:49.000Z"
 | STATS BY @timestamp, bucket = TBUCKET(3 hours)
+
+SET approximation = true;
+FROM web_traffic
+| WHERE @timestamp >= NOW() - 1 week
+| STATS total_hits = COUNT(*), avg_load_time = AVG(page_load_ms) BY country_code
+| SORT total_hits DESC
+| LIMIT 5
 ```
 
 > **When to use:** `unmapped_fields` is useful when querying across multiple indices where some indices may not have all
 > fields mapped. `time_zone` shifts date functions and display to a non-UTC zone. There is no per-function timezone
-> argument — `DATE_TRUNC(1 hour, @timestamp, "America/Los_Angeles")` does **not** work.
+> argument — `DATE_TRUNC(1 hour, @timestamp, "America/Los_Angeles")` does **not** work. `approximation` trades exactness
+> for speed on large `STATS` summaries — see [query-approximation.md](query-approximation.md).
 >
 > **Restriction:** `SET` directives cannot be used inside view definitions. The caller must apply `SET` when querying
 > the view.
@@ -136,8 +157,8 @@ FROM <logs-{now/d}>
 FROM cluster_one:logs-*, cluster_two:logs-*
 ```
 
-**Subqueries (Serverless tech preview):** `FROM` supports parenthesized subqueries with UNION ALL semantics. Each branch
-is a complete ES|QL pipeline. Columns present in one branch but not another are filled with `null`.
+**Subqueries (9.4+; Serverless):** `FROM` supports parenthesized subqueries with UNION ALL semantics. Each branch is a
+complete ES|QL pipeline. Columns present in one branch but not another are filled with `null`.
 
 ```esql
 // Combine logs from different indices with independent pipelines
@@ -184,6 +205,40 @@ ROW x = [1, 2, 3]
 ROW greeting = "hello", pi = 3.14159
 ```
 
+**Intra-row field references (9.4+; Serverless):** Columns defined earlier in the same `ROW` can be referenced by later
+columns:
+
+```esql
+ROW a = 5, b = a * 2, c = a + b
+```
+
+### Views (9.4+ preview; Stack only — not available on Serverless)
+
+Views are virtual indices backed by ES|QL queries. Query a view with `FROM view_name` like any index. Views are managed
+via the `/_query/view` REST API.
+
+**Create / update a view:**
+
+```bash
+PUT /_query/view/active_employees
+{
+  "query": "FROM employees | WHERE is_active == true | KEEP emp_no, name, department"
+}
+```
+
+**Query a view:**
+
+```esql
+FROM active_employees
+| STATS headcount = COUNT(*) BY department
+```
+
+**Constraints:**
+
+- `SET` directives cannot be used inside view definitions; the caller applies `SET` when querying
+- `SET unmapped_fields = "load"` is incompatible with views; use `"nullify"` instead
+- Views are not yet available on Serverless
+
 ### TS
 
 Retrieves data from time series data streams (TSDS). Similar to `FROM` but enables time series aggregation functions in
@@ -199,7 +254,9 @@ TS index_pattern [METADATA fields]
 
 - Enables time series aggregation functions (`RATE`, `AVG_OVER_TIME`, etc.) in the first `STATS` command
 - Time series functions are evaluated per time series first, then aggregated by group using an outer function
-- If no inner time series function is specified, `LAST_OVER_TIME()` is assumed implicitly
+- If no inner time series function is specified, the default depends on field type: `LAST_OVER_TIME()` for numeric/gauge
+  fields; histogram merge for `exponential_histogram`/`tdigest` (plain `histogram` needs a cast — see
+  [Histogram Metrics](time-series-queries.md#histogram-metrics))
 - Cannot be combined with `FORK` before `STATS` is applied
 - When the query has no `STATS`, `TS` returns rows sorted by `@timestamp` descending by default
 - When the first `STATS` after `TS` uses a **bare** time series function (not wrapped in an outer aggregation like
@@ -215,7 +272,7 @@ TS metrics
 | WHERE @timestamp >= NOW() - 1 hour
 | STATS SUM(RATE(search_requests)) BY TBUCKET(1 hour), host
 
-// Average of last memory usage values per time series (implicit LAST_OVER_TIME)
+// Gauge — average of last values per time series (implicit LAST_OVER_TIME)
 TS metrics
 | STATS AVG(memory_usage)
 
@@ -577,13 +634,13 @@ FROM data
 
 ### LIMIT
 
-Limits the number of rows returned. Supports optional grouped top-N with `BY` (Serverless).
+Limits the number of rows returned. Supports optional grouped top-N with `BY` since 9.4+ and in Serverless.
 
 **Syntax:**
 
 ```esql
 LIMIT number
-LIMIT number BY field
+LIMIT number BY field (9.4+; Serverless)
 ```
 
 **Examples:**
@@ -899,8 +956,8 @@ FROM articles METADATA _id, _index, _score
 
 ### RERANK
 
-Uses an inference model to re-score an initial set of documents. Tech preview in 9.2 (GA on Serverless). Since 9.3,
-defaults to 1000 rows; configurable via `esql.command.rerank.limit` and `esql.command.rerank.enabled` cluster settings.
+Uses an inference model to re-score an initial set of documents. GA in 9.4 (Serverless). Since 9.3, defaults to 1000
+rows; configurable via `esql.command.rerank.limit` and `esql.command.rerank.enabled` cluster settings.
 
 **Syntax:**
 
@@ -961,6 +1018,11 @@ FROM logs-*
 | STATS avg_duration = AVG(duration) BY service.name
 ```
 
+`SAMPLE` can be used as a manual alternative to automatic [query approximation](query-approximation.md) when you need
+control over sampling or an aggregation that approximation does not support (e.g. `COUNT_DISTINCT`). Unlike
+`SET approximation`, it performs **no** extrapolation or confidence interval computation — accounting for sampling bias
+is your responsibility.
+
 ### MV_EXPAND
 
 Expands multivalued fields into separate rows.
@@ -999,8 +1061,8 @@ Takes no parameters.
 - `data_stream` — data stream(s) containing this metric (multi-valued when several streams align on
   unit/metric_type/field_type)
 - `unit` — declared unit from field mapping (e.g., `bytes`, `packets`); may be `null` or multi-valued
-- `metric_type` — `counter`, `gauge`, etc. (multi-valued when definitions differ across backing indices)
-- `field_type` — Elasticsearch field type (e.g., `long`, `double`, `integer`)
+- `metric_type` — `counter`, `gauge`, or `histogram` (multi-valued when definitions differ across backing indices)
+- `field_type` — Elasticsearch field type (e.g., `long`, `double`, `histogram`, `exponential_histogram`, `tdigest`)
 - `dimension_fields` — union of dimension field names across all time series for that metric
 
 **Restrictions:**
@@ -1009,7 +1071,8 @@ Takes no parameters.
 - Must appear before pipeline-breaking commands (`STATS`, `SORT`, `LIMIT`).
 - The output replaces the original table — downstream commands operate on the metadata rows, not the raw documents.
 
-**Examples:**
+**Examples** (`TRANGE` is omitted below for brevity — always add `| WHERE TRANGE(...)` after `TS` so discovery scans a
+bounded window):
 
 ```esql
 // List every metric in a TSDS, alphabetically
@@ -1064,7 +1127,7 @@ Takes no parameters.
 - Must appear before pipeline-breaking commands (`STATS`, `SORT`, `LIMIT`).
 - The output replaces the original table — downstream commands operate on the metadata rows, not the raw documents.
 
-**Examples:**
+**Examples** (same as `METRICS_INFO`: always precede with `WHERE TRANGE(...)` in real queries):
 
 ```esql
 // Every (metric, time series) pair in a TSDS
@@ -1102,7 +1165,7 @@ TS k8s
 > **per (metric, time series) combination** and adds a `dimensions` column with the labels identifying each series. Use
 > `METRICS_INFO` to enumerate _what_ is being measured, and `TS_INFO` to enumerate _which_ time series exist.
 
-### URI_PARTS (Serverless)
+### URI_PARTS (9.4+; Serverless)
 
 Pipe command that parses a URI string into structured columns. A target prefix is **required**.
 
@@ -1125,7 +1188,7 @@ FROM web_logs
 | SORT errors DESC
 ```
 
-### USER_AGENT (Serverless)
+### USER_AGENT (9.4+; Serverless)
 
 Pipe command that parses a user agent string into structured columns. A target prefix is **required**.
 
@@ -1146,7 +1209,7 @@ FROM web_logs
 | STATS cnt = COUNT(*) BY ua.name, ua.version
 ```
 
-### REGISTERED_DOMAIN (Serverless)
+### REGISTERED_DOMAIN (9.4+; Serverless)
 
 Pipe command that extracts the registered domain, top-level domain, and subdomain from a hostname. A target prefix is
 **required**.
@@ -1171,6 +1234,26 @@ FROM dns_logs
 
 > **Note:** `URI_PARTS`, `USER_AGENT`, and `REGISTERED_DOMAIN` are **pipe commands** (like `DISSECT`/`GROK`), not scalar
 > functions. The syntax `URI_PARTS(field)` does not work — use `| URI_PARTS target = field`.
+
+### MMR (9.4+ preview; Serverless)
+
+Maximal Marginal Relevance — diversifies search results by reducing redundancy among top hits. Requires a dense vector
+field and a `LIMIT` before `MMR` to constrain the candidate set.
+
+**Syntax:**
+
+```esql
+MMR query ON vector_field LIMIT n
+```
+
+**Example:**
+
+```esql
+FROM articles
+| WHERE MATCH(title, "elasticsearch tuning")
+| LIMIT 100
+| MMR "elasticsearch performance tuning" ON content_embedding LIMIT 10
+```
 
 ---
 
@@ -1198,10 +1281,10 @@ Used with STATS command.
 | `ABSENT(field)`                    | True if no non-null values (9.2+)               | `STATS is_absent = ABSENT(error_code)`           |
 | `PRESENT(field)`                   | True if any non-null values (9.2+)              | `STATS has_data = PRESENT(metric)`               |
 | `SAMPLE(field, n)`                 | Collect n sample values (8.19/9.1+)             | `STATS examples = SAMPLE(message, 5)`            |
-| `FIRST(field, sort_field)`         | Earliest value by sort field (Serverless GA)    | `STATS earliest = FIRST(message, @timestamp)`    |
-| `LAST(field, sort_field)`          | Latest value by sort field (Serverless GA)      | `STATS latest = LAST(message, @timestamp)`       |
-| `EARLIEST(field)`                  | Earliest value (single-arg; Serverless GA)      | `STATS e = EARLIEST(@timestamp)`                 |
-| `LATEST(field)`                    | Latest value (single-arg; Serverless GA)        | `STATS l = LATEST(@timestamp)`                   |
+| `FIRST(field, sort_field)`         | Earliest value by sort field (9.4+; Serverless) | `STATS earliest = FIRST(message, @timestamp)`    |
+| `LAST(field, sort_field)`          | Latest value by sort field (9.4+; Serverless)   | `STATS latest = LAST(message, @timestamp)`       |
+| `EARLIEST(field)`                  | Min `@timestamp` shorthand (9.4+; Serverless)   | `STATS e = EARLIEST(@timestamp)`                 |
+| `LATEST(field)`                    | Max `@timestamp` shorthand (9.4+; Serverless)   | `STATS l = LATEST(@timestamp)`                   |
 | `ST_CENTROID_AGG(field)`           | Spatial centroid of points                      | `STATS center = ST_CENTROID_AGG(location)`       |
 | `ST_EXTENT_AGG(field)`             | Bounding box of geometries (8.18/9.0+, preview) | `STATS bbox = ST_EXTENT_AGG(location)`           |
 
@@ -1308,40 +1391,40 @@ TS metrics
 
 ## String Functions
 
-| Function                    | Description                                    | Example                                                              |
-| --------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
-| `LENGTH(s)`                 | String length                                  | `EVAL len = LENGTH(name)`                                            |
-| `CONCAT(s1, s2, ...)`       | Concatenate strings                            | `EVAL full = CONCAT(first, " ", last)`                               |
-| `SUBSTRING(s, start, len)`  | Extract substring                              | `EVAL sub = SUBSTRING(text, 1, 10)`                                  |
-| `LEFT(s, n)`                | Left n characters                              | `EVAL l = LEFT(text, 5)`                                             |
-| `RIGHT(s, n)`               | Right n characters                             | `EVAL r = RIGHT(text, 5)`                                            |
-| `TRIM(s)`                   | Remove whitespace                              | `EVAL clean = TRIM(input)`                                           |
-| `LTRIM(s)`                  | Trim left                                      | `EVAL clean = LTRIM(input)`                                          |
-| `RTRIM(s)`                  | Trim right                                     | `EVAL clean = RTRIM(input)`                                          |
-| `TO_UPPER(s)`               | Uppercase                                      | `EVAL upper = TO_UPPER(name)`                                        |
-| `TO_LOWER(s)`               | Lowercase                                      | `EVAL lower = TO_LOWER(name)`                                        |
-| `REPLACE(s, old, new)`      | Replace text                                   | `EVAL fixed = REPLACE(msg, "err", "error")`                          |
-| `SPLIT(s, delim)`           | Split into array                               | `EVAL parts = SPLIT(path, "/")`                                      |
-| `STARTS_WITH(s, prefix)`    | Check prefix                                   | `WHERE STARTS_WITH(url, "https")`                                    |
-| `ENDS_WITH(s, suffix)`      | Check suffix                                   | `WHERE ENDS_WITH(file, ".log")`                                      |
-| `CONTAINS(s, substr)`       | Check contains                                 | `WHERE CONTAINS(message, "error")`                                   |
-| `LOCATE(substr, s)`         | Find position                                  | `EVAL pos = LOCATE("@", email)`                                      |
-| `REVERSE(s)`                | Reverse string                                 | `EVAL rev = REVERSE(text)`                                           |
-| `REPEAT(s, n)`              | Repeat string                                  | `EVAL sep = REPEAT("-", 10)`                                         |
-| `SPACE(n)`                  | N spaces                                       | `EVAL spaces = SPACE(5)`                                             |
-| `BIT_LENGTH(s)`             | Bit length (8.17+)                             | `EVAL bits = BIT_LENGTH(name)`                                       |
-| `BYTE_LENGTH(s)`            | Byte length (8.17+)                            | `EVAL bytes = BYTE_LENGTH(name)`                                     |
-| `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)         | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
-| `HASH(alg, s)`              | Hash string (8.18/9.0+)                        | `EVAL h = HASH("SHA-256", msg)`                                      |
-| `MD5(s)`                    | MD5 hash (8.18/9.0+)                           | `EVAL h = MD5(content)`                                              |
-| `SHA1(s)`                   | SHA-1 hash (8.18/9.0+)                         | `EVAL h = SHA1(content)`                                             |
-| `SHA256(s)`                 | SHA-256 hash (8.18/9.0+)                       | `EVAL h = SHA256(content)`                                           |
-| `FROM_BASE64(s)`            | Decode base64                                  | `EVAL decoded = FROM_BASE64(encoded)`                                |
-| `TO_BASE64(s)`              | Encode to base64                               | `EVAL encoded = TO_BASE64(data)`                                     |
-| `URL_DECODE(s)`             | URL-decode (9.2+)                              | `EVAL decoded = URL_DECODE(url)`                                     |
-| `URL_ENCODE(s)`             | URL-encode (9.2+)                              | `EVAL encoded = URL_ENCODE(text)`                                    |
-| `URL_ENCODE_COMPONENT(s)`   | URL-encode for URI components (9.2+)           | `EVAL encoded = URL_ENCODE_COMPONENT(text)`                          |
-| `JSON_EXTRACT(field, path)` | Extract value from JSON string (Serverless GA) | `EVAL name = JSON_EXTRACT(raw, "$.user.name")`                       |
+| Function                    | Description                                               | Example                                                              |
+| --------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------- |
+| `LENGTH(s)`                 | String length                                             | `EVAL len = LENGTH(name)`                                            |
+| `CONCAT(s1, s2, ...)`       | Concatenate strings                                       | `EVAL full = CONCAT(first, " ", last)`                               |
+| `SUBSTRING(s, start, len)`  | Extract substring                                         | `EVAL sub = SUBSTRING(text, 1, 10)`                                  |
+| `LEFT(s, n)`                | Left n characters                                         | `EVAL l = LEFT(text, 5)`                                             |
+| `RIGHT(s, n)`               | Right n characters                                        | `EVAL r = RIGHT(text, 5)`                                            |
+| `TRIM(s)`                   | Remove whitespace                                         | `EVAL clean = TRIM(input)`                                           |
+| `LTRIM(s)`                  | Trim left                                                 | `EVAL clean = LTRIM(input)`                                          |
+| `RTRIM(s)`                  | Trim right                                                | `EVAL clean = RTRIM(input)`                                          |
+| `TO_UPPER(s)`               | Uppercase                                                 | `EVAL upper = TO_UPPER(name)`                                        |
+| `TO_LOWER(s)`               | Lowercase                                                 | `EVAL lower = TO_LOWER(name)`                                        |
+| `REPLACE(s, old, new)`      | Replace text                                              | `EVAL fixed = REPLACE(msg, "err", "error")`                          |
+| `SPLIT(s, delim)`           | Split into array                                          | `EVAL parts = SPLIT(path, "/")`                                      |
+| `STARTS_WITH(s, prefix)`    | Check prefix                                              | `WHERE STARTS_WITH(url, "https")`                                    |
+| `ENDS_WITH(s, suffix)`      | Check suffix                                              | `WHERE ENDS_WITH(file, ".log")`                                      |
+| `CONTAINS(s, substr)`       | Check contains                                            | `WHERE CONTAINS(message, "error")`                                   |
+| `LOCATE(substr, s)`         | Find position                                             | `EVAL pos = LOCATE("@", email)`                                      |
+| `REVERSE(s)`                | Reverse string                                            | `EVAL rev = REVERSE(text)`                                           |
+| `REPEAT(s, n)`              | Repeat string                                             | `EVAL sep = REPEAT("-", 10)`                                         |
+| `SPACE(n)`                  | N spaces                                                  | `EVAL spaces = SPACE(5)`                                             |
+| `BIT_LENGTH(s)`             | Bit length (8.17+)                                        | `EVAL bits = BIT_LENGTH(name)`                                       |
+| `BYTE_LENGTH(s)`            | Byte length (8.17+)                                       | `EVAL bytes = BYTE_LENGTH(name)`                                     |
+| `CHUNK(field, settings)`    | Split text into chunks (9.3+, preview)                    | `EVAL chunks = CHUNK(body, {"strategy":"word","max_chunk_size":50})` |
+| `HASH(alg, s)`              | Hash string (8.18/9.0+)                                   | `EVAL h = HASH("SHA-256", msg)`                                      |
+| `MD5(s)`                    | MD5 hash (8.18/9.0+)                                      | `EVAL h = MD5(content)`                                              |
+| `SHA1(s)`                   | SHA-1 hash (8.18/9.0+)                                    | `EVAL h = SHA1(content)`                                             |
+| `SHA256(s)`                 | SHA-256 hash (8.18/9.0+)                                  | `EVAL h = SHA256(content)`                                           |
+| `FROM_BASE64(s)`            | Decode base64                                             | `EVAL decoded = FROM_BASE64(encoded)`                                |
+| `TO_BASE64(s)`              | Encode to base64                                          | `EVAL encoded = TO_BASE64(data)`                                     |
+| `URL_DECODE(s)`             | URL-decode (9.2+)                                         | `EVAL decoded = URL_DECODE(url)`                                     |
+| `URL_ENCODE(s)`             | URL-encode (9.2+)                                         | `EVAL encoded = URL_ENCODE(text)`                                    |
+| `URL_ENCODE_COMPONENT(s)`   | URL-encode for URI components (9.2+)                      | `EVAL encoded = URL_ENCODE_COMPONENT(text)`                          |
+| `JSON_EXTRACT(field, path)` | Extract value from JSON string (9.4+ preview; Serverless) | `EVAL name = JSON_EXTRACT(raw, "$.user.name")`                       |
 
 **JSON_EXTRACT with \_source — flattened field workaround:**
 
@@ -1466,25 +1549,30 @@ FROM network_logs
 
 ## Spatial Functions
 
-| Function                  | Description                   | Example                                                   |
-| ------------------------- | ----------------------------- | --------------------------------------------------------- |
-| `ST_DISTANCE(p1, p2)`     | Distance between points       | `EVAL dist = ST_DISTANCE(loc, TO_GEOPOINT("POINT(0 0)"))` |
-| `ST_INTERSECTS(g1, g2)`   | Geometries intersect          | `WHERE ST_INTERSECTS(geo, boundary)`                      |
-| `ST_DISJOINT(g1, g2)`     | Geometries don't intersect    | `WHERE ST_DISJOINT(geo, zone)`                            |
-| `ST_CONTAINS(g1, g2)`     | g1 contains g2                | `WHERE ST_CONTAINS(region, point)`                        |
-| `ST_WITHIN(g1, g2)`       | g1 within g2                  | `WHERE ST_WITHIN(point, region)`                          |
-| `ST_X(point)`             | X coordinate / longitude      | `EVAL lon = ST_X(location)`                               |
-| `ST_Y(point)`             | Y coordinate / latitude       | `EVAL lat = ST_Y(location)`                               |
-| `ST_ENVELOPE(geo)`        | Bounding box (8.18/9.0+)      | `EVAL bbox = ST_ENVELOPE(shape)`                          |
-| `ST_XMAX(geo)`            | Max X / longitude (8.18/9.0+) | `EVAL max_lon = ST_XMAX(shape)`                           |
-| `ST_XMIN(geo)`            | Min X / longitude (8.18/9.0+) | `EVAL min_lon = ST_XMIN(shape)`                           |
-| `ST_YMAX(geo)`            | Max Y / latitude (8.18/9.0+)  | `EVAL max_lat = ST_YMAX(shape)`                           |
-| `ST_YMIN(geo)`            | Min Y / latitude (8.18/9.0+)  | `EVAL min_lat = ST_YMIN(shape)`                           |
-| `ST_GEOHASH(point, prec)` | Encode as geohash (9.2+)      | `EVAL hash = ST_GEOHASH(location, 5)`                     |
-| `ST_GEOHEX(point, prec)`  | Encode as geohex (9.2+)       | `EVAL hex = ST_GEOHEX(location, 5)`                       |
-| `ST_GEOTILE(point, prec)` | Encode as geotile (9.2+)      | `EVAL tile = ST_GEOTILE(location, 10)`                    |
-| `ST_NPOINTS(geo)`         | Number of points              | `EVAL n = ST_NPOINTS(shape)`                              |
-| `ST_SIMPLIFY(geo, tol)`   | Simplify geometry             | `EVAL simple = ST_SIMPLIFY(shape, 100)`                   |
+| Function                                | Description                         | Example                                                   |
+| --------------------------------------- | ----------------------------------- | --------------------------------------------------------- |
+| `ST_DISTANCE(p1, p2)`                   | Distance between points             | `EVAL dist = ST_DISTANCE(loc, TO_GEOPOINT("POINT(0 0)"))` |
+| `ST_INTERSECTS(g1, g2)`                 | Geometries intersect                | `WHERE ST_INTERSECTS(geo, boundary)`                      |
+| `ST_DISJOINT(g1, g2)`                   | Geometries don't intersect          | `WHERE ST_DISJOINT(geo, zone)`                            |
+| `ST_CONTAINS(g1, g2)`                   | g1 contains g2                      | `WHERE ST_CONTAINS(region, point)`                        |
+| `ST_WITHIN(g1, g2)`                     | g1 within g2                        | `WHERE ST_WITHIN(point, region)`                          |
+| `ST_X(point)`                           | X coordinate / longitude            | `EVAL lon = ST_X(location)`                               |
+| `ST_Y(point)`                           | Y coordinate / latitude             | `EVAL lat = ST_Y(location)`                               |
+| `ST_ENVELOPE(geo)`                      | Bounding box (8.18/9.0+)            | `EVAL bbox = ST_ENVELOPE(shape)`                          |
+| `ST_XMAX(geo)`                          | Max X / longitude (8.18/9.0+)       | `EVAL max_lon = ST_XMAX(shape)`                           |
+| `ST_XMIN(geo)`                          | Min X / longitude (8.18/9.0+)       | `EVAL min_lon = ST_XMIN(shape)`                           |
+| `ST_YMAX(geo)`                          | Max Y / latitude (8.18/9.0+)        | `EVAL max_lat = ST_YMAX(shape)`                           |
+| `ST_YMIN(geo)`                          | Min Y / latitude (8.18/9.0+)        | `EVAL min_lat = ST_YMIN(shape)`                           |
+| `ST_GEOHASH(point, prec)`               | Encode as geohash (9.2+)            | `EVAL hash = ST_GEOHASH(location, 5)`                     |
+| `ST_GEOHEX(point, prec)`                | Encode as geohex (9.2+)             | `EVAL hex = ST_GEOHEX(location, 5)`                       |
+| `ST_GEOTILE(point, prec)`               | Encode as geotile (9.2+)            | `EVAL tile = ST_GEOTILE(location, 10)`                    |
+| `ST_NPOINTS(geo)`                       | Number of points                    | `EVAL n = ST_NPOINTS(shape)`                              |
+| `ST_SIMPLIFY(geo, tol)`                 | Simplify geometry                   | `EVAL simple = ST_SIMPLIFY(shape, 100)`                   |
+| `ST_DIMENSION(geo)`                     | Dimension (0/1/2) (9.4+)            | `EVAL dim = ST_DIMENSION(shape)`                          |
+| `ST_GEOMETRYTYPE(geo)`                  | Geometry type string (9.4+)         | `EVAL gtype = ST_GEOMETRYTYPE(shape)`                     |
+| `ST_ISEMPTY(geo)`                       | True if empty (9.4+)                | `WHERE NOT ST_ISEMPTY(shape)`                             |
+| `ST_BUFFER(geo, dist)`                  | Buffer around geometry (9.4+)       | `EVAL area = ST_BUFFER(point, 1000)`                      |
+| `ST_SIMPLIFYPRESERVETOPOLOGY(geo, tol)` | Simplify preserving topology (9.4+) | `EVAL s = ST_SIMPLIFYPRESERVETOPOLOGY(shape, 100)`        |
 
 ---
 
@@ -1508,29 +1596,30 @@ For vector search and similarity operations on `dense_vector` and `semantic_text
 
 For handling fields with multiple values.
 
-| Function                              | Description                                                  | Example                                         |
-| ------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------- |
-| `MV_COUNT(field)`                     | Count values                                                 | `EVAL n = MV_COUNT(tags)`                       |
-| `MV_FIRST(field)`                     | First value                                                  | `EVAL first_val = MV_FIRST(values)`             |
-| `MV_LAST(field)`                      | Last value                                                   | `EVAL last_val = MV_LAST(values)`               |
-| `MV_MIN(field)`                       | Minimum                                                      | `EVAL min = MV_MIN(scores)`                     |
-| `MV_MAX(field)`                       | Maximum                                                      | `EVAL max = MV_MAX(scores)`                     |
-| `MV_SUM(field)`                       | Sum                                                          | `EVAL total = MV_SUM(amounts)`                  |
-| `MV_AVG(field)`                       | Average                                                      | `EVAL avg = MV_AVG(scores)`                     |
-| `MV_MEDIAN(field)`                    | Median                                                       | `EVAL med = MV_MEDIAN(values)`                  |
-| `MV_CONCAT(field, delim)`             | Join to string                                               | `EVAL str = MV_CONCAT(tags, ", ")`              |
-| `MV_DEDUPE(field)`                    | Remove duplicates                                            | `EVAL unique = MV_DEDUPE(tags)`                 |
-| `MV_SORT(field)`                      | Sort values                                                  | `EVAL sorted = MV_SORT(values)`                 |
-| `MV_SLICE(field, start, end)`         | Slice array                                                  | `EVAL slice = MV_SLICE(arr, 0, 3)`              |
-| `MV_ZIP(f1, f2)`                      | Zip arrays (both must be keyword/text)                       | `EVAL zipped = MV_ZIP(keys, values)`            |
-| `MV_APPEND(f1, f2)`                   | Concatenate MVs                                              | `EVAL all = MV_APPEND(tags1, tags2)`            |
-| `MV_CONTAINS(f1, f2)`                 | All values in f2 present in f1 (9.2+)                        | `EVAL has = MV_CONTAINS(perms, required)`       |
-| `MV_INTERSECTION(f1, f2)`             | Values present in both (9.3+)                                | `EVAL common = MV_INTERSECTION(a, b)`           |
-| `MV_INTERSECTS(f1, f2)`               | Any value in f2 present in f1 (Serverless; self-managed 9.4) | `EVAL overlap = MV_INTERSECTS(a, b)`            |
-| `MV_UNION(f1, f2)`                    | Deduplicated union (Serverless; self-managed 9.4)            | `EVAL merged = MV_UNION(a, b)`                  |
-| `MV_PERCENTILE(field, p)`             | Percentile of MV                                             | `EVAL p95 = MV_PERCENTILE(vals, 95)`            |
-| `MV_PSERIES_WEIGHTED_SUM(field, p)`   | P-series weighted sum (both args must be double)             | `EVAL ws = MV_PSERIES_WEIGHTED_SUM(vals, 2.0)`  |
-| `MV_MEDIAN_ABSOLUTE_DEVIATION(field)` | MAD of MV                                                    | `EVAL mad = MV_MEDIAN_ABSOLUTE_DEVIATION(vals)` |
+| Function                              | Description                                      | Example                                         |
+| ------------------------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| `MV_COUNT(field)`                     | Count values                                     | `EVAL n = MV_COUNT(tags)`                       |
+| `MV_FIRST(field)`                     | First value                                      | `EVAL first_val = MV_FIRST(values)`             |
+| `MV_LAST(field)`                      | Last value                                       | `EVAL last_val = MV_LAST(values)`               |
+| `MV_MIN(field)`                       | Minimum                                          | `EVAL min = MV_MIN(scores)`                     |
+| `MV_MAX(field)`                       | Maximum                                          | `EVAL max = MV_MAX(scores)`                     |
+| `MV_SUM(field)`                       | Sum                                              | `EVAL total = MV_SUM(amounts)`                  |
+| `MV_AVG(field)`                       | Average                                          | `EVAL avg = MV_AVG(scores)`                     |
+| `MV_MEDIAN(field)`                    | Median                                           | `EVAL med = MV_MEDIAN(values)`                  |
+| `MV_CONCAT(field, delim)`             | Join to string                                   | `EVAL str = MV_CONCAT(tags, ", ")`              |
+| `MV_DEDUPE(field)`                    | Remove duplicates                                | `EVAL unique = MV_DEDUPE(tags)`                 |
+| `MV_SORT(field)`                      | Sort values                                      | `EVAL sorted = MV_SORT(values)`                 |
+| `MV_SLICE(field, start, end)`         | Slice array                                      | `EVAL slice = MV_SLICE(arr, 0, 3)`              |
+| `MV_ZIP(f1, f2)`                      | Zip arrays (both must be keyword/text)           | `EVAL zipped = MV_ZIP(keys, values)`            |
+| `MV_APPEND(f1, f2)`                   | Concatenate MVs                                  | `EVAL all = MV_APPEND(tags1, tags2)`            |
+| `MV_CONTAINS(f1, f2)`                 | All values in f2 present in f1 (9.2+)            | `EVAL has = MV_CONTAINS(perms, required)`       |
+| `MV_INTERSECTION(f1, f2)`             | Values present in both (9.3+)                    | `EVAL common = MV_INTERSECTION(a, b)`           |
+| `MV_INTERSECTS(f1, f2)`               | Any value in f2 present in f1 (9.4+; Serverless) | `EVAL overlap = MV_INTERSECTS(a, b)`            |
+| `MV_UNION(f1, f2)`                    | Deduplicated union (9.4+; Serverless)            | `EVAL merged = MV_UNION(a, b)`                  |
+| `MV_DIFFERENCE(f1, f2)`               | Values in f1 not in f2 (9.4+; Serverless)        | `EVAL diff = MV_DIFFERENCE(a, b)`               |
+| `MV_PERCENTILE(field, p)`             | Percentile of MV                                 | `EVAL p95 = MV_PERCENTILE(vals, 95)`            |
+| `MV_PSERIES_WEIGHTED_SUM(field, p)`   | P-series weighted sum (both args must be double) | `EVAL ws = MV_PSERIES_WEIGHTED_SUM(vals, 2.0)`  |
+| `MV_MEDIAN_ABSOLUTE_DEVIATION(field)` | MAD of MV                                        | `EVAL mad = MV_MEDIAN_ABSOLUTE_DEVIATION(vals)` |
 
 ---
 
@@ -1755,6 +1844,7 @@ regular index fields.
 | `_ignored`    | keyword | Fields that were ignored when the document was indexed                                 |
 | `_index_mode` | keyword | Index mode (`standard`, `lookup`, `logsdb`, `time_series` etc.)                        |
 | `_source`     | special | Original JSON document body. Use `JSON_EXTRACT` to access flattened or unmapped fields |
+| `_size`       | integer | Document size in bytes (9.4+; requires `mapper-size` plugin)                           |
 
 ```esql
 FROM logs METADATA _id, _index, _version
