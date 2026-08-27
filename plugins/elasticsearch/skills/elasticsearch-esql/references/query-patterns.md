@@ -437,7 +437,7 @@ FROM flights
 | KEEP flight_id, destination, distance, avg_dist
 ```
 
-### Grouped Top-N with LIMIT BY (Serverless)
+### Grouped Top-N with LIMIT BY (9.4+; Serverless)
 
 ```text
 "top 3 error types per service"
@@ -452,7 +452,7 @@ FROM logs-*
 ```text
 "most recent event per user"
 →
-// Serverless: use LATEST to get the most recent value per group
+// 9.4+/Serverless: use LATEST to get the most recent value per group
 FROM events-*
 | STATS last_action = LATEST(event.action), last_ts = LATEST(@timestamp) BY user.name
 
@@ -463,7 +463,7 @@ FROM events-*
 | KEEP user.name, @timestamp, event.action
 ```
 
-### Subquery Composition (Serverless tech preview)
+### Subquery Composition (9.4+; Serverless)
 
 ```text
 "combine web server errors and application errors into one view"

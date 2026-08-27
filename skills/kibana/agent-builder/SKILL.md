@@ -367,7 +367,7 @@ Read these for detailed guidance:
   Analysis agents
 
 For ES|QL syntax, functions, operators, and parameter rules, use the `elasticsearch-esql` skill. For workflow YAML
-structure, trigger types, step types, and agent-workflow patterns, use the `security-workflows` skill.
+structure, trigger types, step types, and agent-workflow patterns, use the `kibana-workflows` skill.
 
 ## Guidelines
 

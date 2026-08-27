@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.0
+
+### New Skills
+
+- `skills/kibana/kibana-workflows` (v0.5.0)
+
+### Updated Skills
+
+- `skills/elasticsearch/elasticsearch-esql` (v0.3.0 → v0.5.0)
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.1.0)
+- `skills/kibana/agent-builder` (v0.2.0)
+- `skills/kibana/kibana-dashboards` (v0.1.2)
+- `skills/kibana/streams` (v0.1.0 → v0.2.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.3.0
 
 ### New Skills

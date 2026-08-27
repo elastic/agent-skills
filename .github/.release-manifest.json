@@ -1,7 +1,7 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "092aaa6a6c68a4f0553145c90c86ea157721ae2e",
+  "sandbox_sha": "b740cf3bb946a02cce78eba5a8f41d6f80c2c486",
   "skills": {
     "skills/cloud/access-management": {
       "name": "cloud-access-management",
@@ -37,7 +37,7 @@
     },
     "skills/elasticsearch/elasticsearch-esql": {
       "name": "elasticsearch-esql",
-      "version": "0.3.0"
+      "version": "0.5.0"
     },
     "skills/elasticsearch/elasticsearch-file-ingest": {
       "name": "elasticsearch-file-ingest",
@@ -79,9 +79,13 @@
       "name": "kibana-vega",
       "version": "0.1.0"
     },
+    "skills/kibana/kibana-workflows": {
+      "name": "kibana-workflows",
+      "version": "0.5.0"
+    },
     "skills/kibana/streams": {
       "name": "kibana-streams",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     "skills/observability/edot-dotnet-instrument": {
       "name": "observability-edot-dotnet-instrument",

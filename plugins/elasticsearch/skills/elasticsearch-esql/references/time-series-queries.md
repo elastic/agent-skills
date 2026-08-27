@@ -18,6 +18,7 @@ Elasticsearch 9.2+.
 
 - [TS Source Command](#ts-source-command)
 - [Inner/Outer Aggregation Paradigm](#innerouter-aggregation-paradigm)
+- [Histogram Metrics](#histogram-metrics)
 - [Time Series Aggregation Functions](#time-series-aggregation-functions)
 - [TBUCKET Grouping Function](#tbucket-grouping-function)
 - [WITHOUT Grouping Function](#without-grouping-function)
@@ -80,13 +81,32 @@ A single host can map to multiple underlying time series. The outer `SUM` combin
 value per host per bucket. Use `SUM` as the outer function for counters (rates are additive). Use `AVG` or `MAX` for
 gauges depending on intent.
 
-If the inner function is omitted, `LAST_OVER_TIME()` is assumed implicitly:
+If the inner function is omitted, the default inner aggregation depends on the field type:
+
+- **Numeric and gauge fields** — `LAST_OVER_TIME()` is assumed implicitly.
+- **`exponential_histogram` and `tdigest` fields** — distributions are **merged** across the time window (not
+  `LAST_OVER_TIME`). Use standard aggregations like `SUM`, `AVG`, and `PERCENTILE` directly.
+- **Plain `histogram` fields** — can't be directly processed; cast with `::exponential_histogram` (or `::tdigest`) first
+  — see [Histogram Metrics](#histogram-metrics).
 
 ```esql
-// These two queries are equivalent
+// Gauge — equivalent queries
 TS metrics | STATS AVG(memory_usage)
 TS metrics | STATS AVG(LAST_OVER_TIME(memory_usage))
+
+// exponential_histogram / tdigest — merge + standard aggregation (no cast)
+TS metrics-tsds | STATS SUM(jvm.gc.duration) BY TBUCKET(1 hour)
+
+// plain histogram — cast required
+TS metrics-tsds | STATS SUM(jvm.gc.duration::exponential_histogram) BY TBUCKET(1 hour)
 ```
+
+**When to use `*_OVER_TIME` vs plain aggregations for gauges:** For simple gauge queries (average CPU, max memory),
+prefer `AVG(cpu)` over `AVG(AVG_OVER_TIME(cpu))` — the implicit `LAST_OVER_TIME` is sufficient and produces cleaner
+queries. Use explicit `*_OVER_TIME` only when you need a specific window behavior: `AVG_OVER_TIME` to average all
+samples (not just the last), `MIN_OVER_TIME`/`MAX_OVER_TIME` to find extremes within each time series before
+aggregating, or `DELTA`/`DERIV` to compute changes. When in doubt, omit the inner function. For histogram fields, do not
+use `*_OVER_TIME` — see [Histogram Metrics](#histogram-metrics).
 
 Since 9.3 (preview), use a time series function directly without an outer aggregation to get one value per time series
 per bucket. The result is implicitly grouped by all dimensions of each time series and includes a `_timeseries` column
@@ -105,6 +125,63 @@ Nesting two time series functions is **not allowed** and causes an error:
 // INVALID -- nested time series functions
 TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
 ```
+
+---
+
+## Histogram Metrics
+
+Distribution metrics use field types `histogram`, `exponential_histogram`, or `tdigest` (not plain numeric
+`gauge`/`counter`). OpenTelemetry is a common source — OTLP often stores `exponential_histogram`; other ingestion paths
+may store plain `histogram` or `tdigest`. For a candidate metric, use `METRICS_INFO` (9.4+) for `metric_name`,
+`data_stream`, `field_type`, and `metric_type` — not mappings or field caps. The same metric name can appear on multiple
+streams with different `field_type` values. See [METRICS_INFO](#metrics_info).
+
+For `exponential_histogram` and `tdigest`, the default inner aggregation is **histogram merge** (it is an internal ES|QL
+aggregation which cannot be referenced manually in queries) — use `SUM` / `AVG` / `COUNT` / `MIN` / `MAX` / `MEDIAN` /
+`PERCENTILE` directly. Plain `histogram` is **not** merged automatically; cast first (see below). Do **not** use
+`*_OVER_TIME` (plain `histogram` rejects it; `exponential_histogram` may accept it — still the wrong shape). Asking for
+“average over time” or “avg duration” means `AVG(field)`, not `AVG_OVER_TIME`.
+
+**When to cast:** `TS` merge accepts `exponential_histogram` or `tdigest`, not plain `histogram`. Decide from
+`METRICS_INFO` (or a type error):
+
+| `METRICS_INFO.field_type` for the streams you query                      | Cast?                                   |
+| ------------------------------------------------------------------------ | --------------------------------------- |
+| only `exponential_histogram` or only `tdigest`                           | Omit the cast                           |
+| any plain `histogram` (alone **or** mixed with other distribution types) | Required: `::exponential_histogram`     |
+| type / incompatible-types / ambiguities error mentioning `histogram`     | Add `::exponential_histogram` and retry |
+
+Always cast when plain `histogram` is in play — including mixed streams. If the targeted streams are unambiguously
+`exponential_histogram` or `tdigest`, no cast is needed. Default required cast is `::exponential_histogram` (converts
+plain `histogram`; no-op for `exponential_histogram`). Use `::tdigest` instead when you know the metric actually stores
+T-Digest data (for example, when values in a plain `histogram` field are mid-points rather than bucket boundaries — that
+causes less precision loss).
+
+```esql
+// WRONG — *_OVER_TIME is the wrong shape (even if it succeeds)
+TS metrics-* | STATS SUM(SUM_OVER_TIME(jvm.gc.duration)) BY TBUCKET(1 hour)
+
+// CORRECT — pure exponential_histogram or tdigest on the stream from METRICS_INFO: no cast
+TS metrics-tsds
+| WHERE TRANGE(1 hour)
+| STATS count = COUNT(jvm.gc.duration),
+        avg = AVG(jvm.gc.duration),
+        p99 = PERCENTILE(jvm.gc.duration, 99)
+  BY jvm.gc.action, TBUCKET(5 minutes)
+
+// CORRECT — plain histogram present or mixed streams: cast
+TS metrics-*
+| STATS SUM(jvm.gc.duration::exponential_histogram) BY TBUCKET(1 hour), service.name
+```
+
+`SUM` totals the values the histograms were originally created from; `COUNT` counts the number of values the histograms
+were created from — it does _not_ count the number of histograms; use `PERCENTILE`/`MEDIAN`/`AVG` for latency. Prefer
+the histogram metric from `METRICS_INFO` over a companion `*.summary` / `aggregate_metric_double` in `schema` unless the
+user asks for it. Do not fall back to `*_OVER_TIME` or `TO_STRING`/`REPLACE` JSON parsing. For OTel ingestion
+background, see [OTel histogram metrics in ES\|QL](https://www.elastic.co/search-labs/blog/otel-histogram-metrics-esql).
+
+**Availability:** Histogram metric querying in `TS` is preview in 9.3 and **GA since 9.4** (same as
+`exponential_histogram` / `tdigest` field types).
 
 ---
 
@@ -146,29 +223,29 @@ TS k8s
 
 For gauge metrics and general numeric fields (`double`, `integer`, `long`, `aggregate_metric_double`).
 
-| Function                   | Description                                        | Since         | Status   |
-| -------------------------- | -------------------------------------------------- | ------------- | -------- |
-| `AVG_OVER_TIME`            | Average value over the time window                 | 9.2 (preview) | GA (9.4) |
-| `SUM_OVER_TIME`            | Sum of values over the time window                 | 9.2 (preview) | GA (9.4) |
-| `MIN_OVER_TIME`            | Minimum value over the time window                 | 9.2 (preview) | GA (9.4) |
-| `MAX_OVER_TIME`            | Maximum value over the time window                 | 9.2 (preview) | GA (9.4) |
-| `FIRST_OVER_TIME`          | Earliest value by `@timestamp`                     | 9.2 (preview) | GA (9.4) |
-| `LAST_OVER_TIME`           | Latest value by `@timestamp` (implicit default)    | 9.2 (preview) | GA (9.4) |
-| `COUNT_OVER_TIME`          | Count of values over the time window               | 9.2 (preview) | GA (9.4) |
-| `COUNT_DISTINCT_OVER_TIME` | Count of distinct values over the time window      | 9.2 (preview) | GA (9.4) |
-| `PERCENTILE_OVER_TIME`     | Percentile of values; takes `(field, percentile)`  | 9.3 (preview) | GA (9.4) |
-| `STDDEV_OVER_TIME`         | Population standard deviation over the time window | 9.3 (preview) | GA (9.4) |
-| `VARIANCE_OVER_TIME`       | Population variance over the time window           | 9.3 (preview) | GA (9.4) |
-| `DELTA`                    | Absolute change of a gauge in the time window      | 9.2 (preview) | GA (9.4) |
-| `IDELTA`                   | Change between the last two data points only       | 9.2 (preview) | GA (9.4) |
-| `DERIV`                    | Derivative over time using linear regression       | 9.3 (preview) | GA (9.4) |
+| Function                   | Description                                                       | Since         | Status   |
+| -------------------------- | ----------------------------------------------------------------- | ------------- | -------- |
+| `AVG_OVER_TIME`            | Average value over the time window                                | 9.2 (preview) | GA (9.4) |
+| `SUM_OVER_TIME`            | Sum of values over the time window                                | 9.2 (preview) | GA (9.4) |
+| `MIN_OVER_TIME`            | Minimum value over the time window                                | 9.2 (preview) | GA (9.4) |
+| `MAX_OVER_TIME`            | Maximum value over the time window                                | 9.2 (preview) | GA (9.4) |
+| `FIRST_OVER_TIME`          | Earliest value by `@timestamp`                                    | 9.2 (preview) | GA (9.4) |
+| `LAST_OVER_TIME`           | Latest value by `@timestamp` (implicit default for numeric/gauge) | 9.2 (preview) | GA (9.4) |
+| `COUNT_OVER_TIME`          | Count of values over the time window                              | 9.2 (preview) | GA (9.4) |
+| `COUNT_DISTINCT_OVER_TIME` | Count of distinct values over the time window                     | 9.2 (preview) | GA (9.4) |
+| `PERCENTILE_OVER_TIME`     | Percentile of values; takes `(field, percentile)`                 | 9.3 (preview) | GA (9.4) |
+| `STDDEV_OVER_TIME`         | Population standard deviation over the time window                | 9.3 (preview) | GA (9.4) |
+| `VARIANCE_OVER_TIME`       | Population variance over the time window                          | 9.3 (preview) | GA (9.4) |
+| `DELTA`                    | Absolute change of a gauge in the time window                     | 9.2 (preview) | GA (9.4) |
+| `IDELTA`                   | Change between the last two data points only                      | 9.2 (preview) | GA (9.4) |
+| `DERIV`                    | Derivative over time using linear regression                      | 9.3 (preview) | GA (9.4) |
 
 ```esql
-// Average memory per cluster per 5 minutes
+// Average memory per cluster per 5 minutes (plain form — implicit LAST_OVER_TIME is sufficient for gauges)
 // cluster is a dimension of the TSDS index metrics
 TS metrics
 | WHERE TRANGE(1 day)
-| STATS AVG(AVG_OVER_TIME(memory_usage)) BY cluster, TBUCKET(5 minute)
+| STATS AVG(memory_usage) BY cluster, TBUCKET(5 minute)
 
 // P95 network cost per cluster per minute
 // k8s is an example of a TSDS index, to showcase that time series indexes do not have to be called metrics
@@ -245,15 +322,18 @@ The interval is a time duration (`1 hour`, `5 minute`, `30s`) or date period (`1
 
 **Availability:** Preview from 9.2 to 9.3, **GA since 9.4**.
 
-```esql
-// 1-hour buckets
-TS metrics
-| STATS SUM(RATE(requests)) BY TBUCKET(1 hour), host
+Always assign a column alias to `TBUCKET` so it can be referenced in `SORT`:
 
-// 5-minute buckets
-// service is a dimension of the TSDS index metrics in this example
+```esql
+// 1-hour buckets — alias enables SORT
 TS metrics
-| STATS AVG(AVG_OVER_TIME(cpu_percent)) BY TBUCKET(5 minute), service
+| STATS rate = SUM(RATE(requests)) BY bucket = TBUCKET(1 hour), host
+| SORT bucket, host
+
+// 5-minute buckets (plain form for gauge)
+TS metrics
+| STATS avg_cpu = AVG(cpu_percent) BY bucket = TBUCKET(5 minute), service
+| SORT bucket
 ```
 
 ---
@@ -331,9 +411,13 @@ metrics exist in this stream?" and "what dimensions apply to metric X?".
 - `metric_name` — single-valued
 - `data_stream` — multi-valued when several streams align on unit/metric_type/field_type
 - `unit` — declared unit; may be `null` or multi-valued
-- `metric_type` — `counter`, `gauge`, etc.
-- `field_type` — `long`, `double`, `integer`, etc.
+- `metric_type` — `counter`, `gauge`, or `histogram`
+- `field_type` — Elasticsearch field type (`long`, `double`, `histogram`, `exponential_histogram`, `tdigest`, …)
 - `dimension_fields` — union of dimension field names across the series for the metric
+
+Always scope discovery with `TRANGE` (or another time filter) before `METRICS_INFO` / `TS_INFO` so the catalogue is
+built from a bounded scan, not the full index history. Examples below omit `TRANGE` for brevity — add
+`| WHERE TRANGE(15m)` (or another range) after `TS` in real queries.
 
 ```esql
 // List every metric, alphabetically
@@ -352,6 +436,12 @@ TS k8s
 | METRICS_INFO
 | STATS metric_count = COUNT(*) BY metric_type
 | SORT metric_type
+
+// Check field_type for a candidate metric (histogram vs numeric)
+TS k8s
+| METRICS_INFO
+| WHERE metric_name == "jvm.gc.duration"
+| KEEP metric_name, data_stream, field_type, metric_type
 
 // Find metrics whose name matches a pattern
 TS k8s
@@ -406,7 +496,8 @@ TS k8s
   workflow of inspecting `_settings`, `_mapping`, or field capabilities for time series indices.
 - **Reach for `METRICS_INFO` first** to enumerate metrics; reach for `TS_INFO` only when you need the exact dimension
   combinations (label sets) of individual series.
-- **Filter before discovery** with `WHERE` on dimension fields to scope the catalogue to a relevant subset of series.
+- **Always time-filter before discovery** with `WHERE TRANGE(...)` (and optional dimension filters) so `METRICS_INFO` /
+  `TS_INFO` do not scan the full index history.
 - **The output replaces the original table.** Anything you `STATS` / `SORT` / `LIMIT` afterwards operates on metadata
   rows, not raw documents — there's no way to re-attach the data points after `METRICS_INFO` or `TS_INFO`.
 - **Both commands are TSDS-only.** `FROM | METRICS_INFO` and `FROM | TS_INFO` are rejected.
@@ -519,19 +610,20 @@ TS metrics
 ### Average Gauge per Cluster Over Time
 
 ```esql
+// Plain form — preferred for gauge metrics
 TS metrics
 | WHERE TRANGE(1 day)
-| STATS AVG(AVG_OVER_TIME(memory_usage)) BY TBUCKET(5 minute), cluster
+| STATS AVG(memory_usage) BY TBUCKET(5 minute), cluster
 ```
 
 ### Per-Time-Series Averages vs Global Average
 
 ```esql
-// Average of per-time-series averages (accounts for different series lengths)
-TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
-
-// Average of last values per time series (default behavior)
+// Average of last values per time series (default — preferred for most gauge queries)
 TS metrics | STATS AVG(memory_usage)
+
+// Average of ALL samples per time series (use AVG_OVER_TIME only when you need this distinction)
+TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 ```
 
 ### Detect Missing Data
@@ -595,6 +687,9 @@ smaller and larger than the bucket interval for different metrics in the same qu
   outer function.
 - **Avoid mixing metrics with different dimensions** in one query. If `foo` and `bar` have different dimension values,
   `SUM(RATE(foo)) + SUM(RATE(bar))` may produce nulls for mismatched dimensions.
+- **For histogram / exponential_histogram metrics**, use standard aggregations (no `*_OVER_TIME`); cast with
+  `::exponential_histogram` when plain `histogram` is present, types are mixed, or a type error occurs — see
+  [Histogram Metrics](#histogram-metrics).
 
 ## References
 
@@ -606,3 +701,5 @@ smaller and larger than the bucket interval for different metrics in the same qu
 - [TBUCKET Function](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/grouping-functions/tbucket)
 - [TRANGE Function](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/date-time-functions/trange)
 - [Time Series Data Streams (TSDS)](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds)
+- [OTel histogram metrics in ES\|QL](https://www.elastic.co/search-labs/blog/otel-histogram-metrics-esql) — common
+  ingestion path for exponential histograms, casts, and query patterns

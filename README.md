@@ -59,7 +59,7 @@ Skills in this repository focus on:
 | [elasticsearch-audit](skills/elasticsearch/elasticsearch-audit/SKILL.md) | Enable, configure, and query Elasticsearch security audit logs. Use when the task involves audit logging setup, event filtering, or investigating security incidents like failed logins. | 0.1.0 | elastic |
 | [elasticsearch-authn](skills/elasticsearch/elasticsearch-authn/SKILL.md) | Authenticate to Elasticsearch using native, file-based, LDAP/AD, SAML, OIDC, Kerberos, JWT, or certificate realms. Use when connecting with credentials, choosing a realm, or managing API keys. Assumes the target realms are already configured. | 0.1.0 | elastic |
 | [elasticsearch-authz](skills/elasticsearch/elasticsearch-authz/SKILL.md) | Manage Elasticsearch RBAC: native users, roles, role mappings, document- and field-level security. Use when creating users or roles, assigning privileges, or mapping external realms like LDAP/SAML. | 0.1.1 | elastic |
-| [elasticsearch-esql](skills/elasticsearch/elasticsearch-esql/SKILL.md) | Execute ES\|QL (Elasticsearch Query Language) queries, use when the user wants to query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create charts and dashboards from ES\|QL results. | 0.3.0 | elastic |
+| [elasticsearch-esql](skills/elasticsearch/elasticsearch-esql/SKILL.md) | Execute ES\|QL (Elasticsearch Query Language) queries, use when the user wants to query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create charts and dashboards from ES\|QL results. | 0.5.0 | elastic |
 | [elasticsearch-file-ingest](skills/elasticsearch/elasticsearch-file-ingest/SKILL.md) | Ingest and transform data files (CSV/JSON/Parquet/Arrow IPC) into Elasticsearch with stream processing and custom transforms. Use when loading files or batch importing data — not for reindexing, general ingest pipeline design, or bulk API patterns. | 0.2.0 | elastic |
 | [elasticsearch-onboarding](skills/elasticsearch/elasticsearch-onboarding/SKILL.md) | Help developers new to Elasticsearch get from zero to a working search experience. Guide them through understanding their intent, mapping their data, and building a search experience with best practices baked in. Use this when the user shows intent to build search-related functionality, asks about Elasticsearch-related concepts for their use case, or expresses the need for help getting started with Elasticsearch. | 0.1.0 | elastic |
 | [elasticsearch-security-troubleshooting](skills/elasticsearch/elasticsearch-security-troubleshooting/SKILL.md) | Diagnose and resolve Elasticsearch security errors: 401/403 failures, TLS problems, expired API keys, role mapping mismatches, and Kibana login issues. Use when the user reports a security error. | 0.1.0 | elastic |
@@ -67,7 +67,7 @@ Skills in this repository focus on:
 </details>
 
 <details>
-<summary>Kibana (8)</summary>
+<summary>Kibana (9)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
@@ -78,7 +78,8 @@ Skills in this repository focus on:
 | [kibana-connectors](skills/kibana/kibana-connectors/SKILL.md) | Create and manage Kibana connectors for Slack, PagerDuty, Jira, webhooks, and more via REST API or Terraform. Use when configuring third-party integrations or managing connectors as code. | 0.1.1 | elastic |
 | [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.1.2 | elastic |
 | [kibana-vega](skills/kibana/kibana-vega/SKILL.md) | Create Vega and Vega-Lite visualizations with ES\|QL data sources in Kibana. Use when building custom charts, dashboards, or programmatic panel layouts beyond standard Lens charts. | 0.1.0 | elastic |
-| [kibana-streams](skills/kibana/streams/SKILL.md) | List, inspect, enable, disable, and resync Kibana Streams via the REST API. Use when the user needs stream details, ingest/query settings, queries, significant events, or attachments. | 0.1.0 | elastic |
+| [kibana-workflows](skills/kibana/kibana-workflows/SKILL.md) | Author, validate, test, run, and inspect Elastic Workflow YAML definitions. Use when the user wants to turn natural language into a Kibana workflow, fix workflow YAML, understand triggers or steps, or run a quick test loop against a real Kibana. | 0.5.0 | elastic |
+| [kibana-streams](skills/kibana/streams/SKILL.md) | List, inspect, enable, disable, and resync Kibana Streams via the REST API. Use when the user needs stream details, ingest settings, query-stream settings, or linked attachments (dashboards, rules, SLOs). | 0.2.0 | elastic |
 
 </details>
 

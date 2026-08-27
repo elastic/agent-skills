@@ -2,28 +2,26 @@
 name: kibana-streams
 description: >
   List, inspect, enable, disable, and resync Kibana Streams via the REST API. Use
-  when the user needs stream details, ingest/query settings, queries, significant
-  events, or attachments.
+  when the user needs stream details, ingest settings, query-stream settings, or linked
+  attachments (dashboards, rules, SLOs).
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Kibana Streams
 
-Read stream metadata, settings, queries, significant events, and attachments, and manage stream lifecycle (enable,
-disable, resync) via the Kibana Streams REST API. Streams are an experimental way to manage data in Kibana — expect API
-and behavior changes. This skill covers **read** operations and **lifecycle** only; create, update, delete, fork, and
-other mutating operations may be added in a later version.
+Read stream metadata, settings, and attachments, and manage stream lifecycle (enable, disable, resync) via the Kibana
+Streams REST API. Streams are an experimental way to manage data in Kibana — expect API and behavior changes. This skill
+covers **read** operations and **lifecycle** only; create, update, delete, fork, and other mutating operations may be
+added in a later version.
 
 For detailed endpoints and parameters, see [references/streams-api-reference.md](references/streams-api-reference.md).
 
 ## When to use
 
 - Listing all streams or getting a single stream's definition and metadata
-- Reading a stream's ingest or query settings
-- Listing a stream's queries
-- Reading significant events for a stream
+- Reading a stream's ingest settings, or the ES|QL definition of a query stream
 - Listing attachments (dashboards, rules, SLOs) linked to a stream
 - Enabling, disabling, or resyncing streams
 
@@ -51,15 +49,13 @@ Use the space-scoped path `/s/{space_id}/api/streams` when operating in a non-de
 
 ### Read
 
-| Operation                  | Method | Path                                     |
-| -------------------------- | ------ | ---------------------------------------- |
-| Get stream list            | GET    | `/api/streams`                           |
-| Get a stream               | GET    | `/api/streams/{name}`                    |
-| Get ingest stream settings | GET    | `/api/streams/{name}/_ingest`            |
-| Get query stream settings  | GET    | `/api/streams/{name}/_query`             |
-| Get stream queries         | GET    | `/api/streams/{name}/queries`            |
-| Read significant events    | GET    | `/api/streams/{name}/significant_events` |
-| Get stream attachments     | GET    | `/api/streams/{streamName}/attachments`  |
+| Operation                  | Method | Path                                    |
+| -------------------------- | ------ | --------------------------------------- |
+| Get stream list            | GET    | `/api/streams`                          |
+| Get a stream               | GET    | `/api/streams/{name}`                   |
+| Get ingest stream settings | GET    | `/api/streams/{name}/_ingest`           |
+| Get query stream settings  | GET    | `/api/streams/{name}/_query`            |
+| Get stream attachments     | GET    | `/api/streams/{streamName}/attachments` |
 
 ### Lifecycle
 
@@ -101,20 +97,16 @@ curl -X GET "${KIBANA_URL}/api/streams/my-stream" \
   -H "Authorization: ApiKey <base64-api-key>"
 ```
 
-### Get stream queries
+### Get query stream settings
 
 ```bash
-curl -X GET "${KIBANA_URL}/api/streams/my-stream/queries" \
+curl -X GET "${KIBANA_URL}/api/streams/my-stream/_query" \
   -H "Authorization: ApiKey <base64-api-key>"
 ```
 
-### Get significant events or attachments
+### Get stream attachments
 
 ```bash
-# Significant events
-curl -X GET "${KIBANA_URL}/api/streams/my-stream/significant_events" \
-  -H "Authorization: ApiKey <base64-api-key>"
-
 # Attachments (dashboards, rules, SLOs linked to the stream)
 curl -X GET "${KIBANA_URL}/api/streams/my-stream/attachments" \
   -H "Authorization: ApiKey <base64-api-key>"
@@ -153,9 +145,15 @@ request/response bodies (e.g. request body for \_disable/\_enable/\_resync if re
 - When the user asks to set or update **retention**, assume they mean the **stream's** data retention
   (`ingest.lifecycle` / `lifecycle.dsl.data_retention`). Do not change only the failure store retention unless they
   explicitly ask about the failure store or failed documents.
-- Other mutating operations (create, update, delete, fork, bulk query management, attachment management, and more) are
-  not supported by this skill. See [references/streams-api-reference.md](references/streams-api-reference.md) for the
-  full list of deferred operations.
+- Other mutating operations (create, update, delete, fork, attachment management, and more) are not supported by this
+  skill. See [references/streams-api-reference.md](references/streams-api-reference.md) for the full list of deferred
+  operations.
+- **Significant events and their detection queries are out of scope.** Requests about significant events, SigEvents, or
+  Knowledge Indicators belong to the dedicated significant-events skill, which uses the `platform.sig_events.*` Agent
+  Builder tools. The `/api/streams/{name}/queries` and `/api/streams/{name}/significant_events` endpoints are deprecated
+  and pending removal in Kibana — do not reach for them here.
+- Do not confuse a **query stream** with a significant-event query. `/api/streams/{name}/_query` is the ES|QL definition
+  of a query stream (a stream type, alongside wired and classic); it has nothing to do with detection queries.
 - **Disabling streams can lead to data loss for wired streams.** The disable API deletes wired stream data (classic
   stream data is preserved). Before calling disable, warn the user and confirm they understand the risk (and have backed
   up or no longer need the data).
