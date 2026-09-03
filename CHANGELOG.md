@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.5.0
+
+### New Skills
+
+- `skills/cloud/onboarding` (v0.3.0)
+- `skills/cloud/provisioning` (v0.3.0)
+
+### Updated Skills
+
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.1.0)
+- `skills/kibana/kibana-workflows` (v0.5.0)
+- `skills/observability/k8s-investigation` (v0.2.0 → v0.5.1)
+
+### Removed Skills
+
+- `skills/cloud/access-management`
+- `skills/cloud/create-project`
+- `skills/cloud/manage-project`
+- `skills/cloud/network-security`
+- `skills/cloud/setup`
+- `skills/elasticsearch/elasticsearch-audit`
+- `skills/elasticsearch/elasticsearch-authn`
+- `skills/elasticsearch/elasticsearch-authz`
+- `skills/elasticsearch/elasticsearch-esql`
+- `skills/elasticsearch/elasticsearch-file-ingest`
+- `skills/elasticsearch/elasticsearch-security-troubleshooting`
+- `skills/kibana/agent-builder`
+- `skills/kibana/kibana-alerting-rules`
+- `skills/kibana/kibana-anomaly-detection`
+- `skills/kibana/kibana-audit`
+- `skills/kibana/kibana-connectors`
+- `skills/kibana/kibana-dashboards`
+- `skills/kibana/kibana-vega`
+- `skills/kibana/streams`
+- `skills/observability/edot-dotnet-instrument`
+- `skills/observability/edot-dotnet-migrate`
+- `skills/observability/edot-java-instrument`
+- `skills/observability/edot-java-migrate`
+- `skills/observability/edot-python-instrument`
+- `skills/observability/edot-python-migrate`
+- `skills/observability/llm-obs`
+- `skills/observability/logs-search`
+- `skills/observability/manage-slos`
+- `skills/observability/service-health`
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.4.0
 
 ### New Skills
