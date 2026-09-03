@@ -55,7 +55,7 @@ show the developer the exact API call you plan to make and ask for approval. Als
 code snippet in their language. Never apply changes silently — this is an educational experience.
 
 **Agent Builder.** If the developer wants to create or manage Agent Builder agents, point them to the
-**kibana-agent-builder** skill (`skills/kibana/agent-builder/SKILL.md`).
+**kibana-agent-builder** skill (`skills/kibana/kibana-agent-builder/SKILL.md`).
 
 ## Conversation Playbook
 
