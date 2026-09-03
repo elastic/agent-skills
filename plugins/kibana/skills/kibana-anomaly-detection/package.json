@@ -1,0 +1,13 @@
+{
+  "name": "kibana-anomaly-detection-skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tools:register": "node scripts/kibana-agent-builder.mjs tools register",
+    "workflows:register": "node scripts/kibana-agent-builder.mjs workflows register",
+    "skills:register": "node scripts/kibana-agent-builder.mjs skills register",
+    "all:register": "node scripts/kibana-agent-builder.mjs all register"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,63 @@
+name: ad_discover_jobs_by_datafeed_index
+description: >
+  Given a job of interest, find all other jobs whose datafeed reads from overlapping source indices. Step 1 retrieves
+  the target job config (including datafeed_config.indices). Step 2 logs the target job summary. Step 3 iterates over
+  each index in that list and queries .ml-config for other datafeed documents containing the same index, logging matches
+  per index pattern. Jobs reading from the same indices monitor the same system and are strong candidates for cross-job
+  correlation.
+enabled: true
+tags: ["anomaly-detection", "rca", "discovery"]
+
+inputs:
+  - name: job_id
+    type: string
+    description: >
+      The job ID of interest whose source indices you want to match against all other jobs.
+
+triggers:
+  - type: manual
+
+steps:
+  - name: get_target_job
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}
+
+  - name: log_target
+    type: console
+    with:
+      message: |
+        TARGET JOB: {{ inputs.job_id }}
+        Source indices: {{ steps.get_target_job.output.jobs[0].datafeed_config.indices }}
+
+        Searching for jobs with overlapping source indices...
+
+  - name: find_related_jobs
+    type: foreach
+    foreach: "${{ steps.get_target_job.output.jobs[0].datafeed_config.indices }}"
+    steps:
+      - name: search_matching_datafeeds
+        type: elasticsearch.search
+        with:
+          index: .ml-config
+          size: 200
+          _source: ["job_id", "datafeed_id", "indices"]
+          query:
+            bool:
+              filter:
+                - term:
+                    config_type: datafeed
+                - term:
+                    indices: "{{ foreach.item }}"
+              must_not:
+                - term:
+                    job_id: "{{ inputs.job_id }}"
+
+      - name: log_matches
+        type: console
+        with:
+          message: |
+            [{{ foreach.index | plus: 1 }}/{{ foreach.total }}] Index: {{ foreach.item }}
+            Matching jobs ({{ steps.search_matching_datafeeds.output.hits.total.value }}):
+            {{ steps.search_matching_datafeeds.output.hits.hits | json:2 }}

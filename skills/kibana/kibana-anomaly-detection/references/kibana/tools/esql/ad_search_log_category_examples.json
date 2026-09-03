@@ -1,0 +1,22 @@
+{
+  "name": "ad_search_log_category_examples",
+  "description": "Search for log message examples in the source data for a specific time window. Used for two-window comparison in log categorization RCA: run once for a baseline window (e.g., 24h before anomaly) and once for the anomaly window. Compare the samples to identify what changed in the variable parts (IPs, hostnames, error codes, paths) that caused the category count anomaly. Returns raw log documents so you can inspect the categorization_field_name field specified in the job config.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM * METADATA _index | WHERE _index LIKE ?source_index AND @timestamp >= ?start_time AND @timestamp <= ?end_time | SORT @timestamp DESC | LIMIT 50"
+  },
+  "parameters": {
+    "source_index": {
+      "type": "string",
+      "description": "Source data index name or LIKE pattern from the job's datafeed config. Get this from ad_get_job_datafeed_config. Examples: 'logs-*', 'filebeat-*', 'otel-logs-*'"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start of time range in ISO 8601 format. For baseline window, use a period before the anomaly (e.g., 24h before)."
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End of time range in ISO 8601 format"
+    }
+  }
+}

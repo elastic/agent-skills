@@ -1,0 +1,42 @@
+name: ad_create_calendar_event
+description: >
+  Add a scheduled event to a calendar to suppress false positives during known downtime, maintenance windows, or
+  holidays.
+enabled: true
+tags: ["anomaly-detection", "remediation"]
+
+inputs:
+  - name: calendar_id
+    type: string
+    description: The calendar ID
+  - name: event_description
+    type: string
+    description: "Event description (e.g., 'Planned maintenance window')"
+  - name: start_time
+    type: string
+    description: Event start time in ISO 8601 format
+  - name: end_time
+    type: string
+    description: Event end time in ISO 8601 format
+
+triggers:
+  - type: manual
+
+steps:
+  - name: create_event
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /_ml/calendars/{{ inputs.calendar_id }}/events
+      body:
+        events:
+          - description: "{{ inputs.event_description }}"
+            start_time: "{{ inputs.start_time }}"
+            end_time: "{{ inputs.end_time }}"
+
+  - name: result
+    type: console
+    with:
+      message: |
+        Created event '{{ inputs.event_description }}' on calendar {{ inputs.calendar_id }}
+        from {{ inputs.start_time }} to {{ inputs.end_time }}.

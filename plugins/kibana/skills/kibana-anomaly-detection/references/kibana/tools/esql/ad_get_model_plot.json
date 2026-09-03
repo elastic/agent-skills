@@ -1,0 +1,22 @@
+{
+  "name": "ad_get_model_plot",
+  "description": "Get model bounds (upper/lower/median) to explain why something was or was not flagged as anomalous. Shows the model's confidence interval at each time point. If actual value is within bounds, no anomaly; if outside, anomaly score depends on distance from bounds.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-anomalies-* | WHERE result_type == \"model_plot\" AND job_id == ?job_id AND timestamp >= ?start_time AND timestamp <= ?end_time | SORT timestamp ASC | KEEP job_id, timestamp, model_lower, model_upper, model_median, actual, partition_field_value, by_field_value | LIMIT 500"
+  },
+  "parameters": {
+    "job_id": {
+      "type": "string",
+      "description": "The anomaly detection job ID"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Start of time range in ISO 8601 format"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "End of time range in ISO 8601 format"
+    }
+  }
+}

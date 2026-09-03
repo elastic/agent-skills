@@ -1,0 +1,49 @@
+{
+  // Horizontal bar chart showing top N items
+  // Useful for showing top errors, services, hosts, etc.
+  
+  $schema: https://vega.github.io/schema/vega-lite/v6.json
+  title: Top 10 Services by Error Count
+  
+  data: {
+    url: {
+      "%type%": "esql"
+      "%context%": true
+      "%timefield%": "@timestamp"
+      query: '''
+        FROM logs-*
+        | WHERE @timestamp >= ?_tstart AND @timestamp <= ?_tend
+        | WHERE log.level == "error"
+        | STATS error_count = COUNT() BY service.name
+        | SORT error_count DESC
+        | LIMIT 10
+      '''
+    }
+  }
+  
+  mark: bar
+  
+  encoding: {
+    y: {
+      field: service.name
+      type: nominal
+      sort: "-x"
+      axis: { title: "Service" }
+    }
+    x: {
+      field: error_count
+      type: quantitative
+      axis: { title: "Error Count" }
+    }
+    color: {
+      field: error_count
+      type: quantitative
+      scale: { scheme: "reds" }
+      legend: null
+    }
+    tooltip: [
+      { field: service.name, type: nominal, title: "Service" }
+      { field: error_count, type: quantitative, title: "Errors" }
+    ]
+  }
+}

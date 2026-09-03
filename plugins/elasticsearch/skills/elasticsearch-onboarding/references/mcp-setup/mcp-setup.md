@@ -36,41 +36,31 @@ Elasticsearch. A live connection lets you understand their cluster without askin
 1. Confirm Docker is running (`docker --version`)
 2. Write the MCP config for their tool:
 
-   | Tool              | Config file                                           |
-   | ----------------- | ----------------------------------------------------- |
-   | Cursor            | `.cursor/mcp.json` in the project root                |
-   | VS Code (Copilot) | `.vscode/mcp.json` in the project root                |
-   | Windsurf          | `~/.codeium/windsurf/mcp_config.json`                 |
-   | Claude Desktop    | OS-specific Application Support / AppData Claude path |
-   | Claude Code       | `.mcp.json` in the project root                       |
+| Tool              | Config file                                           |
+| ----------------- | ----------------------------------------------------- |
+| Cursor            | `.cursor/mcp.json` in the project root                |
+| VS Code (Copilot) | `.vscode/mcp.json` in the project root                |
+| Windsurf          | `~/.codeium/windsurf/mcp_config.json`                 |
+| Claude Desktop    | OS-specific Application Support / AppData Claude path |
+| Claude Code       | `.mcp.json` in the project root                       |
 
-   ```json
-   {
-     "mcpServers": {
-       "elasticsearch": {
-         "command": "docker",
-         "args": [
-           "run",
-           "-i",
-           "--rm",
-           "-e",
-           "ES_URL",
-           "-e",
-           "ES_API_KEY",
-           "docker.elastic.co/mcp/elasticsearch",
-           "stdio"
-         ],
-         "env": {
-           "ES_URL": "https://YOUR_ELASTICSEARCH_URL",
-           "ES_API_KEY": "YOUR_API_KEY"
-         }
-       }
-     }
-   }
-   ```
+```json
+{
+  "mcpServers": {
+    "elasticsearch": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "ES_URL", "-e", "ES_API_KEY", "docker.elastic.co/mcp/elasticsearch", "stdio"],
+      "env": {
+        "ES_URL": "https://YOUR_ELASTICSEARCH_URL",
+        "ES_API_KEY": "YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
 
-   Replace `YOUR_ELASTICSEARCH_URL` with their endpoint (Kibana → help icon → Connection details) and `YOUR_API_KEY`
-   with their API key.
+Replace `YOUR_ELASTICSEARCH_URL` with their endpoint (Kibana → help icon → Connection details) and `YOUR_API_KEY` with
+their API key.
 
 3. Tell them to reload MCP connections via their editor's command palette or MCP settings panel.
 
@@ -174,4 +164,4 @@ Key tools: `search_docs` and `get_document_by_url` for verifying API syntax befo
 
 The Elasticsearch MCP server connects through the Agent Builder API. If the developer wants to go further and create or
 manage Agent Builder agents and custom tools, point them to the **kibana-agent-builder** skill
-(`skills/kibana/kibana-agent-builder/SKILL.md`).
+(`skills/kibana/agent-builder/SKILL.md`).
