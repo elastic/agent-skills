@@ -1,0 +1,61 @@
+name: ad_estimate_memory_requirement
+description: >
+  Compute a principled model_memory_limit estimate by automatically sampling cardinality from source data and calling
+  the Estimate Model Memory API. Dramatically better than guessing or peak_model_bytes * 1.3 because it uses the exact
+  same estimation algorithm Elasticsearch uses internally. Steps: (1) retrieve job+datafeed config, (2) identify fields
+  requiring cardinality estimates, (3) compute overall_cardinality via cardinality aggregations, (4) compute
+  max_bucket_cardinality via date_histogram + cardinality + max_bucket pipeline, (5) call Estimate Model Memory API, (6)
+  compare with current state, (7) produce recommendation.
+enabled: true
+tags: ["anomaly-detection", "troubleshooting", "memory"]
+
+inputs:
+  - name: job_id
+    type: string
+    description: The anomaly detection job ID
+
+triggers:
+  - type: manual
+
+steps:
+  # Step 1: Retrieve job configuration
+  - name: get_job_config
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}
+
+  - name: get_job_stats
+    type: elasticsearch.request
+    with:
+      method: GET
+      path: /_ml/anomaly_detectors/{{ inputs.job_id }}/_stats
+
+  # Step 2: Log what we found
+  # The agent (or manual reviewer) inspects the config to identify:
+  #   - overall_fields: all partition/by/over field names from detectors
+  #   - pure_influencers: influencer fields NOT used in any detector split
+  #   - datafeed source indices and query
+  - name: log_config
+    type: console
+    with:
+      message: |
+        Job config retrieved for {{ inputs.job_id }}.
+        Analysis config: {{ steps.get_job_config.output | json:2 }}
+        Current stats: {{ steps.get_job_stats.output | json:2 }}
+
+        MANUAL STEP REQUIRED:
+        1. From analysis_config.detectors, extract all unique by_field_name,
+           over_field_name, partition_field_name values → these are "overall_fields"
+        2. From analysis_config.influencers, find fields NOT in any detector →
+           these are "pure_influencers"
+        3. From datafeed_config, get indices[] and query{}
+        4. Run cardinality aggregations on those indices for each field
+        5. Run date_histogram(bucket_span) + cardinality sub-agg + max_bucket
+           pipeline for each pure influencer
+        6. Call POST _ml/anomaly_detectors/_estimate_model_memory with the
+           analysis_config and computed cardinalities
+        7. Compare the estimate with current model_memory_limit and model_bytes
+
+        See tools/workflow/ad_estimate_memory_requirement.json for the full
+        step-by-step algorithm.

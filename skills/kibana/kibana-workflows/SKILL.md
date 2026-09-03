@@ -25,14 +25,21 @@ steps.
 
 ## Environment Configuration
 
-This skill executes Elasticsearch operations through the `elastic` CLI. If the
-[`elastic` CLI](https://github.com/elastic/cli#configuration) is not installed, tell the user what it is needed for. Do
-not guess credentials, call the HTTP API directly, or attempt other workarounds.
+This skill executes Elasticsearch operations through the `elastic` CLI. Before running any other step, confirm the
+`elastic` CLI is installed and available. If it is not installed, ask the user:
+
+> "The `elastic` CLI is not available. You must install the
+> [`elastic` CLI](https://github.com/elastic/cli#configuration) before continuing?"
+
+Wait for the user's response. Do not guess credentials, call the HTTP API directly, or attempt other workarounds.
 
 This skill references operations in HTTP-shorthand form (e.g., `GET /`, `GET /_cat/indices`, `GET /{index}/_mapping`,
 `GET /{index}/_settings/index.mode`, `POST /_query`). The [Operations](#operations) table at the end of this document
 maps each shorthand to the equivalent `elastic` CLI command — always use the CLI rather than calling the HTTP API
 directly.
+
+Verify the connection by calling `GET /`. If verification fails, point the user to the
+[CLI configuration instructions](https://github.com/elastic/cli#configuration).
 
 <!-- end-partial: preamble -->
 

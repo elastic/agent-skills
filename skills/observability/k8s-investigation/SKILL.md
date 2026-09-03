@@ -6,17 +6,9 @@ description: >
   pressure, resource exhaustion, image pull failures, admission rejections, autoscaling
   anomalies, or correlating K8s state with application signals. OTel ingest path only
   — the legacy ECS Kubernetes integration shape is out of scope.
-compatibility: >
-  Requires the `elastic` CLI (>= 0.2) with an Elasticsearch context, and Kubernetes
-  telemetry ingested through EDOT / the OpenTelemetry kube-stack collector into OTel-receiver-namespaced
-  data streams. The base floor is Elasticsearch 8.11 or later, or Serverless. One
-  query uses the `VALUES()` aggregation, which is GA on Serverless but preview from
-  8.14 and GA only in 9.4 on Stack; a `VALUES()`-free rewrite is given at the point
-  of use. Alert-state lookups additionally need a Kibana context.
 metadata:
   author: elastic
-  version: 0.5.1
-  universal: true
+  version: 0.2.0
 ---
 
 # Kubernetes Investigation
@@ -24,36 +16,6 @@ metadata:
 Diagnose Kubernetes issues using OTel telemetry collected via EDOT (Elastic Distribution of OpenTelemetry) and the
 kube-stack collector. Correlate cluster state, pod runtime metrics, K8s events, application logs, and APM to identify
 root cause across the workload, node, and control-plane layers.
-
-<!-- begin-partial: preamble -->
-
-## Environment Configuration
-
-This skill executes Elasticsearch operations through the `elastic` CLI. If the
-[`elastic` CLI](https://github.com/elastic/cli#configuration) is not installed, tell the user what it is needed for. Do
-not guess credentials, call the HTTP API directly, or attempt other workarounds.
-
-This skill references operations in HTTP-shorthand form (e.g., `GET /`, `GET /_cat/indices`, `GET /{index}/_mapping`,
-`GET /{index}/_settings/index.mode`, `POST /_query`). The [Operations](#operations) table at the end of this document
-maps each shorthand to the equivalent `elastic` CLI command — always use the CLI rather than calling the HTTP API
-directly.
-
-<!-- end-partial: preamble -->
-
-### Analysis without cluster access
-
-The CLI check above gates _querying the cluster_ — it does not gate analysis. When the user has already supplied the
-evidence in their question (metric values, counts, status reasons, log lines, alert payloads, configuration), reason
-from that evidence and deliver the conclusion.
-
-When you genuinely do need data the user has not provided, still say what you would check and how — name the specific
-query, index, and field that would settle the question — and then ask for CLI setup. An answer that names the check is
-useful without a cluster; one that only asks for setup is not.
-
-Every ES|QL query in this skill and in [references/query-recipes.md](references/query-recipes.md) runs via
-`POST /_query`. Alert state is read with `GET kbn:/api/alerting/rules/_find`. Field-presence checks use
-`GET /<index>/_mapping` or `GET /_field_caps`. The [Operations](#operations) table maps each to its `elastic` CLI
-equivalent.
 
 ## Scope
 
@@ -66,9 +28,7 @@ semantic conventions (`k8s.pod.name`, `k8s.namespace.name`, `k8s.container.resta
 - The legacy Elastic Agent Kubernetes integration (`metrics-kubernetes.*`, `logs-kubernetes.*`, `kubernetes.*` fields).
   Being deprecated — do not author queries against these paths.
 - APM-layer analysis (service SLO breaches, transaction error rates, upstream dependency health). Different domain —
-  once a K8s root cause is ruled in or out, hand off to the **observability-sre-triage** skill, which owns SLO status
-  and burn rate, active alerting rules, throughput, latency, error rate, dependency health, and log funnelling. That is
-  also the skill to use when the workload turns out not to be Kubernetes-hosted at all.
+  once a K8s root cause is ruled in or out, APM investigation continues outside this skill.
 - Cluster provisioning, capacity planning, cost optimization. Different domain.
 
 ## Guidelines
@@ -86,35 +46,23 @@ destination metrics. Report `insufficient_dependency_data`, not "upstreams OK."
 attribute causation when (a) one service's degradation clearly precedes the other's, and (b) the delta is large (>5×
 error rate, >3× latency).
 
-**OOMKilled ≠ memory leak by default.** The limit might simply be undersized for the workload's working set. Tell them
-apart by the shape of the memory curve: a monotonic climb to the limit that resets on each restart, with load flat
-against the prior week and no recent deploy, is the leak signature — commit to it at high confidence. Reach for a 7-day
-same-hour baseline when the shape is ambiguous — spiky, diurnal, or load-correlated — not as a precondition for every
-OOMKilled finding.
+**OOMKilled ≠ memory leak by default.** The limit may simply be undersized for the workload's working set. Compare
+against a 7-day baseline at the same hour-of-day before claiming a leak.
 
-**Error-termination ≠ application bug by default.** Check `k8s.container.cpu_limit_utilization` first. CFS throttling
-driving liveness probe timeouts is the most common misdiagnosis in this space.
+**Error-termination ≠ application bug by default.** Check `k8s.pod.cpu_limit_utilization` first. CFS throttling driving
+liveness probe timeouts is the most common misdiagnosis in this space.
 
 **Average CPU hides throttling.** A pod can look healthy at 40–60% average `cpu_limit_utilization` while being throttled
-severely at p99. Linux enforces CPU limits in 100ms periods; bursty workloads reach quota mid-period and stall. Look at
-max and p95, not only the average.
+severely at p99. Linux enforces CPU limits in 100ms periods; bursty workloads hit quota mid-period and stall. Look at
+max and p95, not just average.
 
-**Restart count is boolean, not a counter.** `k8s.container.restarts` is pulled directly from the K8s API and can be
-pruned by the kubelet at any time, so the absolute value is unreliable. Treat it as `== 0` (no recent restarts) versus
-`> 0` (recently restarting); do not derive backoff timing or "linear versus exponential" patterns from it. Confirm the
-restart pattern via K8s `Killing` / `BackOff` events instead.
+**Restart count is boolean, not a counter.** `k8s.container.restarts` is pulled directly from the K8s API and may be
+pruned by the kubelet at any time, so the absolute value is unreliable. Treat it as `== 0` (no recent restarts) vs `> 0`
+(recently restarting); do not derive backoff timing or "linear vs exponential" patterns from it. Confirm the restart
+pattern via K8s `Killing` / `BackOff` events instead.
 
 **Prefer to report uncertainty over manufacturing confidence.** If the evidence is ambiguous, the synthesis should say
 so. Competing hypotheses are a valid output.
-
-**Equally, do not manufacture uncertainty.** The rule above is about ambiguous evidence, not about tone. When the
-pivotal signal is present and corroborated, commit to it at high confidence. Hedging an unambiguous finding down to
-"medium" is as much a defect as overclaiming.
-
-**Deliver the synthesis and stop.** State confidence once, in the HYPOTHESIS line — not again per bullet. Do not narrate
-which queries were run unless a result changed the conclusion, and do not restate the alert back to the reader. End on
-RECOMMENDED NEXT STEPS or DOWNSTREAM IMPACT; never close with an offer such as "want me to look further?". Follow-up
-work belongs in the recommendations list, phrased as a recommendation.
 
 ## Indices and fields
 
@@ -138,18 +86,15 @@ log documents only.
 | Field                                            | Index                       | What it is                                              |
 | ------------------------------------------------ | --------------------------- | ------------------------------------------------------- |
 | `k8s.pod.name`                                   | all k8s                     | Pod name                                                |
-| `k8s.namespace.name`                             | metrics only                | Namespace. Mapped but **null** on k8seventsreceiver     |
-| `attributes.k8s.namespace.name`                  | k8seventsreceiver           | Namespace on events — filter on this form there         |
+| `k8s.namespace.name`                             | all k8s                     | Namespace                                               |
 | `k8s.container.name`                             | all k8s                     | Container within pod                                    |
 | `k8s.deployment.name`                            | k8sclusterreceiver + others | Parent deployment                                       |
 | `k8s.pod.phase`                                  | k8sclusterreceiver          | Pending=1/Running=2/Succeeded=3/Failed=4/Unknown=5      |
 | `k8s.container.restarts`                         | k8sclusterreceiver          | Total container restart count                           |
 | `k8s.container.status.last_terminated_reason`    | k8sclusterreceiver          | `OOMKilled`, `Error`, `Completed`, `ContainerCannotRun` |
 | `k8s.pod.status_reason`                          | k8sclusterreceiver          | Pod-level reason (`Evicted`, `NodeLost`)                |
-| `k8s.container.memory_limit_utilization`         | kubeletstatsreceiver        | 0.0–1.0+ (can exceed 1 transiently before OOM)          |
-| `k8s.container.cpu_limit_utilization`            | kubeletstatsreceiver        | 0.0–N (frequently >1 under CFS throttling)              |
-| `k8s.pod.memory_limit_utilization`               | kubeletstatsreceiver        | Whole-pod aggregate; see the note below before using it |
-| `k8s.pod.cpu_limit_utilization`                  | kubeletstatsreceiver        | Whole-pod aggregate; see the note below before using it |
+| `k8s.pod.memory_limit_utilization`               | kubeletstatsreceiver        | 0.0–1.0+ (can exceed 1 transiently before OOM)          |
+| `k8s.pod.cpu_limit_utilization`                  | kubeletstatsreceiver        | 0.0–N (frequently >1 under CFS throttling)              |
 | `k8s.pod.memory.usage` / `.working_set`          | kubeletstatsreceiver        | Bytes                                                   |
 | `k8s.node.condition_memory_pressure`             | k8sclusterreceiver          | 1 = pressure, 0 = ok                                    |
 | `k8s.node.condition_ready`                       | k8sclusterreceiver          | 0 = NotReady                                            |
@@ -158,68 +103,27 @@ log documents only.
 | `body.text`                                      | k8seventsreceiver / logs    | Event message / log message                             |
 | `k8s.object.name`                                | k8seventsreceiver           | involvedObject name (log attribute, use flat form)      |
 
-### Container-level against pod-level limit utilization
-
-Read limit utilization at the **container** level. `k8s.container.cpu_limit_utilization` and
-`k8s.container.memory_limit_utilization` are the default; the pod-level pair is a different measurement, not a synonym.
-
-The receiver emits the two families on **separate documents in the same data stream**: pod-level fields appear on
-documents that carry no `k8s.container.name`, and container-level fields appear only on documents that do. A
-`STATS ... BY k8s.container.name` therefore returns `null` for every pod-level field, and the reverse holds too.
-Measured over one hour on a live 9.6.0 cluster: of 42,240 documents without a container name, 360 carried
-`k8s.pod.cpu_limit_utilization` and none carried the container field; of 18,240 documents with a container name, 900
-carried the container field and none carried the pod field.
-
-Availability differs too. Container-level utilization is emitted for each container that declares the limit, while the
-pod-level aggregate requires **every** container in the pod to declare it. Across two live clusters over three hours, no
-pod carried the pod-level field without also carrying the container-level one, while 27 pods carried the container-level
-field with the pod-level field absent — every one of them a multi-container pod in which only some containers declared
-limits. A pod-level throttling check on a sidecar-injected pod silently returns `null`.
-
-| Cluster       | Container level only | Both levels | Neither | Pod level only |
-| ------------- | -------------------- | ----------- | ------- | -------------- |
-| forge-factory | 18                   | 7           | 44      | 0              |
-| k8s-demo      | 9                    | 6           | 40      | 0              |
-
-Use the pod-level fields only when the question is genuinely about the pod as a whole — total consumption against the
-sum of its containers' limits — and only after confirming they are populated. **observability-sre-triage** applies the
-same rule, so the two skills return the same answer for the same pod.
-
 ### Field availability
 
 Several fields above are off by default in stock kube-stack collectors and require explicit configuration. Verify
-presence with `GET /<index>/_mapping` or `GET /_field_caps` before relying on them; if absent, fall back as noted and
-call out the substitution in the synthesis.
+presence before relying on them; if absent, fall back as noted and call out the substitution in the synthesis.
 
-| Field                                                              | Why it might be missing                                                                                                       | Fall-back                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `k8s.container.status.last_terminated_reason`                      | Optional metric in k8sclusterreceiver; gated behind `metrics_collected.metadata` config.                                      | Infer from K8s `Killing` / `OOMKilling` events in `logs-k8seventsreceiver.otel-*` and exit codes in app logs.                                                                                                                                                                                                                                                           |
-| `k8s.pod.status_reason`                                            | Same — optional metric on k8sclusterreceiver.                                                                                 | Infer from events: `Evicted`, `NodeLost`, `Preempted`.                                                                                                                                                                                                                                                                                                                  |
-| `k8s.container.cpu_limit_utilization` / `memory_limit_utilization` | Only emitted for a container that declares the corresponding limit, and only when the kubeletstatsreceiver metric is enabled. | `k8s.pod.cpu.node.utilization` / `k8s.pod.memory.node.utilization` express consumption as a fraction of node capacity and are emitted whether or not limits are declared; or trend absolute `container.cpu.usage` / `container.memory.usage` against a baseline. Both fall-backs live on the pod-level documents, so group by `k8s.pod.name`, not `k8s.container.name`. |
-| `k8s.pod.cpu_limit_utilization` / `memory_limit_utilization`       | Requires every container in the pod to declare the limit, so it is absent on most multi-container pods.                       | Use the container-level fields, which are available strictly more often.                                                                                                                                                                                                                                                                                                |
-| `k8s.node.condition_memory_pressure`                               | Gated behind k8sclusterreceiver `node_conditions_to_report` (default omits this).                                             | Compare `k8s.node.memory.usage` against `k8s.node.allocatable_memory`, or look for `Evicted` events on the node.                                                                                                                                                                                                                                                        |
+| Field                                                        | Why it might be missing                                                                                    | Fall-back                                                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `k8s.container.status.last_terminated_reason`                | Optional metric in k8sclusterreceiver; gated behind `metrics_collected.metadata` config.                   | Infer from K8s `Killing` / `OOMKilling` events in `logs-k8seventsreceiver.otel-*` and exit codes in app logs.                 |
+| `k8s.pod.status_reason`                                      | Same — optional metric on k8sclusterreceiver.                                                              | Infer from events: `Evicted`, `NodeLost`, `Preempted`.                                                                        |
+| `k8s.pod.cpu_limit_utilization` / `memory_limit_utilization` | Only emitted when the pod has the corresponding limit set, and the kubeletstatsreceiver metric is enabled. | Compute manually as `k8s.pod.cpu.usage / <limit>` from k8sclusterreceiver, or use absolute usage trending against a baseline. |
+| `k8s.node.condition_memory_pressure`                         | Gated behind k8sclusterreceiver `node_conditions_to_report` (default omits this).                          | Compare `k8s.node.memory.usage` against `k8s.node.allocatable_memory`, or look for `Evicted` events on the node.              |
 
-If a fall-back is used, note it in the synthesis (for example, `(via memory.usage; limit_utilization not collected)`) so
-the reader knows the signal is indirect.
+If a fall-back is used, note it in the synthesis (e.g. `(via memory.usage; limit_utilization not collected)`) so the
+reader knows the signal is indirect.
 
 ## ES|QL gotchas
 
 Before writing queries, know these. Each of them silently produces wrong answers rather than failing loudly.
 
-**`VALUES()` returns scalar for single distinct value, array for multiple.** Templating that assumes array shape (for
-example, `| first`) extracts the first character of the string when scalar. Use `MV_FIRST(VALUES(...))` or handle both.
-
-**`VALUES()` is newer than this skill's base floor.** It is GA on Serverless, but on Stack it is preview from 8.14.0 and
-GA only in 9.4.0, and it does not exist at all below 8.14. Check `GET /` before using it: `build_flavor: "serverless"`
-means it is available, otherwise read `version.number`. Where it is not available, move the field into the `BY` clause
-instead of aggregating it — one row per distinct value carries the same information:
-
-```esql
-| STATS restarts = MAX(k8s.container.restarts), phase = MAX(k8s.pod.phase)
-    BY term_reason = k8s.container.status.last_terminated_reason
-| SORT restarts DESC
-| LIMIT 10
-```
+**`VALUES()` returns scalar for single distinct value, array for multiple.** Templating that assumes array shape (e.g.
+`| first`) extracts the first character of the string when scalar. Use `MV_FIRST(VALUES(...))` or handle both.
 
 **`PERCENTILE` does not work on OTel `histogram` type** (as of 8.15). For APM duration percentiles, use `AVG` on the
 `aggregate_metric_double` summary field (`AVG(transaction.duration.summary)` divides sum by value_count). For true
@@ -234,9 +138,64 @@ form is for raw log documents.
 
 ## Failure-mode taxonomy
 
-The classification vocabulary — pivotal signal and corroborating checks for each mode across the workload, node, control
-plane, autoscaling and networking layers, plus what to do when two modes fit — lives in
-[references/failure-modes.md](references/failure-modes.md). Read it before classifying.
+Vocabulary for classification, not a decision tree. Use the pivotal-signal column to recognize which mode you're looking
+at; use "Investigate" to know what else should corroborate.
+
+### Workload layer
+
+| Mode                                | Pivotal signal                                                                   | Investigate                                                                                                                                                                                                                                               |
+| ----------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OOMKilled**                       | `last_terminated_reason == "OOMKilled"` + `memory_limit_utilization → 1.0`       | Monotonic rise (leak) vs. load-driven spike? Compare current trend to 7-day baseline. Check heap metrics (JVM, Go, Node) for GC pressure.                                                                                                                 |
+| **CPU throttling → Error exit**     | `cpu_limit_utilization > 1.0` + `last_terminated_reason == "Error"`              | Liveness/readiness probe timeouts from CFS throttling. Average CPU can look fine (40–60%) while p99 throttle is severe. Check probe timeouts vs observed startup/health latency.                                                                          |
+| **Liveness probe misconfiguration** | Restarts without resource pressure; `initialDelaySeconds` < startup time         | K8s events show `Unhealthy` / `Killing`. `kubectl logs --previous` typically shows healthy startup before kill.                                                                                                                                           |
+| **CrashLoopBackOff (generic)**      | `BackOff` events + rising `k8s.container.restarts`                               | Branch on `last_terminated_reason` — this is a meta-mode. OOMKilled → memory path; Error → logs + throttling; ContainerCannotRun → image/exec.                                                                                                            |
+| **ImagePullBackOff**                | K8s events `Failed` with image name + `429` or `not found`                       | Registry rate limit? Missing tag? Wrong imagePullSecret? Check recency of `Pulling`/`Pulled` events.                                                                                                                                                      |
+| **Stuck rollout**                   | New pods `Pending`/not-Ready > `progressDeadlineSeconds`; old pods still serving | Check `k8s.deployment.available` vs `.desired`. Admission rejection? Readiness probe failing on new pods? HPA not scaling?                                                                                                                                |
+| **Termination signal race**         | Brief 5xx bursts correlated with rolling deploys                                 | Endpoint removal races termination. New requests can hit the pod after SIGTERM starts. NGINX gotcha: `STOPSIGNAL SIGTERM` triggers _fast_ shutdown, not graceful — use `STOPSIGNAL SIGQUIT` for graceful drain. Check ingress 502 rate vs rollout timing. |
+
+### Node layer
+
+| Mode                                | Pivotal signal                                                          | Investigate                                                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Node NotReady cascade**           | `k8s.node.condition_ready == 0` + mass `Evicted` events                 | Memory pressure? Disk pressure? Network partition from API server? Inspect kubelet logs, `k8s.node.condition_*` history.           |
+| **Resource eviction**               | `status_reason == "Evicted"` + `condition_memory_pressure == 1` on node | Node-level noisy neighbor. QoS order: BestEffort → Burstable → Guaranteed. Identify which pod drove node memory up.                |
+| **Node affinity/selector conflict** | Mass unschedulable pods after label change                              | K8s events show `FailedScheduling`. Often triggered by cluster upgrades (e.g. `node-role.kubernetes.io/master` → `control-plane`). |
+
+### Control plane
+
+| Mode                          | Pivotal signal                                                     | Investigate                                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **etcd I/O cascade**          | API server latency spike + cluster-wide kubelet heartbeat failures | Disk IOPS, fsync latency (must be <10ms). Cloud-burst-credit exhaustion is common.                                                      |
+| **Admission webhook block**   | Mass `FailedCreate` across namespaces; deployments frozen          | `failurePolicy:Fail` webhook pod crashed. Check webhook pod health + API server TCP connection cache (caches dead connections ~15 min). |
+| **Priority preemption storm** | Production pods terminating with `preempted-by` annotation         | New `PriorityClass` with `globalDefault:true` caused cascade. Check `kube-scheduler` events.                                            |
+| **PDB drain deadlock**        | Node drain stuck indefinitely; HTTP 429 from Eviction API          | PDB `minAvailable`/`maxUnavailable` too strict. No default drain timeout. Manual PDB deletion unblocks.                                 |
+
+### Autoscaling & admission
+
+| Mode                          | Pivotal signal                                                     | Investigate                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HPA unready-pod dampening** | Load rising, HPA not scaling; unready pods included in calculation | HPA averages CPU across all replicas including unready (0% contribution). Check `k8s.hpa.current_replicas` vs `.desired_replicas` + pod readiness. |
+| **Resource quota silent 403** | Deployment stuck at n-1/n; `FailedCreate` on ReplicaSet            | Namespace quota exhausted (often CronJob accumulation). Check `k8s.resource_quota.used` vs `.hard_limit`.                                          |
+
+### Networking
+
+| Mode                        | Pivotal signal                                           | Investigate                                                                                                           |
+| --------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **StatefulSet split-brain** | Duplicate pod identities across partitioned nodes        | Network partition + eviction timeout race. Two instances of same ordinal running. No fencing by default.              |
+| **CoreDNS OOMKill**         | CoreDNS restarts + cluster-wide DNS timeouts in app logs | Default CoreDNS memory (~170Mi) insufficient under query amplification (ndots:5, each external lookup → ~10 lookups). |
+
+### When classification is ambiguous
+
+Real incidents often match two modes. Examples:
+
+- OOMKilled pod with simultaneous CPU throttling — memory usually drives the kill, but verify by checking whether memory
+  or CPU hit limit first.
+- Stuck rollout with HPA dampening and resource quota near-exhaustion — both can freeze a deploy. Check which constraint
+  is binding.
+- Node NotReady with pods that were already crashing — the node issue may be incidental.
+
+When two modes fit, name both in the synthesis and say which one you believe is causal and why. Do not force a single
+hypothesis when the evidence supports two.
 
 ## Signal interpretation
 
@@ -282,8 +241,8 @@ Resolve the target: `k8s.pod.name`, `k8s.namespace.name`, optionally `k8s.deploy
 time window is given, default to the last hour for pod-level investigations, last 2 hours for event correlation, last 6
 hours for ongoing/unresolved incidents.
 
-If the alert payload already tells you the failure mode (for example, it fires specifically on `OOMKilled`), note that
-and skip classification; move to confirmation and baseline comparison.
+If the alert payload already tells you the failure mode (e.g., it fires specifically on `OOMKilled`), note that and skip
+classification; move to confirmation and baseline comparison.
 
 ### Characterize
 
@@ -299,27 +258,18 @@ FROM metrics-k8sclusterreceiver.otel-*
         phase = MAX(k8s.pod.phase)
 ```
 
-`VALUES()` needs Serverless or Stack 8.14+ (GA 9.4). On an older Stack cluster use the `BY`-clause rewrite in
-[ES|QL gotchas](#esql-gotchas) rather than dropping the termination reason from the query.
-
 ```esql
 FROM metrics-kubeletstatsreceiver.otel-*
 | WHERE k8s.pod.name == "<pod>" AND @timestamp > NOW() - 15 minutes
-| STATS mem_pct = ROUND(MAX(k8s.container.memory_limit_utilization) * 100, 1),
-        cpu_pct = ROUND(MAX(k8s.container.cpu_limit_utilization) * 100, 1)
-    BY k8s.container.name
+| STATS mem_pct = ROUND(MAX(k8s.pod.memory_limit_utilization) * 100, 1),
+        cpu_pct = ROUND(MAX(k8s.pod.cpu_limit_utilization) * 100, 1)
 ```
-
-Group by container: a sidecar-injected pod has several, and only the ones that declare limits report utilization. If
-every column comes back `null`, no limits are declared — fall back as described under
-[Field availability](#field-availability) rather than reading `null` as idle.
 
 ### Classify
 
-Use the taxonomy in [references/failure-modes.md](references/failure-modes.md). The pivotal signal should match; the
-"Investigate" column tells you what corroboration to seek.
+Use the taxonomy. The pivotal signal should match; the "Investigate" column tells you what corroboration to seek.
 
-When two modes fit, note both and proceed with the one that has the stronger pivotal signal. You can revise during
+When two modes fit, note both and proceed with the one that has the stronger pivotal signal. You may revise during
 corroboration.
 
 ### Corroborate
@@ -330,7 +280,7 @@ Pull the evidence your classification predicts you'll find. Typical sources:
 
 ```esql
 FROM logs-k8seventsreceiver.otel-*
-| WHERE attributes.k8s.namespace.name == "<ns>"
+| WHERE k8s.namespace.name == "<ns>"
   AND @timestamp > NOW() - 2 hours
   AND attributes.k8s.event.reason IN (
     "BackOff", "Killing", "Unhealthy", "Failed",
@@ -341,14 +291,6 @@ FROM logs-k8seventsreceiver.otel-*
 | KEEP @timestamp, attributes.k8s.event.reason, body.text, k8s.object.name
 | LIMIT 30
 ```
-
-**Namespace is a log attribute on this receiver, not a resource attribute.** Filter `attributes.k8s.namespace.name`, not
-the flat `k8s.namespace.name`. The flat form is mapped on this data stream, so a query using it parses and executes and
-returns **zero rows with no error** — on a Stack 9.4.4 cluster the flat field was populated on 0 of 832 events while the
-`attributes.` form carried the namespace on all of them, so the flat filter discarded 300 matching `BackOff`, `Killing`
-and `Unhealthy` events. The flat `k8s.*` paths do work on `metrics-kubeletstatsreceiver.otel-*` and
-`metrics-k8sclusterreceiver.otel-*`, where namespace is a resource attribute; the events receiver is the exception.
-Confirm with `COUNT(attributes.k8s.namespace.name)` against `COUNT(*)` before trusting an empty event result.
 
 **Application logs** if available — look at the 200 most recent lines before the termination timestamp. If absent, flag
 `no_logs_available`; do not invent a log pattern.
@@ -376,11 +318,11 @@ but still a correlation — verify it plausibly explains the mode you've classif
 ### Synthesize and stop
 
 Synthesize as soon as you have enough evidence to support a hypothesis at known confidence. You do not need to complete
-every preceding section — investigation terminates when either:
+every section above — investigation terminates when either:
 
 - You have a high-confidence hypothesis with corroboration, or
-- You have a low/medium-confidence hypothesis and further queries are unlikely to change the picture (for example, logs
-  are unavailable, APM isn't instrumented, no recent changes found).
+- You have a low/medium-confidence hypothesis and further queries are unlikely to change the picture (e.g., logs are
+  unavailable, APM isn't instrumented, no recent changes found).
 
 ## Synthesis
 
@@ -406,12 +348,6 @@ DOWNSTREAM IMPACT
 <Services depending on this workload, or 'No downstream dependencies identified.'>
 ```
 
-**Scale.** The whole synthesis runs 250–400 words. HYPOTHESIS is two or three sentences. EVIDENCE is three to five
-single-line bullets, each citing a concrete value rather than re-explaining it. RECOMMENDED NEXT STEPS is two or three
-single-line items — the ones you would actually do first, not everything that could be done. DOWNSTREAM IMPACT is one or
-two sentences. A well-evidenced alert fits inside this comfortably; length is not thoroughness, and the on-call reader
-scanning mid-incident will not get past the first screen.
-
 **When two hypotheses are live:** replace HYPOTHESIS with COMPETING HYPOTHESES; list both, say which you lean toward and
 why, and list the evidence that would disambiguate them.
 
@@ -432,8 +368,56 @@ of evidence does not corroborate a hypothesis.
 
 ## Query recipes
 
-Ready-made queries for the most-restarting-pods, CPU-throttling, node-memory-pressure, admission-denial, and
-firing-alert paths live in [references/query-recipes.md](references/query-recipes.md).
+### Most-restarting pods in a namespace
+
+```esql
+FROM metrics-k8sclusterreceiver.otel-*
+| WHERE k8s.namespace.name == "<ns>" AND @timestamp > NOW() - 1 hour
+| STATS restarts = MAX(k8s.container.restarts) BY k8s.pod.name, k8s.container.status.last_terminated_reason
+| WHERE restarts > 0
+| SORT restarts DESC
+| LIMIT 20
+```
+
+### CPU throttling check for a pod
+
+```esql
+FROM metrics-kubeletstatsreceiver.otel-*
+| WHERE k8s.pod.name == "<pod>" AND @timestamp > NOW() - 30 minutes
+| STATS max_cpu_ratio = ROUND(MAX(k8s.pod.cpu_limit_utilization), 2),
+        avg_cpu_ratio = ROUND(AVG(k8s.pod.cpu_limit_utilization), 2),
+        max_cpu_cores = ROUND(MAX(k8s.pod.cpu.usage), 3)
+```
+
+Sustained ratio >1.0 = throttling. Transient >1.0 with avg <0.5 is usually benign burst.
+
+### Nodes under memory pressure (right now)
+
+```esql
+FROM metrics-k8sclusterreceiver.otel-*
+| WHERE @timestamp > NOW() - 15 minutes AND k8s.node.condition_memory_pressure == 1
+| STATS ts = MAX(@timestamp) BY k8s.node.name
+| SORT ts DESC
+```
+
+### Admission denials (webhook or quota) last hour
+
+```esql
+FROM logs-k8seventsreceiver.otel-*
+| WHERE @timestamp > NOW() - 1 hour
+  AND (attributes.k8s.event.reason == "FailedCreate"
+       OR body.text LIKE "*admission webhook*"
+       OR body.text LIKE "*exceeded quota*")
+| SORT @timestamp DESC
+| KEEP @timestamp, k8s.namespace.name, attributes.k8s.event.reason, body.text
+| LIMIT 30
+```
+
+### Firing K8s alerts
+
+```text
+GET /api/alerting/rules/_find?search=k8s&search_fields=tags&filter=alert.attributes.executionStatus.status:active
+```
 
 ## Examples
 
@@ -441,7 +425,7 @@ firing-alert paths live in [references/query-recipes.md](references/query-recipe
 
 Characterize first: get restart count, termination reason, memory and CPU utilization.
 
-- If `last_terminated_reason == "OOMKilled"` and memory utilization reached 1.0 → memory path. Corroborate with 7-day
+- If `last_terminated_reason == "OOMKilled"` and memory utilization hit 1.0 → memory path. Corroborate with 7-day
   baseline: monotonic rise over days = leak; spiky = load-driven. Check GC metrics if language is known.
 - If `last_terminated_reason == "Error"` and `cpu_limit_utilization > 1.0` → CPU throttling path. Corroborate with
   liveness probe config (initialDelaySeconds, timeoutSeconds) and K8s events for `Unhealthy`.
@@ -468,7 +452,7 @@ Possible and worth naming explicitly. Check:
 
 - Has the symptom resolved? Compare current utilization/restart rate to the alert trigger point.
 - Was the alert a transient spike that's already decayed?
-- Is the alert tuned appropriately (for example, a too-short evaluation window)?
+- Is the alert tuned appropriately (e.g., too-short evaluation window)?
 
 Output: `ALERT FIRED BUT SYSTEM APPEARS HEALTHY` with what you checked. Recommend alert tuning if the pattern is
 recurrent.
@@ -478,14 +462,4 @@ recurrent.
 - **Workflow:** `K8s CrashLoopBackOff Investigation` — alert-triggered automated version of the pod-level path above.
   Runs deterministic ESQL + branches; this skill provides the interpretation layer the workflow lacks.
 - **Forge genome library:** 16 K8s failure scenarios (OOMKill cascade, CPU throttling, probe misconfig, node NotReady,
-  admission webhook block, and so on) validating this skill's coverage.
-
-## Operations
-
-| HTTP API (shorthand)                | `elastic` CLI command                                             |
-| ----------------------------------- | ----------------------------------------------------------------- |
-| `GET /`                             | `elastic es info`                                                 |
-| `POST /_query`                      | `elastic es esql query --format tsv --query '<esql>'`             |
-| `GET /<index>/_mapping`             | `elastic es indices get-mapping --index '<index>'`                |
-| `GET /_field_caps`                  | `elastic es field-caps --index '<index>' --fields '<fields>'`     |
-| `GET kbn:/api/alerting/rules/_find` | `elastic kb alerting get-alerting-rules-find --filter '<filter>'` |
+  admission webhook block, etc.) validating this skill's coverage.

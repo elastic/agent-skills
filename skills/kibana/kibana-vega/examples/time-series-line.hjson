@@ -1,0 +1,43 @@
+{
+  // Time series line chart with ES|QL
+  // Shows request count over time with automatic time filtering
+  
+  $schema: https://vega.github.io/schema/vega-lite/v6.json
+  title: Request Rate Over Time
+  autosize: { type: fit, contains: padding }
+  
+  data: {
+    url: {
+      "%type%": "esql"
+      "%context%": true
+      "%timefield%": "@timestamp"
+      query: '''
+        FROM logs-*
+        | WHERE @timestamp >= ?_tstart AND @timestamp <= ?_tend
+        | STATS requests = COUNT() BY time_bucket = DATE_TRUNC(5 minutes, @timestamp)
+        | SORT time_bucket ASC
+      '''
+    }
+  }
+  
+  mark: {
+    type: line
+    point: false
+    tooltip: true
+    strokeWidth: 2
+  }
+  
+  encoding: {
+    x: {
+      field: time_bucket
+      type: temporal
+      title: null
+      axis: { labelAngle: 0, tickCount: 8 }
+    }
+    y: {
+      field: requests
+      type: quantitative
+      title: "Requests"
+    }
+  }
+}

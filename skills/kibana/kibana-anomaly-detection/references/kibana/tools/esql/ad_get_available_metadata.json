@@ -1,0 +1,9 @@
+{
+  "name": "ad_get_available_metadata",
+  "description": "Discover all anomaly detection jobs and their configured metadata: job IDs, detector functions, monitored field names, entity split fields (by/over/partition), influencer field names, and bucket spans. Reads from .ml-config so all jobs are visible even if they have never produced an anomaly. Returns a single summary row. Call this FIRST before other tools to learn valid parameter values for job_id, function, field_name, and entity field filters.",
+  "type": "esql",
+  "configuration": {
+    "query": "FROM .ml-config | WHERE job_type == \"anomaly_detector\" | STATS job_count = COUNT(*), job_ids = VALUES(job_id), functions = VALUES(`analysis_config.detectors.function`), fields = VALUES(`analysis_config.detectors.field_name`), by_fields = VALUES(`analysis_config.detectors.by_field_name`), over_fields = VALUES(`analysis_config.detectors.over_field_name`), partition_fields = VALUES(`analysis_config.detectors.partition_field_name`), influencers = VALUES(`analysis_config.influencers`), bucket_spans = VALUES(`analysis_config.bucket_span`)"
+  },
+  "parameters": {}
+}
