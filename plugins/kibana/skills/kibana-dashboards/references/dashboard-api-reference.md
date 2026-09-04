@@ -15,8 +15,7 @@ All requests require the `Elastic-Api-Version: 2023-10-31` header.
 ### Get Dashboard
 
 ```http
-GET /api/dashboards/:id
-Header: Elastic-Api-Version: 2023-10-31
+GET kbn:/api/dashboards/{id}
 ```
 
 **Response:**
@@ -51,8 +50,7 @@ Header: Elastic-Api-Version: 2023-10-31
 ### Create Dashboard
 
 ```http
-POST /api/dashboards
-Header: Elastic-Api-Version: 2023-10-31
+POST kbn:/api/dashboards
 ```
 
 **Request Body:**
@@ -92,8 +90,7 @@ the API. `POST` does not accept an `id` parameter. To create-or-update, use `PUT
 `PUT` supports upsert — it creates the dashboard if it does not exist, or updates it if it does.
 
 ```http
-PUT /api/dashboards/:id
-Header: Elastic-Api-Version: 2023-10-31
+PUT kbn:/api/dashboards/{id}
 ```
 
 **Request Body:**
@@ -109,8 +106,7 @@ Header: Elastic-Api-Version: 2023-10-31
 ### Delete Dashboard
 
 ```http
-DELETE /api/dashboards/:id
-Header: Elastic-Api-Version: 2023-10-31
+DELETE kbn:/api/dashboards/{id}
 ```
 
 **Response:** Empty on success.
@@ -120,12 +116,10 @@ Header: Elastic-Api-Version: 2023-10-31
 To operate on dashboards in a specific space, use the space-prefixed URL:
 
 ```http
-GET /s/{space-id}/api/dashboards/:id
-POST /s/{space-id}/api/dashboards
-PUT /s/{space-id}/api/dashboards/:id
-DELETE /s/{space-id}/api/dashboards/:id
-
-Header: Elastic-Api-Version: 2023-10-31
+GET kbn:/s/{space-id}/api/dashboards/{id}
+POST kbn:/s/{space-id}/api/dashboards
+PUT kbn:/s/{space-id}/api/dashboards/{id}
+DELETE kbn:/s/{space-id}/api/dashboards/{id}
 ```
 
 ## Dashboard Request Body Schema
@@ -323,42 +317,17 @@ Or with inline definition (recommended — properties are at config root, not ne
 
 ## Copying Dashboards
 
-### Same Cluster, Different Space
+1. Call `GET kbn:/api/dashboards/{id}` on the source cluster.
+2. Edit the exported definition (change title, panels, or id as needed).
+3. Call `PUT kbn:/api/dashboards/{id}` on the destination cluster.
 
-```bash
-# Get dashboard
-node scripts/kibana-dashboards.js dashboard get my-dashboard > dashboard.json
-
-# Edit dashboard.json: change id and spaces
-# Then create in new space
-node scripts/kibana-dashboards.js dashboard create dashboard.json
-```
-
-### Different Cluster
-
-1. Get dashboard from source cluster
-2. Submit to destination cluster's API
-
-**Note:** Cannot move a dashboard with the same ID between spaces in the same cluster. Must delete from origin first,
-then create in destination.
-
-## Copy Dashboard Between Spaces/Clusters
-
-```bash
-# 1. Get dashboard from source
-node scripts/kibana-dashboards.js dashboard get source-dashboard > dashboard.json
-
-# 2. Edit dashboard.json to change id and/or spaces
-
-# 3. Create on destination
-node scripts/kibana-dashboards.js dashboard create dashboard.json
-```
+**Note:** Cannot move a dashboard with the same id between spaces in the same cluster without deleting the origin first.
 
 ## Common Issues
 
 | Error                   | Solution                                                                     |
 | ----------------------- | ---------------------------------------------------------------------------- |
-| "401 Unauthorized"      | Check KIBANA_USERNAME/PASSWORD or KIBANA_API_KEY                             |
+| "401 Unauthorized"      | Verify credentials and Kibana privileges                                     |
 | "404 Not Found"         | Verify dashboard/visualization ID exists                                     |
 | "409 Conflict"          | Dashboard/viz with that ID already exists; delete first or use update        |
 | "id not allowed in PUT" | Remove `id` and `spaces` from update body                                    |
