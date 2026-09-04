@@ -1,5 +1,5 @@
 {
-  "version": "0.4.0",
+  "version": "0.6.0",
   "name": "elasticsearch",
   "description": "Elasticsearch skills for GitHub Copilot — translate natural language to ES|QL, ingest data, manage security (authn, authz, audit), and troubleshoot clusters.",
   "author": {

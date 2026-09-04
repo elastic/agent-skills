@@ -584,8 +584,7 @@ TS metrics
 
 Use explicit time filters (`TRANGE` or `WHERE @timestamp`) only for:
 
-- API queries (`POST /_query`)
-- Script-based queries (`node scripts/esql.js raw "..."`)
+- Direct API queries (`POST /_query`) run outside Kibana
 
 ---
 

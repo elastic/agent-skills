@@ -4,19 +4,35 @@ description: >
   Execute ES|QL (Elasticsearch Query Language) queries, use when the user wants to
   query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create
   charts and dashboards from ES|QL results.
-compatibility: >
-  Requires Elasticsearch 8.14+ (ES|QL GA) with network access to the cluster. Environment
-  variables: ELASTICSEARCH_URL plus ELASTICSEARCH_API_KEY or ELASTICSEARCH_USERNAME/ELASTICSEARCH_PASSWORD.
-  Time-series (TS) features need 9.2+ (preview) or 9.4+ (GA); check references/esql-version-history.md
-  for feature availability.
 metadata:
   author: elastic
-  version: 0.5.0
+  version: 0.7.0
+  universal: true
+compatibility: Elasticsearch 8.14 or later (ES|QL GA; introduced 8.11 as tech preview),
+  self-managed, Elastic Cloud Hosted, or Elastic Cloud Serverless; individual ES|QL
+  features are version-gated (see references/esql-version-history.md). Requires the
+  `elastic` CLI ≥ 0.2 with `stack es` support.
 ---
 
 # Elasticsearch ES|QL
 
-Execute ES|QL queries against Elasticsearch.
+Execute ES|QL queries against Elasticsearch: discover the schema, choose the right ES|QL feature for the task, generate
+the simplest correct query, and run it.
+
+<!-- begin-partial: preamble -->
+
+## Environment Configuration
+
+This skill executes Elasticsearch operations through the `elastic` CLI. If the
+[`elastic` CLI](https://github.com/elastic/cli#configuration) is not installed, tell the user what it is needed for. Do
+not guess credentials, call the HTTP API directly, or attempt other workarounds.
+
+This skill references operations in HTTP-shorthand form (e.g., `GET /`, `GET /_cat/indices`, `GET /{index}/_mapping`,
+`GET /{index}/_settings/index.mode`, `POST /_query`). The [Operations](#operations) table at the end of this document
+maps each shorthand to the equivalent `elastic` CLI command — always use the CLI rather than calling the HTTP API
+directly.
+
+<!-- end-partial: preamble -->
 
 ## What is ES|QL?
 
@@ -38,7 +54,7 @@ ES|QL uses pipes (`|`) to chain commands:
 > **no fallback** before 9.2. Check [references/esql-version-history.md](references/esql-version-history.md) for feature
 > availability by version.
 >
-> **Cluster Detection:** Use the `GET /` response to determine the cluster type and version:
+> **Cluster Detection:** Call `GET /` to determine the cluster type and version:
 >
 > - `build_flavor: "serverless"` — Elastic Cloud Serverless. `version.number` tracks the stack line under active
 >   development (next minor from main), so clients that only semver-compare may treat Serverless as “latest.” **Do not**
@@ -50,60 +66,17 @@ ES|QL uses pipes (`|`) to chain commands:
 >   features from development — if a query fails with an unknown function/command, it may simply not have landed yet.
 >   Elastic employees commonly use snapshot builds for testing.
 
-### Environment Configuration
+## Process
 
-See [Environment Setup](references/environment-setup.md) for full connection configuration options (Elastic Cloud,
-direct URL, basic auth, local development).
+1. **Verify the connection and detect the deployment type.** Call `GET /` first. This confirms connectivity and detects
+   whether the deployment is a Serverless project (all features available) or a versioned cluster (features depend on
+   version). The `build_flavor` field is the authoritative signal — if it equals `"serverless"`, ignore the reported
+   version number and use all ES|QL features freely. If the call fails, stop and point the user at the CLI configuration
+   instructions rather than guessing endpoints or credentials.
 
-Run `node scripts/esql.js test` to verify the connection. If the test fails, refer the user to the environment setup
-guide, then stop. Do not try to explore further until a successful connection test.
-
-## Usage
-
-### Get Index Information (for schema discovery)
-
-```bash
-node scripts/esql.js indices                    # List all indices
-node scripts/esql.js indices "logs-*"           # List matching indices
-node scripts/esql.js schema "logs-2024.01.01"   # Get field mappings for an index
-```
-
-### Execute Raw ES|QL
-
-```bash
-node scripts/esql.js raw "FROM logs-* | STATS count = COUNT(*) BY host.name | SORT count DESC | LIMIT 5"
-```
-
-### Execute with TSV Output
-
-```bash
-node scripts/esql.js raw "FROM logs-* | STATS count = COUNT(*) BY component | SORT count DESC" --tsv
-```
-
-**TSV Output Options:**
-
-- `--tsv` or `-t`: Output as tab-separated values (clean, no decorations)
-- `--no-header`: Omit the header row
-
-### Test Connection
-
-```bash
-node scripts/esql.js test
-```
-
-## Guidelines
-
-1. **Detect deployment type**: Always run `node scripts/esql.js test` first. This detects whether the deployment is a
-   Serverless project (all features available) or a versioned cluster (features depend on version). The `build_flavor`
-   field from `GET /` is the authoritative signal — if it equals `"serverless"`, ignore the reported version number and
-   use all ES|QL features freely.
-
-2. **Discover schema** (required — never guess index or field names):
-
-   ```bash
-   node scripts/esql.js indices "pattern*"
-   node scripts/esql.js schema "index-name"
-   ```
+2. **Discover the schema (required — never guess index or field names).** List candidate indices with
+   `GET /_cat/indices` (pass a pattern to narrow), then fetch field types for the chosen index with
+   `GET /{index}/_mapping`.
 
    Always run schema discovery before generating queries. Index names and field names vary across deployments and cannot
    be reliably guessed. Even common-sounding data (e.g., "logs") may live in indices named `logs-test`, `logs-app-*`, or
@@ -115,29 +88,22 @@ node scripts/esql.js test
    index for the question. When multiple indices contain similar data, prefer the one with the most complete schema for
    the task at hand.
 
-   The `schema` command reports the index mode. If it shows `Index mode: time_series`, the output includes the data
-   stream name and copy-pasteable TS syntax — use `TS <data-stream>` (not `FROM`), `TBUCKET(interval)` (not
-   `DATE_TRUNC`), and wrap counter fields with `SUM(RATE(...))`. Read the full TS section in
-   [Generation Tips](references/generation-tips.md) before writing any time series query. You can also check the index
-   mode directly via the Elasticsearch index settings API:
+   **Detect time series indices.** Check the index mode with `GET /{index}/_settings/index.mode`. If it is
+   `time_series`, use `TS <data-stream>` (not `FROM`), `TBUCKET(interval)` (not `DATE_TRUNC`), and wrap counter fields
+   with `SUM(RATE(...))`. Read the full TS section in [Generation Tips](references/generation-tips.md) before writing
+   any time series query. For TSDS indices on 9.4+, prefer the in-language discovery commands `METRICS_INFO` and
+   `TS_INFO` (both GA) over inspecting mappings — they enumerate the metric catalogue and the dimension labels of each
+   time series directly, and are run as ES|QL queries via `POST /_query`. Treat `METRICS_INFO` as authoritative for
+   `metric_type` (`counter`/`gauge`/`histogram`) and `field_type` (`histogram`, `tdigest`, `exponential_histogram` for
+   distribution metrics). Both must follow `TS` and must precede `STATS`/`SORT`/`LIMIT`. See
+   [Time Series Queries](references/time-series-queries.md#metric-and-time-series-discovery):
 
-   ```bash
-   curl -s "$ELASTICSEARCH_URL/<index-name>/_settings/index.mode" -H "Authorization: ApiKey $ELASTICSEARCH_API_KEY"
+   ```esql
+   TS metrics-tsds | METRICS_INFO | SORT metric_name
+   TS metrics-tsds | TS_INFO | KEEP metric_name, dimensions | SORT metric_name
    ```
 
-   For TSDS indices on 9.4+, prefer `METRICS_INFO` and `TS_INFO` (both GA) over inspecting mappings — they enumerate the
-   metric catalogue and dimension labels. Use `schema` for index mode / data-stream name when needed; treat
-   `METRICS_INFO` as authoritative for `metric_type` (`counter`/`gauge`/`histogram`) and `field_type`
-   (`histogram`,`tdigest`, `exponential_histogram` for distribution metrics). Both commands must follow `TS` and must
-   precede `STATS`/`SORT`/`LIMIT`. See
-   [Time Series Queries](references/time-series-queries.md#metric-and-time-series-discovery).
-
-   ```bash
-   node scripts/esql.js raw "TS metrics-tsds | WHERE TRANGE(15m) | METRICS_INFO | WHERE metric_name == \"jvm.gc.duration\" | KEEP metric_name, data_stream, field_type, metric_type" --tsv
-   node scripts/esql.js raw "TS metrics-tsds | WHERE TRANGE(15m) | TS_INFO | KEEP metric_name, dimensions | SORT metric_name" --tsv
-   ```
-
-3. **Choose the right ES|QL feature for the task**: Before writing queries, match the user's intent to the most
+3. **Choose the right ES|QL feature for the task.** Before writing queries, match the user's intent to the most
    appropriate ES|QL feature. Prefer a single advanced query over multiple basic ones.
    - "find patterns," "categorize," "group similar messages" → `CATEGORIZE(field)`
    - "spike," "dip," "anomaly," "when did X change" → `CHANGE_POINT value ON key`
@@ -182,11 +148,8 @@ node scripts/esql.js test
    - For detecting spikes, dips, or anomalies, use `CHANGE_POINT` after time-bucketed aggregation
    - Add `SORT` and `LIMIT` as needed
 
-6. **Execute with TSV flag**:
-
-   ```bash
-   node scripts/esql.js raw "FROM index | STATS count = COUNT(*) BY field" --tsv
-   ```
+6. **Execute the query** with `POST /_query`. Request tabular (TSV) output for clean, decoration-free results that are
+   easy to read and post-process.
 
 ## ES|QL Quick Reference
 
@@ -215,12 +178,13 @@ FROM logs-*
 | LIMIT 100
 ```
 
-**Aggregate by time:**
+**Aggregate by time:** For time series (TSDS) indices, prefer `TS` with `TRANGE` and `TBUCKET` over `FROM` +
+`DATE_TRUNC` (see the time series section below).
 
 ```esql
-FROM metrics-*
-| WHERE @timestamp > NOW() - 7 days
-| STATS avg_cpu = AVG(cpu.percent) BY bucket = DATE_TRUNC(1 hour, @timestamp)
+TS metrics-*
+| WHERE TRANGE(7 days)
+| STATS avg_cpu = AVG(cpu.percent) BY bucket = TBUCKET(1 hour)
 | SORT bucket DESC
 ```
 
@@ -423,20 +387,13 @@ For complete ES|QL syntax including all commands, functions, and operators, read
 - [Query Approximation](references/query-approximation.md) - Approximate STATS via sampling/extrapolation (GA in
   9.5+/Serverless, preview in 9.4)
 - [DSL to ES|QL Migration](references/dsl-to-esql-migration.md) - Convert Query DSL to ES|QL
-- [Environment Setup](references/environment-setup.md) - Connection configuration options
 
 ## Error Handling
 
-When query execution fails, the script returns:
+When query execution fails, read the error message from Elasticsearch and correct the query. Common issues:
 
-- The generated ES|QL query
-- The error message from Elasticsearch
-- Suggestions for common issues
-
-**Common issues:**
-
-- Field doesn't exist → Always use `get_schema` and `list_indices` before writing a query. Never guess field or index
-  names — they vary across deployments.
+- Field doesn't exist → Always inspect the mapping (`GET /{index}/_mapping`) and list indices (`GET /_cat/indices`)
+  before writing a query. Never guess field or index names — they vary across deployments.
 - Type mismatch → Use type conversion functions (TO_STRING, TO_INTEGER, etc.)
 - Syntax error → Review ES|QL reference for correct syntax. Always use **double quotes** for strings, never single
   quotes.
@@ -448,13 +405,53 @@ When query execution fails, the script returns:
 
 ## Examples
 
-```bash
-# Schema discovery
-node scripts/esql.js test
-node scripts/esql.js indices "logs-*"
-node scripts/esql.js schema "logs-2024.01.01"
+Each example follows the process: inspect the mapping first, then write the simplest correct query.
 
-# Execute queries
-node scripts/esql.js raw "FROM logs-* | STATS count = COUNT(*) BY host.name | LIMIT 10"
-node scripts/esql.js raw "FROM metrics-* | STATS avg = AVG(cpu.percent) BY hour = DATE_TRUNC(1 hour, @timestamp)" --tsv
+**"Top 10 source IPs by request count in the last hour"** — filter by time window, then aggregate and rank:
+
+```esql
+FROM logs-*
+| WHERE @timestamp > NOW() - 1 hour
+| STATS requests = COUNT(*) BY source.ip
+| SORT requests DESC
+| LIMIT 10
 ```
+
+**"Average response time per service, only for 5xx responses"** — filter to errors before aggregating:
+
+```esql
+FROM traces-*
+| WHERE http.response.status_code >= 500
+| STATS avg_ms = AVG(duration_ms) BY service.name
+| SORT avg_ms DESC
+```
+
+**"Error count per day for the last week"** — bucket by day with `DATE_TRUNC`:
+
+```esql
+FROM logs-*
+| WHERE log.level == "error" AND @timestamp > NOW() - 7 days
+| STATS errors = COUNT(*) BY day = DATE_TRUNC(1 day, @timestamp)
+| SORT day ASC
+```
+
+## Guidelines
+
+- **Inspect before querying.** Read the mapping (`GET /{index}/_mapping`) and list indices (`GET /_cat/indices`) before
+  writing a query — never guess field or index names.
+- **Filter early.** Put `WHERE` before `STATS` so aggregation runs over the smallest row set.
+- **Always bound results.** End exploratory queries with `LIMIT`.
+- **Quote correctly.** Use double quotes for string literals, never single quotes.
+- **Respect version gating.** Confirm feature availability with `GET /` (`build_flavor`, `version.number`) and
+  references/esql-version-history.md before using newer commands such as `LOOKUP JOIN` or `INLINE STATS`.
+- **Correct on error, do not guess.** Read the Elasticsearch error, fix the specific issue, and re-run.
+
+## Operations
+
+| HTTP API (shorthand)                | `elastic` CLI command                                                 |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `GET /`                             | `elastic es info`                                                     |
+| `GET /_cat/indices`                 | `elastic es cat indices --index '<pattern>'`                          |
+| `GET /{index}/_mapping`             | `elastic es indices get-mapping --index '<index>'`                    |
+| `GET /{index}/_settings/index.mode` | `elastic es indices get-settings --index '<index>' --name index.mode` |
+| `POST /_query`                      | `elastic es esql query --format tsv --query "<esql>"`                 |

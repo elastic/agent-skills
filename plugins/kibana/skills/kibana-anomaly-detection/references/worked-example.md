@@ -17,7 +17,7 @@ upstream?
 
 ### Step 1 — Discover available jobs
 
-Call `ad_get_available_metadata` (no parameters).
+Call `GET /_ml/anomaly_detectors`.
 
 **Result summary:**
 
@@ -36,44 +36,27 @@ bucket_spans: [5m]
 
 ### Step 2 — Find related jobs
 
-Call `ad_discover_jobs_by_datafeed_index` with `job_id: rcaeval-ob-cpu`.
+Call `GET /_ml/datafeeds/datafeed-rcaeval-ob-cpu` → index `rcaeval-re1-ob`. Compare indices across all datafeeds.
 
 **Result:**
 
 ```text
 Jobs sharing index rcaeval-re1-ob:
   rcaeval-ob-cpu, rcaeval-ob-latency, rcaeval-ob-memory, rcaeval-ob-errors
-  match_count: 4
 
 Jobs sharing index rcaeval-re1-nw:
   rcaeval-nw-throughput
-  match_count: 1
 ```
 
-Then call `ad_discover_related_jobs` with `job_id: rcaeval-ob-cpu`.
-
-**Result:**
-
-```text
-entity_field: service
-  jobs: [rcaeval-ob-cpu, rcaeval-ob-latency, rcaeval-ob-memory,
-         rcaeval-ob-errors, rcaeval-nw-throughput]
-  job_count: 5
-```
-
-**Interpretation:** 5 jobs all split by `service`. The `rcaeval-logs-app` job uses `mlcategory` (log categorization),
-not `service`. The 5 observability jobs are our related group.
+All five observability jobs share `partition_field_name: service`. The `rcaeval-logs-app` job uses `mlcategory` (log
+categorization), not `service`. The 5 observability jobs are our related group.
 
 ---
 
 ### Step 3 — Scope the incident
 
-Call `ad_query_anomaly_timeline` with:
-
-- `job_id_pattern: rcaeval-*`
-- `min_score: 25`
-- `start_time: 2024-03-15T13:00:00Z`
-- `end_time: 2024-03-15T16:00:00Z`
+Call `POST /.ml-anomalies-*/_search` with `result_type: bucket`, `job_id` wildcard `rcaeval-*`, score ≥ 25, window
+13:00–16:00.
 
 **Result:**
 
@@ -87,7 +70,7 @@ timestamp              max_score  job_count  composite_score  jobs
 ```
 
 **Interpretation:** Peak at 14:30 with 4 jobs co-firing (composite score 198). Incident started ~14:00, peak 14:30,
-declining by 15:00. This is a 1-hour incident, not a transient spike. CPU was first to fire (14:00).
+declining by 15:00. CPU was first to fire (14:00).
 
 ---
 
@@ -95,14 +78,7 @@ declining by 15:00. This is a 1-hour incident, not a transient spike. CPU was fi
 
 ### Step 4 — Expand from alert
 
-Call `ad_rca_cross_job_entity_match` with:
-
-- `entity_value: frontend`
-- `min_score: 10`
-- `start_time: 2024-03-15T13:30:00Z`
-- `end_time: 2024-03-15T15:30:00Z`
-
-**Result:**
+Search influencers/records for `partition_field_value: frontend` across related jobs (13:30–15:30):
 
 ```text
 job_id                  max_score  anomaly_count  first_anomaly              functions
@@ -113,21 +89,13 @@ rcaeval-ob-errors           52          4         2024-03-15T14:20:00Z      [hig
 ```
 
 **Interpretation:** `frontend` is anomalous in 4 jobs. CPU was first (14:00), then latency (14:05), then memory (14:15),
-then errors (14:20). This cascading pattern suggests CPU is upstream — high CPU caused latency, which caused memory
-pressure, which caused errors.
+then errors (14:20). Cascading pattern suggests CPU is upstream.
 
 ---
 
 ### Step 5 — Multi-job entities
 
-Call `ad_rca_multi_job_entities` with:
-
-- `min_score: 25`
-- `min_job_count: 2`
-- `start_time: 2024-03-15T14:00:00Z`
-- `end_time: 2024-03-15T15:00:00Z`
-
-**Result:**
+Aggregate influencers by `partition_field_value` across jobs (14:00–15:00, min score 25):
 
 ```text
 partition_field_value  job_count  max_score  functions
@@ -142,14 +110,7 @@ only 1 job at score 31 — likely incidental.
 
 ### Step 6 — Fingerprint
 
-Call `ad_rca_detector_fingerprint` with:
-
-- `job_id_pattern: rcaeval-ob-*`
-- `min_score: 25`
-- `start_time: 2024-03-15T14:00:00Z`
-- `end_time: 2024-03-15T15:00:00Z`
-
-**Result:**
+Query records across `rcaeval-ob-*` jobs (14:00–15:00):
 
 ```text
 job_id              function    field_name          max_score  count
@@ -159,8 +120,7 @@ rcaeval-ob-memory   high_mean   system.memory.used       61       5
 rcaeval-ob-errors   high_count  http.error_count         52       4
 ```
 
-**Interpretation:** Classic resource exhaustion pattern: CPU spike → latency increase → memory pressure → errors. All
-metrics elevated on `frontend` simultaneously.
+**Interpretation:** Classic resource exhaustion pattern: CPU spike → latency increase → memory pressure → errors.
 
 ---
 
@@ -168,7 +128,7 @@ metrics elevated on `frontend` simultaneously.
 
 ### Steps 7–10 — Drill down, attribute, profile, characterize
 
-`ad_query_anomaly_records` for `rcaeval-ob-cpu` with `min_score: 50`:
+Query records for `rcaeval-ob-cpu` with `partition_field_value: frontend`, score ≥ 50:
 
 ```text
 record_score: 78
@@ -181,19 +141,16 @@ initial_record_score: 79
 `multi_bucket_impact: 4` → sustained shift across 4+ buckets, not a transient spike. `initial ≈ current` → no
 renormalization; score is stable and genuine.
 
+Query influencers for the 14:30 bucket — if multiple hosts appear, rank by **`influencer_score`** to identify the
+specific instance driving the service-level anomaly.
+
 ---
 
 ## Phase 4: Root Cause Confirmation
 
 ### Step 11 — Cascade
 
-Call `ad_rca_correlation` with:
-
-- `job_id_pattern: rcaeval-ob-*`
-- `min_score: 25`
-- Window: 13:30–15:30
-
-**Result (sorted by timestamp):**
+Sort records by timestamp across jobs:
 
 ```text
 timestamp              job_id             record_score  function    field_name
@@ -207,14 +164,9 @@ timestamp              job_id             record_score  function    field_name
 
 ### Step 12 — Evidence
 
-Get source index from `ad_get_job_datafeed_config` → `rcaeval-re1-ob`.
+`GET /_ml/datafeeds/datafeed-rcaeval-ob-cpu` → source index `rcaeval-re1-ob`.
 
-Call `ad_rca_source_evidence`:
-
-- `source_index: rcaeval-re1-ob`
-- Window: 13:50–14:10
-
-**Sample raw docs (14:00):**
+Search source index for `service: frontend`, window 13:50–14:10:
 
 ```json
 {"service": "frontend", "system.cpu.percent": 96.2, "event": "metricset", "@timestamp": "2024-03-15T14:00:34Z"}
@@ -259,5 +211,5 @@ Call `ad_rca_source_evidence`:
 ## See Also
 
 - [protocols/investigation.md](protocols/investigation.md) — Full 14-step protocol
+- [investigation-queries.md](investigation-queries.md) — Search query templates
 - [score-reference.md](score-reference.md) — Score field definitions and severity bands
-- [anomaly-detection-functions.md](anomaly-detection-functions.md) — Function selection guide
