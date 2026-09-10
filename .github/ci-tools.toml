@@ -25,9 +25,3 @@ repo = "elastic/claude-plugin"
 [[sync.target.copies]]
 source = "skills"
 dest = "skills"
-exclude = ["**/.cursor-plugin/**"]
-preserve = [".git", "README.md", ".claude-plugin/**", ".github/**", "hooks/**", "agents/**", ".mcp.json", "scripts/**"]
-
-[[sync.target.versions]]
-file = ".claude-plugin/plugin.json"
-field = "version"
