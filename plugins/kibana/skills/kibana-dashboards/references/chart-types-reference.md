@@ -103,6 +103,11 @@ not inside `metrics[]`. Uses `primary` and `secondary` sub-objects:
 > **Tip:** For ES|QL metrics in dashboards, avoid redundant labels by leaving the panel `title` empty (`""`) and
 > aliasing the column name in ES|QL with backticks (e.g. ``STATS `Total Requests` = COUNT()`` and setting
 > `"column": "Total Requests"`).
+>
+> **Trend background.** With `background_chart: { "type": "trend" }` the API adds a time bucket to the query when it
+> generates the trendline layer. `FROM` queries need a `?_tstart` / `?_tend` filter; `TS` queries must not group by
+> `BUCKET(@timestamp, ...)`, only `TBUCKET`. See the Metric section of the
+> [chart design guidelines](chart-design.md#metric) for the full rules.
 
 ## XY Charts
 
@@ -416,16 +421,19 @@ STATS count = COUNT() BY bucket = DATE_TRUNC(5 minutes, @timestamp)
 
 Use the `format` property on metrics, y-axis columns, and gauge metrics to display values with proper units.
 
-| Format     | Properties                                                        | Example Output |
-| ---------- | ----------------------------------------------------------------- | -------------- |
-| `bytes`    | `{ "type": "bytes", "decimals": 0 }`                              | 5 KB, 19 KB    |
-| `bits`     | `{ "type": "bits", "decimals": 1 }`                               | 40.2 kbit      |
-| `number`   | `{ "type": "number", "decimals": 2, "compact": true }`            | 5.75K          |
-| `percent`  | `{ "type": "percent", "decimals": 1 }`                            | 42.5%          |
-| `duration` | `{ "type": "duration", "from": "milliseconds", "to": "seconds" }` | 1.5 s          |
-| `custom`   | `{ "type": "custom", "pattern": "0,0.00" }`                       | 5,750.16       |
+| Format     | Properties                                             | Example Output |
+| ---------- | ------------------------------------------------------ | -------------- |
+| `bytes`    | `{ "type": "bytes", "decimals": 0 }`                   | 5 KB, 19 KB    |
+| `bits`     | `{ "type": "bits", "decimals": 1 }`                    | 40.2 kbit      |
+| `number`   | `{ "type": "number", "decimals": 2, "compact": true }` | 5.75K          |
+| `percent`  | `{ "type": "percent", "decimals": 1 }`                 | 42.5%          |
+| `duration` | `{ "type": "duration", "from": "ms", "to": "auto" }`   | 1.5 s          |
+| `custom`   | `{ "type": "custom", "pattern": "0,0.00" }`            | 5,750.16       |
 
-All formats accept an optional `"suffix"` (e.g., `" /s"` for rate displays).
+All formats accept an optional `"suffix"` (e.g., `" /s"` for rate displays). Duration `from` must be one of the short
+unit codes `ps`, `ns`, `us`, `ms`, `s`, `min`, `h`, `d`, `w`, `mo`, `y`, matching how the field is stored; `to` is
+`auto`, `auto-approximate`, or one of the standard units. See
+[Chart Design Guidelines](chart-design.md#general-rules-all-chart-types) for when to apply each format.
 
 **Percent formatting:** Two options depending on the value range. `"type": "percent"` expects a decimal fraction (0.425
 → 42.5%). `{ "type": "number", "decimals": 1, "suffix": "%" }` works when the value is already a whole-number percentage

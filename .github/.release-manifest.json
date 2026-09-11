@@ -1,7 +1,7 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "afe6b021293be46aa23a0eb1af238cbd548eb660",
+  "sandbox_sha": "56a6fa6fa0e76fe360d08f7f515d6fda6e1e0f3b",
   "skills": {
     "skills/cloud/onboarding": {
       "name": "cloud-onboarding",
@@ -65,7 +65,7 @@
     },
     "skills/kibana/kibana-dashboards": {
       "name": "kibana-dashboards",
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     "skills/kibana/kibana-workflows": {
       "name": "kibana-workflows",
