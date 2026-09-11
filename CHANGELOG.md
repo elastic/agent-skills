@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.1
+
+### Updated Skills
+
+- `skills/kibana/kibana-dashboards` (v0.3.0 → v0.4.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.6.0
 
 ### New Skills
