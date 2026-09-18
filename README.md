@@ -67,14 +67,15 @@ Skills in this repository focus on:
 </details>
 
 <details>
-<summary>Kibana (5)</summary>
+<summary>Kibana (6)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
 | [kibana-agent-builder](skills/kibana/kibana-agent-builder/SKILL.md) | Create and manage Kibana Agent Builder agents and custom tools. Use when asked to create, update, delete, test, or inspect agents or tools in Agent Builder, or when the user wants to understand what agents or tools already exist. | 0.3.0 | elastic |
 | [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules. Use when creating, updating, or managing rule lifecycle (enable, disable, mute, snooze), choosing metric threshold rule types and params, or read-only find/list with tag filters. | 0.3.0 | elastic |
 | [kibana-anomaly-detection](skills/kibana/kibana-anomaly-detection/SKILL.md) | Elastic ML anomaly detection — investigation/RCA, score explanation, job lifecycle troubleshooting, and job operations. Use when answering "what broke?"/"which entity?"/RCA, "why is score high/low?"/renormalization, "datafeed stopped"/"memory limit"/hard_limit, or configuring ML anomaly detection jobs. Reads results from `.ml-anomalies-*` and job state from ML REST APIs. | 0.3.0 | elastic |
-| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.3.0 | elastic |
+| [kibana-cases](skills/kibana/kibana-cases/SKILL.md) | Manage investigation and incident cases across Elastic Security, Observability, and Stack Management — create, search, update, and enrich cases with comments, alerts, events, and observables (IOCs). Use when tracking incidents, correlating alerts to a case, adding investigation notes, updating status or severity, or managing triage output. | 0.2.0 | elastic |
+| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, automate their deployment, or improve layout, sections, controls, or chart design. | 0.4.0 | elastic |
 | [kibana-workflows](skills/kibana/kibana-workflows/SKILL.md) | Author, validate, test, run, and inspect Elastic Workflow YAML definitions. Use when the user wants to turn natural language into a Kibana workflow, fix workflow YAML, understand triggers or steps, or run a quick test loop against a real Kibana. | 0.5.0 | elastic |
 
 </details>
