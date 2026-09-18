@@ -1,7 +1,7 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "afe6b021293be46aa23a0eb1af238cbd548eb660",
+  "sandbox_sha": "c38aa43494bb3ea35a3868c05d7de81f0b20f659",
   "skills": {
     "skills/cloud/onboarding": {
       "name": "cloud-onboarding",
@@ -63,9 +63,13 @@
       "name": "kibana-anomaly-detection",
       "version": "0.3.0"
     },
+    "skills/kibana/kibana-cases": {
+      "name": "kibana-cases",
+      "version": "0.2.0"
+    },
     "skills/kibana/kibana-dashboards": {
       "name": "kibana-dashboards",
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     "skills/kibana/kibana-workflows": {
       "name": "kibana-workflows",
