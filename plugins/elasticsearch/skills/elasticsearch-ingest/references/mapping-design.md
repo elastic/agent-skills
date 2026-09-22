@@ -71,7 +71,7 @@ For event-style objects such as `{ "event_id", "type", "user_id", "value" }`:
 Elasticsearch does not change existing field types in place. When `GET /{index}/_mapping` shows `age` as `text` after
 load:
 
-1. Explain the mismatch to the user.
+1. Explain the mismatch to the user and ask for explicit confirmation — do not delete until they confirm.
 2. With confirmation, call `DELETE /{index}`.
 3. Recreate with `PUT /{index}` and the correct mapping.
 4. Re-convert the source file to typed NDJSON and bulk load again.

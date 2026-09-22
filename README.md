@@ -58,7 +58,7 @@ Skills in this repository focus on:
 | [elasticsearch-cluster-health](skills/elasticsearch/elasticsearch-cluster-health/SKILL.md) | Diagnose a non-green Elasticsearch cluster and surface the single most likely cause with remediation. Use when an operator reports yellow or red status, unassigned shards, allocation failures, or wants read-only triage before deeper investigation. Teaches replica-vs-primary impact, allocation decider classification, and data-loss awareness. | 0.1.0 | elastic |
 | [elasticsearch-esql](skills/elasticsearch/elasticsearch-esql/SKILL.md) | Execute ES\|QL (Elasticsearch Query Language) queries, use when the user wants to query Elasticsearch data, analyze logs, aggregate metrics, explore data, or create charts and dashboards from ES\|QL results. | 0.7.0 | elastic |
 | [elasticsearch-index-design](skills/elasticsearch/elasticsearch-index-design/SKILL.md) | Design and review Elasticsearch index mappings for stated access patterns: correct field types, text+keyword multi-fields, doc_values tuning, mapping-explosion avoidance, and explicit shard settings. Use when creating a new index, reviewing a mapping for storage or query performance, fixing wrong field types, or when the user asks which type to use for search, filter, sort, or aggregation on a field. | 0.1.0 | elastic |
-| [elasticsearch-ingest](skills/elasticsearch/elasticsearch-ingest/SKILL.md) | Load CSV and JSON files into Elasticsearch indices using the bulk API and explicit mappings when field types matter. Use when batch-importing local files, converting CSV rows or JSON arrays to NDJSON bulk format, or verifying document counts and mappings after ingest — not for Logstash pipelines, Beats, custom scripts, or index-to-index reindex. | 0.1.0 | elastic |
+| [elasticsearch-ingest](skills/elasticsearch/elasticsearch-ingest/SKILL.md) | Load CSV, JSON, and NDJSON files into Elasticsearch indices using the bulk API and explicit mappings when field types matter. Use when batch-importing local files, converting CSV rows or JSON arrays to NDJSON bulk format, confirming cluster connectivity with elastic es info before ingest, or verifying document counts and mappings after ingest — not for Logstash pipelines, Beats, custom scripts, or index-to-index reindex. | 0.1.3 | elastic |
 | [elasticsearch-onboarding](skills/elasticsearch/elasticsearch-onboarding/SKILL.md) | Help developers new to Elasticsearch get from zero to a working search experience. Guide them through understanding their intent, mapping their data, and building a search experience with best practices baked in. Use this when the user shows intent to build search-related functionality, asks about Elasticsearch-related concepts for their use case, or expresses the need for help getting started with Elasticsearch. | 0.1.0 | elastic |
 | [elasticsearch-query-optimization](skills/elasticsearch/elasticsearch-query-optimization/SKILL.md) | Diagnose slow Elasticsearch Query DSL searches and propose measured fixes. Use when a search is slow, profile output shows an expensive clause, exact-match filters sit in scoring context, or leading wildcards dominate latency. Ground every recommendation in search profiling — move non-scoring clauses to filter context, eliminate leading wildcards, and re-profile to confirm improvement. | 0.1.0 | elastic |
 | [elasticsearch-reindex](skills/elasticsearch/elasticsearch-reindex/SKILL.md) | Guide Elasticsearch reindex for performance: local and remote, slicing, throttling, task API. Use when copying or migrating indices, changing mappings, or transforming during reindex. | 0.2.0 | elastic |
@@ -67,23 +67,25 @@ Skills in this repository focus on:
 </details>
 
 <details>
-<summary>Kibana (5)</summary>
+<summary>Kibana (6)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
 | [kibana-agent-builder](skills/kibana/kibana-agent-builder/SKILL.md) | Create and manage Kibana Agent Builder agents and custom tools. Use when asked to create, update, delete, test, or inspect agents or tools in Agent Builder, or when the user wants to understand what agents or tools already exist. | 0.3.0 | elastic |
 | [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules. Use when creating, updating, or managing rule lifecycle (enable, disable, mute, snooze), choosing metric threshold rule types and params, or read-only find/list with tag filters. | 0.3.0 | elastic |
 | [kibana-anomaly-detection](skills/kibana/kibana-anomaly-detection/SKILL.md) | Elastic ML anomaly detection — investigation/RCA, score explanation, job lifecycle troubleshooting, and job operations. Use when answering "what broke?"/"which entity?"/RCA, "why is score high/low?"/renormalization, "datafeed stopped"/"memory limit"/hard_limit, or configuring ML anomaly detection jobs. Reads results from `.ml-anomalies-*` and job state from ML REST APIs. | 0.3.0 | elastic |
-| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, or automate their deployment. | 0.3.0 | elastic |
+| [kibana-cases](skills/kibana/kibana-cases/SKILL.md) | Manage investigation and incident cases across Elastic Security, Observability, and Stack Management — create, search, update, and enrich cases with comments, alerts, events, and observables (IOCs). Use when tracking incidents, correlating alerts to a case, adding investigation notes, updating status or severity, or managing triage output. | 0.2.0 | elastic |
+| [kibana-dashboards](skills/kibana/kibana-dashboards/SKILL.md) | Create and manage Kibana Dashboards and Lens visualizations. Use when you need to define dashboards and visualizations declaratively, version control them, automate their deployment, or improve layout, sections, controls, or chart design. | 0.4.0 | elastic |
 | [kibana-workflows](skills/kibana/kibana-workflows/SKILL.md) | Author, validate, test, run, and inspect Elastic Workflow YAML definitions. Use when the user wants to turn natural language into a Kibana workflow, fix workflow YAML, understand triggers or steps, or run a quick test loop against a real Kibana. | 0.5.0 | elastic |
 
 </details>
 
 <details>
-<summary>Observability (5)</summary>
+<summary>Observability (6)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
+| [observability-csp-investigation](skills/observability/csp-investigation/SKILL.md) | Investigate cloud-provider (CSP) service issues — AWS today (the reasoning applies to any AWS service; schema and failure signatures are deepest for RDS, Lambda, SQS, ALB, EC2), and in future GCP and Azure — using OTel-schema cloud metrics in Elastic. Use when diagnosing cloud-resource problems, whether alert-triggered or ad hoc: database connection/CPU/memory pressure, function error rates and throttling, queue backlog and consumer lag, load-balancer 5xx, instance saturation. Correlates the resource under investigation against its own baseline, classifies the failure mode, and rules out co-occurring but unrelated conditions. | 0.2.0 | elastic |
 | [observability-k8s-investigation](skills/observability/k8s-investigation/SKILL.md) | Investigate Kubernetes workload, node, and control-plane issues using OTel telemetry (EDOT). Use when diagnosing pod failures (CrashLoopBackOff, OOMKilled, Error), node pressure, resource exhaustion, image pull failures, admission rejections, autoscaling anomalies, or correlating K8s state with application signals. OTel ingest path only — the legacy ECS Kubernetes integration shape is out of scope. | 0.5.1 | elastic |
 | [observability-llm-obs](skills/observability/llm-obs/SKILL.md) | Answer questions about LLM and agentic-application behavior from data already ingested into Elastic: latency and error rate, token and cost utilization, response quality and guardrail events, and agentic call-chain orchestration. Use when the user asks about LLM monitoring, GenAI observability, token spend or AI cost, model latency, prompt or guardrail failures, or how an agent's tool-call chain executed. | 0.3.1 | elastic |
 | [observability-onboarding](skills/observability/onboarding/SKILL.md) | Onboard an application into Elastic Observability with the Elastic Distribution of OpenTelemetry (EDOT): route on language and runtime, detect and replace a classic Elastic APM agent, apply the required OTLP configuration, and then verify with ES\|QL that traces, metrics, and logs actually arrive under the expected service name. Use when adding observability to a service, migrating off the classic Elastic APM agent, or debugging why an instrumented service is not showing up in Elastic. | 0.3.0 | elastic |
@@ -93,7 +95,7 @@ Skills in this repository focus on:
 </details>
 
 <details>
-<summary>Security (4)</summary>
+<summary>Security (5)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
@@ -101,6 +103,7 @@ Skills in this repository focus on:
 | [security-case-management](skills/security/case-management/SKILL.md) | Create, search, update, and manage SOC cases via the Kibana Cases API. Use when tracking incidents, linking alerts to cases, adding investigation notes, or managing triage output. | 0.1.0 | elastic |
 | [security-detection-rule-management](skills/security/detection-rule-management/SKILL.md) | Create, tune, and manage Elastic Security detection rules (SIEM and Endpoint). Use for false positives, exceptions, new coverage, noisy rules, or rule management via Kibana API. | 0.1.0 | elastic |
 | [security-generate-security-sample-data](skills/security/generate-security-sample-data/SKILL.md) | Generate sample security events, attack scenarios, and synthetic alerts for Elastic Security. Use when demoing, populating dashboards, testing detection rules, or setting up a POC. | 0.1.0 | elastic |
+| [security-ml-integrations](skills/security/ml-integrations/SKILL.md) | Install and manage Elastic security ML integration packages (beaconing, ded, dga, lmd, pad, problemchild). Handles the full lifecycle: pre-flight checks, Fleet package install, component templates, ingest pipelines, transforms, data views, ML anomaly detection jobs, and detection rules. Use when a user asks to install, set up, check the status of, or troubleshoot a security ML integration package. | 0.1.0 | elastic |
 
 </details>
 
