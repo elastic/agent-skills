@@ -1,0 +1,534 @@
+{
+  "title": "Web traffic overview",
+  "description": "Request volume, error rate, and transferred bytes from the Kibana sample web logs (kibana_sample_data_logs), broken down by response code, operating system, and file extension. All panels use ES|QL; controls list their options from ES|QL queries so no data view is required.",
+  "time_range": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "pinned_panels": [
+    {
+      "type": "options_list_control",
+      "width": "medium",
+      "grow": true,
+      "config": {
+        "title": "Operating system",
+        "values_source": "esql",
+        "esql_query": "FROM kibana_sample_data_logs | STATS BY machine.os",
+        "selected_options": []
+      }
+    },
+    {
+      "type": "options_list_control",
+      "width": "medium",
+      "grow": true,
+      "config": {
+        "title": "Response code",
+        "values_source": "esql",
+        "esql_query": "FROM kibana_sample_data_logs | STATS BY response",
+        "selected_options": []
+      }
+    }
+  ],
+  "panels": [
+    {
+      "title": "Key metrics",
+      "collapsed": false,
+      "grid": {
+        "y": 0
+      },
+      "panels": [
+        {
+          "type": "vis",
+          "id": "requests",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "esql",
+              "query": "FROM kibana_sample_data_logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS `Requests` = COUNT()"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "column": "Requests",
+                "background_chart": {
+                  "type": "trend"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "error-rate",
+          "grid": {
+            "x": 12,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "esql",
+              "query": "FROM kibana_sample_data_logs | STATS `Error rate` = 100.0 * COUNT(CASE(TO_INTEGER(response) >= 400, 1, null)) / COUNT()"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "column": "Error rate",
+                "format": {
+                  "type": "number",
+                  "decimals": 1,
+                  "suffix": "%"
+                },
+                "apply_color_to": "value",
+                "color": {
+                  "type": "dynamic",
+                  "range": "absolute",
+                  "steps": [
+                    {
+                      "gte": 0,
+                      "lt": 5,
+                      "color": "#24c292"
+                    },
+                    {
+                      "gte": 5,
+                      "lt": 10,
+                      "color": "#fcd883"
+                    },
+                    {
+                      "gte": 10,
+                      "lte": 100,
+                      "color": "#f6726a"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "avg-bytes",
+          "grid": {
+            "x": 24,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "esql",
+              "query": "FROM kibana_sample_data_logs | STATS `Average response size` = AVG(bytes)"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "column": "Average response size",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "total-bytes",
+          "grid": {
+            "x": 36,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "esql",
+              "query": "FROM kibana_sample_data_logs | STATS `Bytes transferred` = SUM(bytes)"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "column": "Bytes transferred",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Trends",
+      "collapsed": false,
+      "grid": {
+        "y": 1
+      },
+      "panels": [
+        {
+          "type": "vis",
+          "id": "requests-over-time",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 48,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests over time",
+            "axis": {
+              "x": {
+                "scale": "temporal",
+                "domain": {
+                  "type": "fit",
+                  "rounding": false
+                },
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "visible",
+              "statistics": ["avg", "min", "max"],
+              "layout": {
+                "type": "grid"
+              }
+            },
+            "styling": {
+              "areas": {
+                "fill": "gradient"
+              }
+            },
+            "layers": [
+              {
+                "type": "area",
+                "data_source": {
+                  "type": "esql",
+                  "query": "FROM kibana_sample_data_logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS `Requests` = COUNT() BY BUCKET(@timestamp, 75, ?_tstart, ?_tend)"
+                },
+                "x": {
+                  "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)",
+                  "label": "@timestamp"
+                },
+                "y": [
+                  {
+                    "column": "Requests"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "requests-by-response-over-time",
+          "grid": {
+            "x": 0,
+            "y": 10,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests by response code over time",
+            "axis": {
+              "x": {
+                "scale": "temporal",
+                "domain": {
+                  "type": "fit",
+                  "rounding": false
+                },
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "visible",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "bar_stacked",
+                "data_source": {
+                  "type": "esql",
+                  "query": "FROM kibana_sample_data_logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS `Requests` = COUNT() BY BUCKET(@timestamp, 75, ?_tstart, ?_tend), response"
+                },
+                "x": {
+                  "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)",
+                  "label": "@timestamp"
+                },
+                "y": [
+                  {
+                    "column": "Requests"
+                  }
+                ],
+                "breakdown_by": {
+                  "column": "response"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "bytes-by-os-over-time",
+          "grid": {
+            "x": 24,
+            "y": 10,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Bytes transferred by operating system over time",
+            "axis": {
+              "x": {
+                "scale": "temporal",
+                "domain": {
+                  "type": "fit",
+                  "rounding": false
+                },
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "visible",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "line",
+                "data_source": {
+                  "type": "esql",
+                  "query": "FROM kibana_sample_data_logs | WHERE @timestamp <= ?_tend AND @timestamp > ?_tstart | STATS `Bytes` = SUM(bytes) BY BUCKET(@timestamp, 75, ?_tstart, ?_tend), machine.os"
+                },
+                "x": {
+                  "column": "BUCKET(@timestamp, 75, ?_tstart, ?_tend)",
+                  "label": "@timestamp"
+                },
+                "y": [
+                  {
+                    "column": "Bytes",
+                    "format": {
+                      "type": "bytes",
+                      "decimals": 1
+                    }
+                  }
+                ],
+                "breakdown_by": {
+                  "column": "machine.os",
+                  "color": {
+                    "mode": "categorical",
+                    "palette": "elastic_line_optimized",
+                    "mapping": []
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Breakdowns",
+      "collapsed": false,
+      "grid": {
+        "y": 2
+      },
+      "panels": [
+        {
+          "type": "vis",
+          "id": "requests-by-os",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests by operating system",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "hidden",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "bar_horizontal",
+                "data_source": {
+                  "type": "esql",
+                  "query": "FROM kibana_sample_data_logs | STATS `Requests` = COUNT() BY machine.os | SORT `Requests` DESC"
+                },
+                "x": {
+                  "column": "machine.os"
+                },
+                "y": [
+                  {
+                    "column": "Requests"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "requests-by-extension",
+          "grid": {
+            "x": 24,
+            "y": 0,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests by file extension",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "hidden",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "bar_horizontal",
+                "data_source": {
+                  "type": "esql",
+                  "query": "FROM kibana_sample_data_logs | WHERE extension != \"\" | STATS `Requests` = COUNT() BY extension | SORT `Requests` DESC"
+                },
+                "x": {
+                  "column": "extension"
+                },
+                "y": [
+                  {
+                    "column": "Requests"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "traffic-by-os",
+          "grid": {
+            "x": 0,
+            "y": 10,
+            "w": 48,
+            "h": 12
+          },
+          "config": {
+            "type": "data_table",
+            "title": "Traffic by operating system",
+            "data_source": {
+              "type": "esql",
+              "query": "FROM kibana_sample_data_logs | STATS `Requests` = COUNT(), `Bytes` = SUM(bytes), `Average response size` = AVG(bytes), `Error rate` = 100.0 * COUNT(CASE(TO_INTEGER(response) >= 400, 1, null)) / COUNT() BY machine.os | SORT `Requests` DESC"
+            },
+            "rows": [
+              {
+                "column": "machine.os"
+              }
+            ],
+            "metrics": [
+              {
+                "column": "Requests"
+              },
+              {
+                "column": "Bytes",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              },
+              {
+                "column": "Average response size",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              },
+              {
+                "column": "Error rate",
+                "format": {
+                  "type": "number",
+                  "decimals": 1,
+                  "suffix": "%"
+                },
+                "apply_color_to": "badge",
+                "color": {
+                  "type": "auto"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

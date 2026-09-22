@@ -1,7 +1,7 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "afe6b021293be46aa23a0eb1af238cbd548eb660",
+  "sandbox_sha": "bc460f705a1a75bdc6a5974a74b3656c42d8342f",
   "skills": {
     "skills/cloud/onboarding": {
       "name": "cloud-onboarding",
@@ -33,7 +33,7 @@
     },
     "skills/elasticsearch/elasticsearch-ingest": {
       "name": "elasticsearch-ingest",
-      "version": "0.1.0"
+      "version": "0.1.3"
     },
     "skills/elasticsearch/elasticsearch-onboarding": {
       "name": "elasticsearch-onboarding",
@@ -63,13 +63,21 @@
       "name": "kibana-anomaly-detection",
       "version": "0.3.0"
     },
+    "skills/kibana/kibana-cases": {
+      "name": "kibana-cases",
+      "version": "0.2.0"
+    },
     "skills/kibana/kibana-dashboards": {
       "name": "kibana-dashboards",
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     "skills/kibana/kibana-workflows": {
       "name": "kibana-workflows",
       "version": "0.5.0"
+    },
+    "skills/observability/csp-investigation": {
+      "name": "observability-csp-investigation",
+      "version": "0.2.0"
     },
     "skills/observability/k8s-investigation": {
       "name": "observability-k8s-investigation",
@@ -105,6 +113,10 @@
     },
     "skills/security/generate-security-sample-data": {
       "name": "security-generate-security-sample-data",
+      "version": "0.1.0"
+    },
+    "skills/security/ml-integrations": {
+      "name": "security-ml-integrations",
       "version": "0.1.0"
     }
   }
