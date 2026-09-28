@@ -3,8 +3,9 @@ name: elasticsearch-onboarding
 description: >
   Help developers new to Elasticsearch get from zero to a working search experience.
   Guide them through understanding their intent, mapping their data, and building
-  a search experience with best practices baked in. Use this when developers are new
-  to Elasticsearch and need help getting started with their search use case.
+  a search experience with best practices baked in. Use this when the user shows intent
+  to build search-related functionality, asks about Elasticsearch-related concepts
+  for their use case, or expresses the need for help getting started with Elasticsearch.
 compatibility: Elasticsearch 9.x
 metadata:
   author: elastic
@@ -29,6 +30,16 @@ Example user intents that should trigger this skill:
 - "What are the best practices for building a search experience?"
 - "Can you help me understand how to model my data for search?"
 - "How do I build a vector database?"
+- "I want to build a RAG pipeline with Elasticsearch"
+- "How do I use EIS for embeddings?"
+- "How do I connect an LLM to Elasticsearch?"
+- "How do I do kNN search in Elasticsearch?"
+- "How do I use ELSER for semantic search?"
+- "How do I set up the Elasticsearch MCP?"
+- "How do I combine keyword and vector results with RRF?"
+- "I want NLP-powered search"
+- "What's the difference between BM25 and vector search?"
+- "Can I use ES|QL to query my data?"
 
 ## Guidelines
 

@@ -1,36 +1,19 @@
 ---
 name: vector-hybrid-search
 description:
-  Complete guide for building vector search, hybrid search, and using Elasticsearch as a vector database for AI
-  pipelines. Covers the full decision tree from deployment type through production optimization and RAG extension. Use
-  when a developer wants semantic search, hybrid BM25+vector search, kNN, embeddings, RAG, or Elasticsearch as a vector
-  store for LangChain/LlamaIndex.
+  Complete guide for building vector search, hybrid search, and using Elasticsearch as a vector store for AI pipelines.
+  Covers the full decision tree from deployment type through production optimization and RAG extension. Use when a
+  developer wants semantic search, hybrid BM25+vector search, kNN, embeddings, RAG, or Elasticsearch as a vector store
+  for LangChain/LlamaIndex.
 ---
 
 # Vector & Hybrid Search Guide
 
-## UI Context Hint
-
-If the downloaded skill file contains a `# user-context:` line (set by the getting started UI at download time), read it
-before the first message and open with a confirmation rather than a blank question:
-
-- `# user-context: vector-database` → "Looks like you're building a vector database for an AI pipeline — is that right?
-  Are you using LangChain, LlamaIndex, or a custom stack?"
-- `# user-context: hybrid-search` → "Looks like you're building hybrid search — is that right? Will users be typing
-  queries directly, or is this powering an AI pipeline?"
-- `# user-context: semantic-search` → "Looks like you're building semantic search — is that right? Tell me about what
-  you're searching over."
-
-If the developer corrects the use case, re-route immediately. No commitment.
-
-If no `# user-context:` hint is present, open with: "What are you building — a search experience for users, or a
-retrieval backend for an AI pipeline like RAG or LangChain?"
-
----
-
 ## Consumer Fork
 
-Before any other decision, establish who consumes the search results:
+Before any other decision, establish who consumes the search results. If the conversation hasn't answered it yet, open
+with: "What are you building — a search experience for users, or a retrieval backend for an AI pipeline like RAG or
+LangChain?"
 
 - **AI pipeline** (code consumes results) → LangChain, LlamaIndex, custom RAG, agent memory, recommendations
 - **Human-facing search** (people type queries) → search bar, results page, filters, autocomplete
@@ -45,14 +28,14 @@ This determines Decision I (App Integration) and whether to offer a frontend at 
 
 Ask what they're building. Listen for:
 
-| Signal                                                    | Use Case                           |
-| --------------------------------------------------------- | ---------------------------------- |
-| "semantic search", "meaning-based", "natural language"    | Semantic search                    |
-| "BM25 + vector", "hybrid", "keyword and semantic"         | Hybrid search                      |
-| "RAG", "chatbot", "Q&A over documents"                    | RAG — use rag-chatbot skill        |
-| "LangChain", "LlamaIndex", "vector store", "agent memory" | AI pipeline / vector DB            |
-| "recommendations", "similar items"                        | Vector similarity                  |
-| "image search", "multimodal"                              | Dense vector with image embeddings |
+| Signal                                                                       | Use Case                           |
+| ---------------------------------------------------------------------------- | ---------------------------------- |
+| "semantic search", "meaning-based", "natural language"                       | Semantic search                    |
+| "BM25 + vector", "hybrid", "keyword and semantic"                            | Hybrid search                      |
+| "RAG", "chatbot", "Q&A over documents"                                       | RAG — use rag-chatbot skill        |
+| "LangChain", "LlamaIndex", "vector store", "vector database", "agent memory" | AI pipeline / vector store         |
+| "recommendations", "similar items"                                           | Vector similarity                  |
+| "image search", "multimodal"                                                 | Dense vector with image embeddings |
 
 **Scale check:** If the developer indicates >1M documents, >10GB, or cost sensitivity, flag quantization early:
 

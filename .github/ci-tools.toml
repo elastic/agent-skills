@@ -17,3 +17,11 @@ preserve = [".git", "README.md", "**/plugin.json"]
 [[sync.target.versions]]
 file = "elastic/**/plugin.json"
 field = "version"
+
+[[sync.target]]
+name = "claude"
+repo = "elastic/claude-plugin"
+
+[[sync.target.copies]]
+source = "skills"
+dest = "skills"

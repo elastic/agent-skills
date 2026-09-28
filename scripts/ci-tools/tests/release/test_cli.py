@@ -167,6 +167,26 @@ class TestReleaseValidate:
         assert result.exit_code == 1
         assert "FAIL" in result.stdout
 
+    def test_checks_every_repeated_marketplace_json(
+        self, manifest: Path, changelog: Path, tmp_path: Path
+    ) -> None:
+        drifted = tmp_path / "drifted-marketplace.json"
+        drifted.write_text(json.dumps({"plugins": [{"name": "a", "version": "1.0.0"}]}))
+        current = tmp_path / "current-marketplace.json"
+        current.write_text(json.dumps({"plugins": [{"name": "b", "version": "1.2.3"}]}))
+        result = runner.invoke(
+            release_app,
+            [
+                "validate",
+                "--manifest", str(manifest),
+                "--changelog", str(changelog),
+                "--marketplace-json", str(drifted),
+                "--marketplace-json", str(current),
+            ],
+        )
+        assert result.exit_code == 1
+        assert "a: expected 1.2.3, got 1.0.0" in result.stdout
+
     def test_fails_when_version_file_drifted(
         self, manifest: Path, changelog: Path, tmp_path: Path
     ) -> None:
@@ -288,6 +308,28 @@ class TestReleaseSync:
         assert result.exit_code == 0, result.output
         out = json.loads(result.stdout)
         assert str(mj) in out["updated"]
+
+    def test_syncs_every_repeated_marketplace_json(
+        self, tmp_path: Path, manifest: Path
+    ) -> None:
+        first = tmp_path / "first-marketplace.json"
+        first.write_text(json.dumps({"plugins": [{"version": "1.0.0"}]}))
+        second = tmp_path / "second-marketplace.json"
+        second.write_text(json.dumps({"plugins": [{"version": "1.0.0"}]}))
+        result = runner.invoke(
+            release_app,
+            [
+                "sync",
+                "--manifest", str(manifest),
+                "--marketplace-json", str(first),
+                "--marketplace-json", str(second),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        out = json.loads(result.stdout)
+        assert out["updated"] == [str(first), str(second)]
+        for path in (first, second):
+            assert json.loads(path.read_text())["plugins"][0]["version"] == "1.2.3"
 
     def test_noop_when_in_sync(
         self, manifest: Path, plugin_json: Path, marketplace_json: Path

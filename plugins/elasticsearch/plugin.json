@@ -1,0 +1,23 @@
+{
+  "version": "0.6.0",
+  "name": "elasticsearch",
+  "description": "Elasticsearch skills for GitHub Copilot — translate natural language to ES|QL, ingest data, manage security (authn, authz, audit), and troubleshoot clusters.",
+  "author": {
+    "name": "Elastic",
+    "url": "https://www.elastic.co"
+  },
+  "repository": "https://github.com/elastic/agent-skills",
+  "homepage": "https://github.com/elastic/agent-skills/tree/main/plugins/elasticsearch",
+  "license": "Apache-2.0",
+  "keywords": [
+    "elasticsearch",
+    "esql",
+    "search",
+    "ingest",
+    "security",
+    "elastic"
+  ],
+  "skills": [
+    "skills/"
+  ]
+}

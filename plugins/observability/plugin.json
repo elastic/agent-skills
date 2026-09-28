@@ -1,0 +1,23 @@
+{
+  "version": "0.6.0",
+  "name": "observability",
+  "description": "Elastic Observability skills - OpenTelemetry instrumentation and migration (.NET, Java, Python), LLM observability, log search, SLOs, and service health",
+  "author": {
+    "name": "Elastic",
+    "url": "https://www.elastic.co"
+  },
+  "repository": "https://github.com/elastic/agent-skills",
+  "homepage": "https://github.com/elastic/agent-skills/tree/main/plugins/observability",
+  "license": "Apache-2.0",
+  "keywords": [
+    "observability",
+    "opentelemetry",
+    "apm",
+    "logs",
+    "slo",
+    "elastic"
+  ],
+  "skills": [
+    "skills/"
+  ]
+}

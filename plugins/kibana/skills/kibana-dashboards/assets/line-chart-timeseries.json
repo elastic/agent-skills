@@ -3,7 +3,7 @@
   "type": "xy",
   "axis": {
     "x": { "title": { "visible": false }, "scale": "temporal", "domain": { "type": "fit", "rounding": false } },
-    "y": { "anchor": "start", "title": { "visible": false } }
+    "y": { "title": { "visible": false } }
   },
   "layers": [
     {
