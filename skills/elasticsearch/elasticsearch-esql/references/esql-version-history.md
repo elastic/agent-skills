@@ -70,7 +70,7 @@ determine compatibility when writing queries for specific Elasticsearch deployme
 | `FORK`              | 8.19/9.1   | 9.4      | Multiple execution branches                                      |
 | `FUSE`              | 9.2        | Preview  | Combine results from FORK branches                               |
 | `TS`                | 9.2        | 9.4      | Time series source command (GA in 9.4)                           |
-| `PROMQL`            | 9.4        | Preview  | Source command using PromQL syntax on TSDS                       |
+| `PROMQL`            | 9.4        | 9.5      | Source command using PromQL syntax on TSDS                       |
 | `METRICS_INFO`      | 9.4        | 9.4      | TSDS metric catalogue (after `TS`)                               |
 | `TS_INFO`           | 9.4        | 9.4      | Per-(metric, time series) metadata (after `TS`)                  |
 | `RERANK`            | 9.2        | 9.4      | Re-score results with inference (GA in 9.4)                      |
@@ -458,7 +458,9 @@ Use `INLINE STATS` (9.2+) for per-row vs. aggregate comparison patterns.
   [query-approximation.md](query-approximation.md)
 - Use `SET unmapped_fields = "load"` to query fields missing from some indices without errors
 - Use `FIRST`/`LAST` (or `EARLIEST`/`LATEST`) instead of `SORT` + `LIMIT 1` for grouped first/last-value queries
-- Use `PROMQL` when porting Prometheus dashboards/alerts; otherwise prefer `TS` for native ES|QL
+- Use `PROMQL` when porting Prometheus dashboards/alerts; otherwise prefer `TS` for native ES|QL (preview in 9.4, GA in
+  9.5+ and Serverless; supported PromQL functions/operators vary by version — see
+  [promql-command.md](promql-command.md))
 
 ### Serverless (latest)
 
