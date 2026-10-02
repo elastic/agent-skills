@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.0
+
+### New Skills
+
+- `skills/kibana/kibana-cases` (v0.2.0)
+- `skills/observability/csp-investigation` (v0.2.0)
+- `skills/security/ml-integrations` (v0.1.0)
+
+### Updated Skills
+
+- `skills/elasticsearch/elasticsearch-esql` (v0.7.0 → v0.8.0)
+- `skills/elasticsearch/elasticsearch-ingest` (v0.1.0 → v0.1.3)
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.1.0 → v0.3.0)
+- `skills/kibana/kibana-dashboards` (v0.3.0 → v0.4.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.6.0
 
 ### New Skills

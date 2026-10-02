@@ -4,9 +4,10 @@ Query time series indices using **Prometheus Query Language (PromQL)** as a sour
 command is the bridge for users who already know PromQL or are migrating Prometheus dashboards and alerts onto an
 Elasticsearch backend, while still letting them post-process results with regular ES|QL pipes.
 
-> **Version:** `PROMQL` is a **preview** feature available since Elastic Stack **9.4** and on Elastic Cloud Serverless.
-> Treat it as preview — syntax, options, and supported PromQL functions may change in future releases. See
-> [esql-version-history.md](esql-version-history.md) for version availability.
+> **Version:** `PROMQL` is **GA** on Elastic Cloud Serverless and Elastic Stack **9.5+**, and a **preview** feature in
+> **9.4**. The supported PromQL surface (functions, operators) differs between versions — see
+> [Supported PromQL](#supported-promql). See [esql-version-history.md](esql-version-history.md) for version
+> availability.
 
 ## Table of Contents
 
@@ -18,7 +19,7 @@ Elasticsearch backend, while still letting them post-process results with regula
 - [Examples](#examples)
 - [Post-Processing with ES|QL](#post-processing-with-esql)
 - [PROMQL vs TS](#promql-vs-ts)
-- [Limitations](#limitations)
+- [Supported PromQL](#supported-promql)
 - [Kibana Time Filtering](#kibana-time-filtering)
 - [Guidelines](#guidelines)
 - [References](#references)
@@ -30,8 +31,7 @@ Elasticsearch backend, while still letting them post-process results with regula
 Prefer `PROMQL` when **any** of the following apply:
 
 - The user explicitly asks for a PromQL query, references Prometheus syntax (`sum by (instance) (...)`, label matchers
-  like `{cluster="prod"}`, etc), or is migrating a Prometheus dashboard or alert. If the user explicitly requests for
-  PromQL but the query is not supported yet (check [Limitations](#limitations) below), state the issue.
+  like `{cluster="prod"}`, etc), or is migrating a Prometheus dashboard or alert.
 - Compatibility with Prometheus tooling is required (Grafana panels, alerting rules, scripts that already speak PromQL).
 
 Prefer the [`TS` command](time-series-queries.md) when:
@@ -51,26 +51,34 @@ Prefer the [`TS` command](time-series-queries.md) when:
 PROMQL [ <option> ... ] [ <result_name> = ] ( <PromQL expression> )
 ```
 
-- Zero or more space-separated `key=value` options.
-- A PromQL expression, optionally wrapped in parentheses and assigned a `<result_name>`.
+- Zero or more `key=value` options, separated by spaces or newlines.
+- A PromQL expression, optionally assigned a `<result_name>`. When named, the parentheses are **required**
+  (`r=(sum(x))`; `r=sum(x)` fails with `Unknown parameter [r]`).
 - The expression follows standard
   [Prometheus query language](https://prometheus.io/docs/prometheus/latest/querying/basics/) syntax (label matchers,
-  range selectors, aggregations, binary operations) within the [Limitations](#limitations) below.
+  range selectors, aggregations, binary operations). This skill does not re-document PromQL itself — write it as you
+  would for Prometheus, within the [Supported PromQL](#supported-promql) surface.
 
-### Minimal example
+Examples without `step`, `start`, or `end` are written for Kibana, where the date picker supplies the time range. For
+direct `POST /_query` calls, add `step` or `start`/`end` (see [Options](#options)) — otherwise the query fails.
+
+### Named result (recommended)
+
+```esql
+PROMQL http_rate=(sum by (instance) (rate(http_requests_total)))
+```
+
+The `<result_name>` is optional, but **always set one**. Without it, the metric column is named after the full PromQL
+expression text (e.g. `sum by (instance) (rate(http_requests_total))`), which is long, brittle, and awkward to reference
+in downstream `STATS`, `EVAL`, `SORT`, or `WHERE`. With a name, the column is simply `http_rate`.
+
+### Unnamed result
 
 ```esql
 PROMQL sum by (instance) (rate(http_requests_total))
 ```
 
-### Named result
-
-```esql
-PROMQL http_rate = (sum by (instance) (rate(http_requests_total)))
-```
-
-When a `<result_name>` is provided, the metric column is named `<result_name>` instead of the raw PromQL expression. In
-the example above, the column would be named `http_rate`.
+Valid, but only use this for one-off exploration where the output is not post-processed.
 
 ---
 
@@ -79,21 +87,30 @@ the example above, the column would be named `http_rate`.
 The options mirror the Prometheus [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries)
 with ES|QL-specific additions.
 
-| Option            | Default     | Description                                                                                                           |
-| ----------------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
-| `index`           | `metrics-*` | Indices, data streams, or aliases. Supports wildcards and date math.                                                  |
-| `step`            | inferred    | Query resolution step width. Auto-derived from `buckets` and the time range when omitted.                             |
-| `buckets`         | `100`       | Target bucket count for auto-step derivation. Mutually exclusive with `step`. Requires a known time range.            |
-| `start`           | inferred    | Inclusive start of the time range. Falls back to Kibana's date picker, or unrestricted if missing.                    |
-| `end`             | inferred    | Inclusive end of the time range. Falls back to Kibana's date picker, or unrestricted if missing.                      |
-| `scrape_interval` | `1m`        | Expected metric collection interval. Used as the implicit range selector window: `max(step, scrape_interval)`.        |
-| `<result_name>=`  | _none_      | Optional name for the metric output column. Defaults to the PromQL expression text. Wrap the expression in `( ... )`. |
+| Option            | Default     | Description                                                                                                                                   |
+| ----------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index`           | `metrics-*` | Indices, data streams, or aliases. Comma-separated lists and wildcards are supported.                                                         |
+| `step`            | inferred    | Query resolution step width. Auto-derived from `buckets` and the time range when omitted.                                                     |
+| `buckets`         | `100`       | Target bucket count for auto-step derivation. Mutually exclusive with `step`. Requires a time range (`start`/`end`, or Kibana's date picker). |
+| `start`           | inferred    | Inclusive start of the time range. Falls back to Kibana's date picker, or unrestricted if missing.                                            |
+| `end`             | inferred    | Inclusive end of the time range. Falls back to Kibana's date picker, or unrestricted if missing.                                              |
+| `scrape_interval` | `1m`        | Expected metric collection interval. Used as the implicit range selector window: `max(step, scrape_interval)`.                                |
 
-**Time format for `start` / `end`:** ISO-8601 strings (e.g., `"2026-04-01T00:00:00Z"`). The same formats accepted by
-`TRANGE` work here.
+**`step` or a time range is required.** Provide either `step`, or both `start` and `end` (with the optional `buckets`).
+Otherwise the query fails with
+`unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]`. In Kibana, the date picker
+supplies `start`/`end`; for direct `POST /_query` calls you must set them (or `step`, which leaves the time range
+unrestricted).
 
-**`step` vs `buckets`:** Pass exactly one. `step` fixes the resolution (`step=5m`); `buckets` lets the engine pick a
-step that produces around N buckets across the time range (`buckets=50`).
+**Time format for `start` / `end`:** as in the Prometheus HTTP API, either a full ISO-8601 / RFC 3339 timestamp with a
+time zone as a quoted string (`"2026-04-01T00:00:00Z"`) or a Unix timestamp in **seconds**, optionally fractional
+(`1775001600`). Epoch **milliseconds** are misread as seconds and fail. Date-only strings, timestamps without a zone,
+`NOW()` expressions, and date math like `"now-1h"` are rejected — compute absolute timestamps for relative ranges. Query
+parameters also work (`start=?_tstart end=?_tend` with `"params": [{"_tstart": "..."}, {"_tend": "..."}]`).
+
+**`step` vs `buckets`:** Pass at most one — combining them fails with
+`Parameters [step] and [buckets] are mutually exclusive`. `step` fixes the resolution (`step=5m`); `buckets` lets the
+engine pick a step that produces around N buckets across the time range (`buckets=50`).
 
 ---
 
@@ -101,16 +118,23 @@ step that produces around N buckets across the time range (`buckets=50`).
 
 The result table has these columns:
 
-| Column                                                  | Type      | Description                                                     |
-| ------------------------------------------------------- | --------- | --------------------------------------------------------------- |
-| The PromQL expression (or `<result_name>` if specified) | `double`  | The computed metric value                                       |
-| `step`                                                  | `date`    | Timestamp for each evaluation step                              |
-| Grouping labels (when `by (...)` or `without (...)`)    | `keyword` | One column per grouping label                                   |
-| `_timeseries`                                           | `keyword` | JSON-encoded labels when there is no `by`/`without` aggregation |
+| Column                                                     | Type      | Description                                                    |
+| ---------------------------------------------------------- | --------- | -------------------------------------------------------------- |
+| `<result_name>` (or the PromQL expression text if unnamed) | `double`  | The computed metric value                                      |
+| `step`                                                     | `date`    | Timestamp for each evaluation step                             |
+| Grouping labels (when `by (...)`)                          | `keyword` | One column per grouping label                                  |
+| `_timeseries`                                              | `keyword` | JSON-encoded labels of each series when there is no `by (...)` |
 
-When the PromQL expression includes a cross-series aggregation like `sum by (instance) (...)`, each grouping label
-becomes its own column (`instance:keyword`). Without a cross-series aggregation, all labels collapse into a single
-`_timeseries` column as a JSON string.
+When the PromQL expression includes a `by` aggregation like `sum by (instance) (...)`, each grouping label becomes its
+own column (`instance:keyword`; dotted labels keep their name, e.g. `host.name`). In all other cases — no cross-series
+aggregation, `without (...)`, or functions like `topk` that keep series identity — the labels of each series collapse
+into a single `_timeseries` column as a JSON string, with dotted labels nested
+(`{"cluster":"prod","host":{"name":"web-01"}}`). To filter, group, or join on a label downstream, aggregate with
+`by (label)` so it becomes a real column.
+
+Rows are **not** returned in time order. When presenting results as a table (e.g. answering a question directly), add
+`| SORT step` (or `SORT step DESC`). Don't sort for Kibana visualizations — charts order by the `step` axis themselves,
+so a `SORT` only adds work.
 
 ---
 
@@ -120,7 +144,7 @@ Standard PromQL requires range vector functions to specify a range selector: `ra
 `PROMQL` command **allows omitting the range selector** entirely:
 
 ```esql
-PROMQL scrape_interval=15s sum(rate(http_requests_total))
+PROMQL scrape_interval=15s req_rate=(sum(rate(http_requests_total)))
 ```
 
 When the range selector is absent, the window is computed automatically as `max(step, scrape_interval)`. This is
@@ -138,7 +162,7 @@ You can still pass an explicit range selector when you need a fixed window: `rat
 Let Kibana's date picker drive the time range, and let `step` and the range selector be inferred:
 
 ```esql
-PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+PROMQL index=metrics-* http_rate=(sum by (instance) (rate(http_requests_total)))
 ```
 
 The query responds to the date picker, adjusts the step size to the selected range, and sizes the implicit range
@@ -147,39 +171,39 @@ selector window accordingly. This is the recommended pattern for dashboard panel
 ### Range query with explicit parameters
 
 ```esql
-PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" cost=(
   sum(avg_over_time(network.cost[5m]))
 )
 ```
 
-| sum(avg_over_time(network.cost[5m])):double | step:date                |
-| ------------------------------------------- | ------------------------ |
-| 50.25                                       | 2024-05-10T00:20:00.000Z |
+| cost:double | step:date                |
+| ----------- | ------------------------ |
+| 50.25       | 2024-05-10T00:20:00.000Z |
 
 ### Cross-series aggregation by label
 
 ```esql
-PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost))
-| SORT result
+PROMQL index=k8s step=1h cost=(sum by (cluster) (network.cost))
+| SORT cost
 ```
 
-| result:double | step:datetime            | cluster:keyword |
-| ------------- | ------------------------ | --------------- |
-| 15.875        | 2024-05-10T00:00:00.000Z | staging         |
-| 18.625        | 2024-05-10T00:00:00.000Z | prod            |
-| 26.5          | 2024-05-10T00:00:00.000Z | qa              |
+| cost:double | step:date                | cluster:keyword |
+| ----------- | ------------------------ | --------------- |
+| 15.875      | 2024-05-10T00:00:00.000Z | staging         |
+| 18.625      | 2024-05-10T00:00:00.000Z | prod            |
+| 26.5        | 2024-05-10T00:00:00.000Z | qa              |
 
-### Label filtering with named result
+### Label filtering
 
 ```esql
-PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
+PROMQL index=k8s step=1h bytes_in=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
 | SORT cluster
 ```
 
-| cost:double | step:datetime            | cluster:keyword |
-| ----------- | ------------------------ | --------------- |
-| 10797.0     | 2024-05-10T00:00:00.000Z | qa              |
-| 7403.0      | 2024-05-10T00:00:00.000Z | staging         |
+| bytes_in:double | step:date                | cluster:keyword |
+| --------------- | ------------------------ | --------------- |
+| 10797.0         | 2024-05-10T00:00:00.000Z | qa              |
+| 7403.0          | 2024-05-10T00:00:00.000Z | staging         |
 
 ### Ad-hoc query with inferred step
 
@@ -190,7 +214,7 @@ the time range and the default `buckets` value:
 PROMQL index=metrics-*
   start="2026-04-01T00:00:00Z"
   end="2026-04-01T01:00:00Z"
-  sum by (instance) (rate(http_requests_total))
+  http_rate=(sum by (instance) (rate(http_requests_total)))
 ```
 
 ### Bucket count instead of fixed step
@@ -200,7 +224,7 @@ PROMQL index=metrics-*
   buckets=50
   start="2026-04-01T00:00:00Z"
   end="2026-04-01T01:00:00Z"
-  sum(rate(http_requests_total))
+  req_rate=(sum(rate(http_requests_total)))
 ```
 
 ---
@@ -208,7 +232,7 @@ PROMQL index=metrics-*
 ## Post-Processing with ES|QL
 
 Because `PROMQL` is a source command, its output flows into the rest of the pipeline. Use ES|QL commands after the
-PROMQL stage for further aggregation, filtering, ordering, and enrichment:
+PROMQL stage for further aggregation, filtering, ordering, and enrichment. Reference the metric by its `<result_name>`:
 
 ```esql
 PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
@@ -232,6 +256,8 @@ PROMQL index=metrics-*
 | LOOKUP JOIN instance_metadata ON instance
 ```
 
+The join key must be a `by (...)` label — labels inside `_timeseries` are not addressable as columns.
+
 This pattern combines PromQL's expressiveness for time series math with ES|QL's strengths for joining external metadata,
 filtering, and shaping output.
 
@@ -249,31 +275,39 @@ filtering, and shaping output.
 | Counter aggregation | `sum(rate(metric))`                         | `STATS SUM(RATE(metric)) BY TBUCKET(...)`          |
 | Gauge aggregation   | `avg_over_time(metric[5m])`                 | `STATS AVG(AVG_OVER_TIME(metric)) BY TBUCKET(...)` |
 | Label filtering     | `metric{cluster="prod"}`                    | `WHERE cluster == "prod"`                          |
-| Available since     | 9.4 (preview)                               | 9.2 (preview)                                      |
+| Availability        | 9.4 (preview), GA in 9.5                    | 9.2 (preview), GA in 9.4                           |
 
 Both commands target TSDS indices and can be followed by the same set of ES|QL processing commands (`WHERE`, `EVAL`,
 `STATS`, `SORT`, `LIMIT`, `LOOKUP JOIN`, etc.).
 
 ---
 
-## Limitations
+## Supported PromQL
 
-In 9.4 preview, `PROMQL` has the following limitations:
+Elasticsearch does not yet implement every PromQL function, operator, and vector-matching modifier, and coverage grows
+with each release (and continuously on Serverless). **Do not rely on a memorized list of what is or isn't supported.**
+Instead:
 
-- **Group modifiers are not supported.** Constructs like `on(chip) group_left(chip_name)` will fail. Use `LOOKUP JOIN`
-  in ES|QL after the PROMQL stage to attach extra labels.
-- **Set operators are not supported.** `or`, `and`, and `unless` between PromQL expressions are unavailable. Express set
-  logic in ES|QL after the PROMQL stage instead.
-- **Some PromQL functions are unavailable.** Notably `histogram_quantile`, `predict_linear`, and `label_join` are not
-  supported. Use `TS` with `PERCENTILE_OVER_TIME` for percentile-style metrics, or compute equivalents in ES|QL.
+1. **Write the query in standard PromQL** as you would for Prometheus.
+2. **Run it.** Unsupported constructs are rejected with a `400` `verification_exception` that names the construct — for
+   example `Function [predict_linear] is not yet implemented`, `set operator [and] is not supported at this time`, or
+   `Unknown PromQL function [...]`.
+3. **On such an error**, check the current reference for the construct, noting per-version availability against the
+   cluster version:
+   - [PromQL functions](https://www.elastic.co/docs/reference/query-languages/promql/functions)
+   - [PromQL operators](https://www.elastic.co/docs/reference/query-languages/promql/operators)
+4. **Tell the user** which construct is not supported on their deployment, rather than silently rewriting the query into
+   something with different semantics.
+
+Behavioral differences from Prometheus that apply regardless of version:
+
 - **Time bucket alignment differs.** Buckets align to fixed calendar boundaries rather than the query start time. This
   can cause slight differences from native Prometheus, especially for short ranges or large step sizes.
 - **Index defaults to `metrics-*`.** If your TSDS data lives elsewhere, always set `index` explicitly to avoid scanning
   unrelated indices.
-- **Preview status.** Behavior, supported PromQL surface, and option names may evolve before GA.
-
-When a question requires a feature in this list, fall back to the [`TS` command](time-series-queries.md) and express the
-equivalent computation in ES|QL.
+- **Unknown metric or label names are not errors.** As in Prometheus, a selector that matches nothing returns an empty
+  result. If a query returns no rows, verify the metric names first (e.g. `TS <index> | METRICS_INFO`, see
+  [time-series-queries.md](time-series-queries.md#metric-and-time-series-discovery)) rather than assuming no data.
 
 ---
 
@@ -285,27 +319,31 @@ explicitly overrides the date picker.
 
 ```esql
 // Kibana — let the date picker drive start/end and step
-PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+PROMQL index=metrics-* http_rate=(sum by (instance) (rate(http_requests_total)))
 ```
 
-For ad-hoc queries outside Kibana (direct `POST /_query`), set `start` and `end` explicitly.
+For ad-hoc queries outside Kibana (direct `POST /_query`), set `start` and `end` explicitly — without them (and without
+`step`) the query fails.
 
 ---
 
 ## Guidelines
 
 - **Prefer `PROMQL` only when the user explicitly thinks in PromQL** or is porting a Prometheus query/dashboard.
-  Otherwise, prefer `TS` — it integrates more naturally with the rest of ES|QL and is GA in 9.4.
+  Otherwise, prefer `TS` — it integrates more naturally with the rest of ES|QL.
+- **Always name the result** (`http_rate=(...)`). The default column name is the full expression text, which is hard to
+  reference in downstream ES|QL commands.
 - **Always set `index`** in production queries instead of relying on the `metrics-*` default — narrower patterns reduce
   scan volume and prevent accidental matches against unrelated indices.
-- **Use named results** (`http_rate=(...)`) when chaining further ES|QL commands. Named columns are easier to reference
-  than the raw PromQL expression text.
 - **Omit range selectors for adaptive dashboards.** Implicit range selectors (`rate(http_requests_total)` without
   `[5m]`) make the query scale with the date picker.
 - **Pick `step` or `buckets`, not both.** Use `buckets` when you want a target panel resolution; use `step` when you
-  need a fixed grain (e.g., to align with downstream aggregation).
-- **Fall back to `TS` for unsupported features.** Histograms (`histogram_quantile`), set logic (`or`/`and`/`unless`),
-  group modifiers, and `label_join` are not available — express the computation with ES|QL primitives instead.
+  need a fixed grain (e.g., to align with downstream aggregation). Outside Kibana, pass `start`/`end` as absolute
+  ISO-8601 timestamps or Unix epoch seconds (see [Options](#options)).
+- **`SORT step` only for tabular answers.** Output rows are unordered; sort when showing rows to the user, but skip it
+  for Kibana visualizations.
+- **Treat unsupported-construct errors as a lookup trigger**, not a guess trigger — see
+  [Supported PromQL](#supported-promql).
 - **Do not mix `WHERE @timestamp` filters with `start`/`end`.** Time filtering belongs in the PROMQL options or via
   Kibana's date picker; standard ES|QL `WHERE` clauses run _after_ the PromQL stage and don't bound the metric scan.
 
@@ -315,6 +353,12 @@ For ad-hoc queries outside Kibana (direct `POST /_query`), set `start` and `end`
 
 - [ES|QL PROMQL command](https://www.elastic.co/docs/reference/query-languages/esql/commands/promql) — official
   documentation
+- [PromQL in Elasticsearch](https://www.elastic.co/docs/reference/query-languages/promql) — overview, differences from
+  Prometheus
+- [PromQL functions](https://www.elastic.co/docs/reference/query-languages/promql/functions) — supported functions and
+  per-version availability
+- [PromQL operators](https://www.elastic.co/docs/reference/query-languages/promql/operators) — supported operators and
+  vector-matching modifiers
 - [Prometheus Query Language](https://prometheus.io/docs/prometheus/latest/querying/basics/) — PromQL fundamentals
 - [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) — origin of the option
   semantics

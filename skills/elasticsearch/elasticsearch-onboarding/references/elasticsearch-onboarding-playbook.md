@@ -41,14 +41,25 @@ user until they say they are ready to proceed with a sample project or use case.
 
 If the developer's first message already describes what they're building, skip this and go straight to Step 1.
 
+**Do not open with connection or tooling setup — unless they asked.** Even if the cluster connection is missing or
+misconfigured, an unprompted first turn is about what the developer wants to build; don't report connection state,
+credentials, or config files unasked. Mention them only once a read you actually need has failed, in a single sentence
+attached to the question you were already asking.
+
+The exception is a direct request. If the developer asks how to connect their IDE, editor, or chat client — "how do I
+connect my IDE", "how do I set up the MCP" — that request _is_ the task. Load the appendix in
+[cluster-access](cluster-access/cluster-access.md) and walk them through it concretely, then ask the use-case question
+at the end. Answering a setup question with only a discovery question is a failure.
+
 ## Cluster Access: Read vs. Write
 
-Cluster interaction follows a **read/write separation**. Load the [mcp-setup](mcp-setup/mcp-setup.md) reference for
-setup instructions and the full protocol.
+Cluster interaction follows a **read/write separation**. Load the [cluster-access](cluster-access/cluster-access.md)
+reference for the full protocol.
 
-**Reads are automatic.** Use the Elasticsearch MCP server to proactively inspect the cluster — detect version, list
-indices, read mappings, check data, validate resources. Do this instead of asking the developer to describe things you
-can check yourself. If MCP is not connected, offer to set it up early or fall back to generating curl/script commands.
+**Reads are automatic.** Proactively inspect the cluster — detect the version with `GET /`, list indices with
+`GET /_cat/indices`, read mappings with `GET /{index}/_mapping`, check volume with `GET /{index}/_count`, and validate
+results with `POST /{index}/_search`. Do this instead of asking the developer to describe things you can check yourself.
+If a read fails, name what you could not determine rather than guessing.
 
 **Writes require confirmation.** When you need to create or modify something (index, mapping, pipeline, synonym set),
 show the developer the exact API call you plan to make and ask for approval. Also offer to produce the equivalent as a
@@ -122,21 +133,21 @@ data source pointers.
 
 **Second: Where does your data live today?** This determines the ingestion approach:
 
-| Data Source                     | Ingestion                                               |
-| ------------------------------- | ------------------------------------------------------- |
-| **CSV/JSON files (small)**      | Kibana file upload (no code)                            |
-| **CSV/JSON files (large)**      | Bulk API script                                         |
-| **REST API**                    | Pull + bulk-index script                                |
-| **Database (Postgres, MySQL…)** | DB client + bulk API script                             |
-| **Already in Elasticsearch**    | May not need ingestion - inspect via MCP or curl        |
-| **Another ES index**            | Reindex API                                             |
-| **Documents (PDF, Word, HTML)** | Extract text, chunk into passages, bulk index           |
-| **Streaming (Kafka, webhooks)** | Data streams + ingest pipeline, or Elastic Agent / OTel |
-| **Not sure yet**                | Start with sample data                                  |
+| Data Source                     | Ingestion                                                     |
+| ------------------------------- | ------------------------------------------------------------- |
+| **CSV/JSON files (small)**      | Kibana file upload (no code)                                  |
+| **CSV/JSON files (large)**      | Bulk API script                                               |
+| **REST API**                    | Pull + bulk-index script                                      |
+| **Database (Postgres, MySQL…)** | DB client + bulk API script                                   |
+| **Already in Elasticsearch**    | May not need ingestion - inspect with `GET /{index}/_mapping` |
+| **Another ES index**            | Reindex API                                                   |
+| **Documents (PDF, Word, HTML)** | Extract text, chunk into passages, bulk index                 |
+| **Streaming (Kafka, webhooks)** | Data streams + ingest pipeline, or Elastic Agent / OTel       |
+| **Not sure yet**                | Start with sample data                                        |
 
 Match ingestion to the data source. If they have real data ready, generate code that connects to it directly. If data is
-already in Elasticsearch, use MCP to inspect their existing indices and mappings directly — don't ask them to describe
-what you can read.
+already in Elasticsearch, inspect their existing indices and mappings directly with `GET /_cat/indices` and
+`GET /{index}/_mapping` — don't ask them to describe what you can read.
 
 **Third: What language?** Generate all code in their language using the official Elasticsearch client. Don't assume
 Python.
@@ -148,10 +159,10 @@ Use what you learn to determine fields to map, embedding model needs, ingestion 
 ### Step 3: Confirm Deployment and Version
 
 Establish where Elasticsearch is running and what version, before recommending an approach or generating code. Don't
-re-ask what the conversation has already answered — the developer may have said it, or MCP may have revealed it.
+re-ask what the conversation has already answered — the developer may have said it, or a read may have revealed it.
 
-- **MCP connected** → detect automatically via `GET /` (`version.number`; `version.build_flavor` is `serverless` on
-  Serverless). Tell the developer what you found.
+- **Cluster reachable** → call `GET /` and read `version.number`. `version.build_flavor` is `serverless` on Elastic
+  Cloud Serverless. Tell the developer what you found instead of asking.
 - **Otherwise** → ask: "Where is your Elasticsearch running — Elastic Cloud Serverless, Elastic Cloud Hosted,
   self-managed, or nowhere yet?"
 
@@ -159,8 +170,8 @@ Then resolve the version by deployment type:
 
 - **Serverless** → version is always latest — skip the version question. `semantic_text` works out of the box with no
   inference endpoint setup.
-- **Cloud Hosted (ECH) or Self-Managed** → detect via MCP, or ask: "What version of Elasticsearch are you running? Find
-  it in Kibana under **Stack Management → Upgrade assistant**, or paste the output of `GET /` from **Dev Tools**."
+- **Cloud Hosted (ECH) or Self-Managed** → read it from `GET /`, or ask: "What version of Elasticsearch are you running?
+  Find it in Kibana under **Stack Management → Upgrade assistant**."
 - **No deployment yet** → recommend Elastic Cloud Serverless as the fastest path, and match the project type to the use
   case from Step 1 — **Elasticsearch** for search use cases; Observability and Security use cases route to their
   dedicated project types per Step 1. [Docs](https://www.elastic.co/docs/get-started/introduction). Treat as Serverless
@@ -235,12 +246,11 @@ Generate the complete implementation:
 
 ### Step 7: Test and Validate
 
-1. **Index documents** — Run ingestion with sample or real data. If MCP is not yet connected, offer to set it up now so
-   you can validate the results directly.
-2. **Verify the index** — Use MCP to confirm the index was created, check the document count, and inspect a sample
-   document. If MCP is not available, generate a verification curl command.
-3. **Run test queries** — Use MCP to run 2-3 example queries exercising key capabilities and show the developer the
-   results. If MCP is not available, generate the queries as code or curl commands for them to run.
+1. **Index documents** — Run ingestion with sample or real data via `POST /_bulk`, after confirming with the developer.
+2. **Verify the index** — Confirm the index exists and the mapping landed as intended with `GET /{index}/_mapping`,
+   check the document count with `GET /{index}/_count`, and inspect a sample document with `POST /{index}/_search`.
+3. **Run test queries** — Run 2-3 example queries with `POST /{index}/_search` (or `POST /_query` for tabular output)
+   exercising key capabilities, and show the developer the actual results.
 4. **Check relevance** — Briefly explain ranking (e.g., "ranked first due to `name` field 3x boost").
 5. **Suggest next steps** — Adjusting boosts, adding synonyms, testing edge cases, or exploring Agent Builder (point to
    the **kibana-agent-builder** skill if relevant).
@@ -272,8 +282,8 @@ alias swap is seamless.
 
 ## Documentation
 
-To best help the user with accurate information, ensure the Elastic Docs MCP server is set up and accessible. See the
-[mcp-setup](mcp-setup/mcp-setup.md) reference file for setup instructions.
+Accurate answers depend on reading current documentation rather than recalling it. See
+[cluster-access](cluster-access/cluster-access.md#documentation-lookup) for how to look docs up in this runtime.
 
 Here are some key entry points for search that you can leverage immediately for a proactive response if they relate to
 the user's needs.
@@ -286,10 +296,9 @@ the user's needs.
 
 ## Verify Before Recommending
 
-**Before recommending models, inference endpoints, or field types, check the latest Elastic docs via the Docs MCP.** The
-reference files contain durable knowledge (patterns, architecture, tradeoffs). Volatile details (model IDs, inference
-setup) must be verified. For code generation specifics, see the [code-generation](code-generation/code-generation.md)
-reference.
+**Before recommending models, inference endpoints, or field types, check the latest Elastic docs.** The reference files
+contain durable knowledge (patterns, architecture, tradeoffs). Volatile details (model IDs, inference setup) must be
+verified. For code generation specifics, see the [code-generation](code-generation/code-generation.md) reference.
 
 Check docs before recommending:
 
@@ -309,7 +318,7 @@ Load the relevant reference when the developer's intent matches. Do not load ref
 For all Elasticsearch code generation, load the [code-generation](code-generation/code-generation.md) reference. Key
 principles:
 
-- Verify API syntax against the developer's cluster version via the Docs MCP before generating
+- Verify API syntax against the developer's cluster version in the documentation before generating
 - Use the official Elasticsearch client for the developer's language — don't assume Python
 - Show the API pattern (language-agnostic), then the language-specific implementation
 - Follow the write confirmation protocol — show the exact call, get approval
