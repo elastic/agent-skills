@@ -1,14 +1,14 @@
 ---
 name: elasticsearch-ingest
 description: >
-  Load CSV and JSON files into Elasticsearch indices using the bulk API and explicit
-  mappings when field types matter. Use when batch-importing local files, converting
-  CSV rows or JSON arrays to NDJSON bulk format, or verifying document counts and
-  mappings after ingest — not for Logstash pipelines, Beats, custom scripts, or index-to-index
-  reindex.
+  Load CSV, JSON, and NDJSON files into Elasticsearch indices using the bulk API and
+  explicit mappings when field types matter. Use when batch-importing local files,
+  converting CSV rows or JSON arrays to NDJSON bulk format, confirming cluster connectivity
+  with elastic es info before ingest, or verifying document counts and mappings after
+  ingest — not for Logstash pipelines, Beats, custom scripts, or index-to-index reindex.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.1.3
   universal: true
 compatibility: Elasticsearch 8.x or 9.x, self-managed, Elastic Cloud Hosted, or Elastic
   Cloud Serverless; uses the bulk API available on all deployment types. Requires
@@ -43,18 +43,18 @@ reindex instead of re-parsing source files.
 
 Supported source shapes:
 
-| Source shape        | Example                          | Bulk requirement                                                                   |
-| ------------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
-| CSV with header row | `id,name,age,...` then data rows | Parse header into field names; emit one action line + one JSON object per data row |
-| JSON array file     | `[{"a":1},{"a":2}]`              | Split into per-document lines — never bulk-load the raw array as a single document |
-| NDJSON / JSON Lines | one JSON object per line         | Optionally add action lines if missing; otherwise ready for bulk                   |
+| Source shape        | Example                          | Bulk requirement                                                                                            |
+| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| CSV with header row | `id,name,age,...` then data rows | Parse header into field names; emit one action line + one JSON object per data row                          |
+| JSON array file     | `[{"a":1},{"a":2}]`              | Split into per-document lines — never bulk-load the raw array as a single document                          |
+| NDJSON / JSON Lines | one JSON object per line         | If action and document lines already alternate, pass as-is to `POST /_bulk`; otherwise prepend action lines |
 
 Parquet, Arrow, and other binary columnar formats are out of scope unless the user converts them to CSV or JSON first.
 
 ## Process
 
-1. **Confirm connectivity.** Call `GET /`. If the call fails, stop and resolve CLI configuration before reading files or
-   mutating cluster state.
+1. **Confirm connectivity.** Call `GET /` first. Do not start with `_cat/indices`, file inspection, or bulk. If `GET /`
+   fails, stop and resolve CLI configuration before reading files or mutating cluster state.
 
 2. **Inspect the source file and classify its shape.** Open the file (or sample the first lines) and decide:
    - **CSV** — first line is a comma-separated header; subsequent lines are records. Count data rows (exclude the
@@ -81,7 +81,9 @@ Parquet, Arrow, and other binary columnar formats are out of scope unless the us
    suffice — but prefer explicit mappings for CSV unless the user explicitly accepts all-string typing.
 
    Read [Mapping Design for Ingest](references/mapping-design.md) for type choices. When the index exists with wrong
-   types, ask the user before calling `DELETE /{index}` and recreating it.
+   types, do not delete it in the same turn. Ask the user to confirm before calling `DELETE /{index}` and recreating it.
+   A wrong mapping is not permission to delete. If asked whether to delete "right now", the answer is no until they
+   explicitly confirm.
 
 5. **Create the index when needed.** When step 4 requires explicit types (or the index does not exist), call
    `PUT /{index}` with a `mappings` block **before** bulk loading. Do not rely on dynamic mapping to infer `long`,
@@ -112,9 +114,15 @@ Parquet, Arrow, and other binary columnar formats are out of scope unless the us
 
 ## Guidelines
 
+- **Connectivity first.** Confirm the cluster is reachable with `GET /` before anything else.
 - **Bulk only.** All file loads go through `POST /_bulk` with NDJSON action lines — not single-document `PUT` loops for
   batch files, not ingest pipelines as a substitute for client-side CSV parsing, and not posting the untouched source
   file.
+- **Pre-formed bulk NDJSON is ready.** When the file already alternates action lines and document lines, pass it as-is
+  to `POST /_bulk` — do not add more action lines.
+- **Do not delete without confirmation.** Elasticsearch cannot change field types in place. If the target index exists
+  with the wrong mapping, ask the user to confirm before `DELETE /{index}`. If asked whether to delete "right now", the
+  answer is no until they explicitly confirm.
 - **JSON arrays must be split.** A four-element array bulk-loaded as one document yields count `1`; the correct load
   yields count `4`.
 - **CSV header is schema.** The first CSV row names fields; each remaining row is one document. A file with one header
@@ -128,6 +136,14 @@ Parquet, Arrow, and other binary columnar formats are out of scope unless the us
   `index` actions append new documents unless `_id` is specified.
 
 ## Examples
+
+### Confirm connectivity first
+
+```http
+GET /
+```
+
+Run this before reading files or calling `POST /_bulk`.
 
 ### CSV with typed columns
 
@@ -159,8 +175,8 @@ returns `4`. See [NDJSON Bulk Format](references/ndjson-bulk-format.md#json-arra
 
 ### NDJSON already prepared
 
-When the file alternates action lines and document lines, validate the format and pass it directly to `POST /_bulk`
-after confirming the target index and mappings.
+When the file already alternates action lines and document lines, it is ready as-is. Pass it directly to `POST /_bulk`
+without adding more action lines, after confirming the target index and mappings.
 
 ## When Not to Use
 
