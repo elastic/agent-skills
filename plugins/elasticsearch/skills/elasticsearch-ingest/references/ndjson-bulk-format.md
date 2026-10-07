@@ -103,7 +103,8 @@ Array length equals expected document count. Four objects → four bulk pairs �
 When the file already contains one JSON object per line (JSON Lines):
 
 - If lines are **documents only**, prepend an `{"index":{...}}` line before each document.
-- If lines **alternate** action and source, validate the pattern and use the file directly.
+- If lines **alternate** action and source, the file is ready as-is — pass it directly to `POST /_bulk` without adding
+  more action lines.
 
 ## Batch sizing
 

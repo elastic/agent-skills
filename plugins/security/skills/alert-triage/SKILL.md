@@ -1,284 +1,293 @@
 ---
 name: security-alert-triage
 description: >
-  Triage Elastic Security alerts — gather context, classify threats, create cases,
-  and acknowledge. Use when triaging alerts, performing SOC analysis, or investigating
-  detections.
-compatibility: >
-  Requires Node.js 22+, network access to Elasticsearch. Environment variables: ELASTICSEARCH_URL
-  or ELASTICSEARCH_CLOUD_ID, plus ELASTICSEARCH_API_KEY or ELASTICSEARCH_USERNAME/ELASTICSEARCH_PASSWORD.
+  Prioritize and rank the Elastic Security alert queue by weighted risk — base risk
+  score, MITRE tactic boost, entity risk, and asset criticality — then cluster alerts
+  into entity groups. Use when an analyst asks what to focus on, which alerts are
+  most urgent, or wants a ranked starting point across the queue before deeper investigation
+  begins.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.2.0
+  universal: true
+compatibility: 'Kibana 8.x or 9.x with matching Elasticsearch — self-managed, Elastic
+  Cloud Hosted, or Elastic Cloud Serverless. Read-only: no alerts are acknowledged,
+  updated, or moved during this skill. Entity Analytics enrichment is optional and
+  degrades cleanly when the Risk Engine or asset criticality data is unavailable.
+  Requires the `elastic` CLI with `es` support.'
 ---
 
 # Alert Triage
 
-Analyze Elastic Security alerts one at a time: gather context, classify, create a case, and acknowledge. This skill
-depends on the `case-management` skill for case creation.
+Prioritize the Elastic Security alert queue by weighted risk and return ranked entity groups — a starting point before
+investigation begins, not an investigation itself.
 
-## Prerequisites
+<!-- begin-partial: preamble -->
 
-Install dependencies before first use from the `skills/security` directory:
+## Environment Configuration
 
-```bash
-cd skills/security && npm install
-```
+This skill executes Elasticsearch operations through the `elastic` CLI. If the
+[`elastic` CLI](https://github.com/elastic/cli#configuration) is not installed, tell the user what it is needed for. Do
+not guess credentials, call the HTTP API directly, or attempt other workarounds.
 
-Set the required environment variables (or add them to a `.env` file in the workspace root):
+This skill references operations in HTTP-shorthand form (e.g., `GET /`, `GET /_cat/indices`, `GET /{index}/_mapping`,
+`GET /{index}/_settings/index.mode`, `POST /_query`). The [Operations](#operations) table at the end of this document
+maps each shorthand to the equivalent `elastic` CLI command — always use the CLI rather than calling the HTTP API
+directly.
 
-```bash
-export ELASTICSEARCH_URL="https://your-cluster.es.cloud.example.com:443"
-export ELASTICSEARCH_API_KEY="your-api-key"
-export KIBANA_URL="https://your-cluster.kb.cloud.example.com:443"
-export KIBANA_API_KEY="your-kibana-api-key"
-```
+<!-- end-partial: preamble -->
 
-## Quick start
+## When to use this skill
 
-All commands from workspace root. Always fetch → investigate → document → acknowledge. Call the tools directly — do not
-read the skill file or explore the workspace first.
+Use this skill when:
 
-```bash
-node skills/security/alert-triage/scripts/fetch-next-alert.js
-node skills/security/case-management/scripts/case-manager.js find --tags "agent_id:<id>"
-node skills/security/alert-triage/scripts/run-query.js --query-file query.esql --type esql
-node skills/security/case-management/scripts/case-manager.js create --title "..." --description "..." --tags "classification:..." "agent_id:<id>" --severity <level> --yes
-node skills/security/case-management/scripts/case-manager.js attach-alert --case-id <id> --alert-id <id> --alert-index <index> --rule-id <uuid> --rule-name "<name>" --yes
-node skills/security/alert-triage/scripts/acknowledge-alert.js --related --agent <id> --timestamp <ts> --window 60 --yes
-```
+- An analyst asks "what should I focus on right now?" or "which alerts are most urgent?"
+- An analyst wants to prioritize the queue for a specific time window (for example, "last 8 hours")
+- An analyst provides a set of alert IDs and asks "which of these are most important?"
+- An analyst is starting a shift and needs a ranked starting point before investigation begins
 
-## Common multi-step workflows
+Do not use this skill to investigate a single known alert — use the **security-alert-analysis** skill for that. This
+skill does not acknowledge alerts, create cases, or gather per-alert context. Those actions belong in the investigation
+phase.
 
-| Task                                 | Tools to call (in order)                                                                        |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| **End-to-end triage**                | `fetch_next_alert` → `run_query` (context) → `case_manager` create (case) → `acknowledge_alert` |
-| **Gather context**                   | `run_query` (process tree, network, related alerts)                                             |
-| **Create case after classification** | `case_manager` create → `case_manager` attach-alert                                             |
-| **Acknowledge after triage**         | `acknowledge_alert` (related mode for batch)                                                    |
+## Scoring model
 
-Always complete the full workflow: fetch → investigate → document → acknowledge. Do not stop after gathering context —
-create or update a case with findings before acknowledging.
-
-**Critical execution rules:**
-
-- Start executing tools immediately — do not read SKILL.md, browse the workspace, or list files first.
-- For ES|QL queries, write the query to a temporary `.esql` file then pass it via `--query-file`. Do not use `edit_file`
-  — use a single `shell` call with `echo "..." > query.esql && node ... --query-file query.esql`.
-- Keep context gathering focused: run 2-4 targeted queries (process tree, network, related alerts), not 10+.
-- Report only what tools return. Copy identifiers verbatim — do not paraphrase IDs, timestamps, or hostnames.
-
-## Critical principles
-
-- **Do NOT classify prematurely.** Gather ALL context before deciding benign/unknown/malicious.
-- **Most alerts are false positives**, even if they look alarming. Rule names like "Malicious Behavior" or severity
-  "critical" are NOT evidence.
-- **"Unknown" is acceptable** and often correct when evidence is insufficient.
-- **MALICIOUS requires strong corroborating evidence**: persistence + C2, credential theft, lateral movement — not only
-  suspicious API calls.
-- **Report tool output verbatim.** Copy IDs, hostnames, timestamps, and counts exactly as returned by tools. Do not
-  round numbers, abbreviate IDs, or paraphrase error messages.
-
-## Workflow
-
-When triaging multiple alerts, **group first, then triage each group**:
+The score for each alert is computed as:
 
 ```text
-- [ ] Step 0: Group alerts by agent/host and time window
-- [ ] Step 1: Check existing cases
-- [ ] Step 2: Gather full context (DO NOT SKIP)
-- [ ] Step 3: Create or update case (only AFTER context gathered)
-- [ ] Step 4: Acknowledge alert and all related alerts
-- [ ] Step 5: Fetch next alert group and repeat
+alert_score = base_risk_score + mitre_boost + status_modifier
+group_score = MAX(alert_score across group) + entity_risk_boost + asset_criticality_boost
 ```
 
-### Step 0: Group alerts before triaging
+The weights, mirroring the Kibana Agent Builder alert-triage skill, are:
 
-When the user asks about multiple open alerts, **group them first** to avoid redundant investigation: query open alerts,
-group by `agent.id`, sub-group by time window (~5 min = likely one incident), triage each group as a single unit.
+| Signal                | Level                                                                   | Boost |
+| --------------------- | ----------------------------------------------------------------------- | ----- |
+| MITRE tactic          | Exfiltration, Impact, Command and Control, Lateral Movement             | +30   |
+| MITRE tactic          | Credential Access, Privilege Escalation, Defense Evasion                | +20   |
+| MITRE tactic          | Persistence, Execution, Initial Access                                  | +10   |
+| Workflow status       | Alert is `acknowledged`                                                 | −5    |
+| Workflow status       | Alert already attached to a case (`kibana.alert.case_ids` is non-empty) | −5    |
+| Entity Analytics risk | `Critical`                                                              | +25   |
+| Entity Analytics risk | `High`                                                                  | +15   |
+| Entity Analytics risk | `Moderate`                                                              | +5    |
+| Asset criticality     | `extreme_impact`                                                        | +20   |
+| Asset criticality     | `high_impact`                                                           | +12   |
+| Asset criticality     | `medium_impact`                                                         | +6    |
 
-Use ES|QL for an overview (write to file first for PowerShell):
+Status modifiers are additive: an acknowledged alert already in a case receives −10 total. Entity Analytics enrichment
+is best-effort; when the Risk Engine or asset criticality index is absent, both boosts are 0 and scoring continues
+normally.
+
+## Process
+
+### Step 1 — Establish scope
+
+Decide:
+
+- **Time window**: default 24 hours, range 1–168 hours.
+- **Workflow filter**: `"open"` (default) or `"open+acknowledged"` to include acknowledged alerts.
+- **Specific alert IDs**: when the user supplies alert IDs, score exactly those and skip the time-window and
+  workflow-status filters so a selected alert is never silently dropped regardless of age or status.
+
+Data needed: time window or alert IDs; workflow scope.
+
+### Step 2 — Fetch and score the queue
+
+Run one `POST /_query` with ES|QL. Elasticsearch computes every score field; no arithmetic is needed after the query
+returns.
+
+Queue path (no explicit IDs):
 
 ```esql
-FROM .alerts-security.alerts-*
-| WHERE kibana.alert.workflow_status == "open" AND @timestamp >= "<start>"
-| STATS alert_count=COUNT(*), rules=VALUES(kibana.alert.rule.name) BY agent.id
-| SORT alert_count DESC
+FROM .alerts-security.alerts-* METADATA _id, _index
+| WHERE kibana.alert.workflow_status == "open"
+    AND @timestamp >= NOW() - 24 hours
+    AND kibana.alert.building_block_type IS NULL
+| EVAL tactics = COALESCE(MV_CONCAT(kibana.alert.rule.threat.tactic.name, "|"), "")
+| EVAL mitre_boost = CASE(
+    tactics LIKE "*Exfiltration*" OR tactics LIKE "*Impact*"
+        OR tactics LIKE "*Command and Control*" OR tactics LIKE "*Lateral Movement*", 30,
+    tactics LIKE "*Credential Access*" OR tactics LIKE "*Privilege Escalation*"
+        OR tactics LIKE "*Defense Evasion*", 20,
+    tactics LIKE "*Persistence*" OR tactics LIKE "*Execution*"
+        OR tactics LIKE "*Initial Access*", 10,
+    0)
+| EVAL status_modifier = CASE(kibana.alert.workflow_status == "acknowledged", -5, 0)
+                       + CASE(kibana.alert.case_ids IS NULL, 0, -5)
+| EVAL alert_score = COALESCE(kibana.alert.risk_score, 0) + mitre_boost + status_modifier
+| EVAL entity = CASE(
+    host.name IS NOT NULL, CONCAT("host:", MV_FIRST(host.name)),
+    user.name IS NOT NULL, CONCAT("user:", MV_FIRST(user.name)),
+    CONCAT("ungrouped:", _id))
+| KEEP _id, _index, @timestamp, entity, host.name, user.name, kibana.alert.rule.name,
+       kibana.alert.severity, kibana.alert.workflow_status, kibana.alert.risk_score,
+       mitre_boost, status_modifier, alert_score
+| SORT alert_score DESC, @timestamp DESC
+| LIMIT 100
 ```
 
-For full query templates, see [references/classification-guide.md](references/classification-guide.md).
+For the explicit-IDs path, replace the `WHERE` clause with `WHERE _id IN ("<id1>", "<id2>", ...)` and keep all other
+stages, but raise `LIMIT` to the number of IDs (maximum 500) so a selected alert is never truncated. This path also
+drops the building-block exclusion on purpose: an alert the analyst selects explicitly is always scored, even if it is a
+building block. Kibana keeps that filter on both paths.
 
-### Step 1: Check existing cases
+For `"open+acknowledged"` scope, change `kibana.alert.workflow_status == "open"` to
+`kibana.alert.workflow_status IN ("open", "acknowledged")`.
 
-Before creating a new case, check if this alert belongs to an existing one. Use the `case-management` skill:
+**Query design notes:**
 
-```bash
-node skills/security/case-management/scripts/case-manager.js find --tags "agent_id:<agent_id>"
-node skills/security/case-management/scripts/case-manager.js cases-for-alert --alert-id <alert_id>
-```
+- `METADATA _id` is required. The top alert `_id` per group is mandatory output — analysts use it to hand off to
+  investigation or file a case directly.
+- `kibana.alert.building_block_type IS NULL` excludes building-block alerts (sub-components of parent alerts) the same
+  way the Kibana skill does with `must_not exists`.
+- `MV_FIRST` on `host.name` / `user.name` gives a stable group key when a field has multiple values.
+- `CASE` tiers are ordered 30 → 20 → 10, so the first match wins. This reproduces Kibana's per-tactic maximum without an
+  elementwise operation.
+- `kibana.alert.rule.threat.tactic.name` is a flat `keyword` field in the alerts mapping. `MV_CONCAT` collapses any
+  multi-value results into one string that `LIKE` can match across all values.
 
-Look for cases with the same agent ID, user, or related detection rule within a similar time window.
+Data needed: scored alert rows with entity key, top alert `_id`, and score breakdown.
 
-> **Note:** `find --search` may return 500 errors on Serverless. Use `find --tags` or `list` instead.
+### Step 3 — Cluster into entity groups
 
-### Step 2: Gather context
+Rows arrive sorted by `alert_score` descending. For each distinct `entity` value, the **first** row is the group's top
+alert and the row count is `alert_count`. Group by `entity` value.
 
-**This is the most important step. Do not skip or shortcut it.** Complete ALL substeps before forming any classification
-opinion.
+Kibana uses a transitive union-find algorithm, so an alert that mentions both host A and user B merges both into one
+group. This skill keys on the primary entity (host first, then user) to match Kibana's primary-entity selection while
+keeping the ES|QL approach simple. Groups may differ from Kibana's on alerts that bridge a host and a user; document
+this if analysts report discrepancies.
 
-**Time range warning:** Alerts may be days or weeks old. NEVER use relative time like `NOW() - 1 HOUR`. Extract the
-alert's `@timestamp` and build queries around that time with +/- 1 hour window.
+Kibana also applies entity risk and asset criticality boosts to every group before it takes the top 10. This skill
+selects the top 10 by base score and then enriches only those, so a group ranked 11th or lower on base score can't
+surface through enrichment boosts. Document this if analysts report a missing high-criticality group.
 
-**Substeps:** (2a) Related alerts on same agent/user; (2b) Rule frequency across env (high = FP-prone); (2c) Entity
-context — process tree, network, registry, files; (2d) Behavior investigation — persistence, C2, lateral movement,
-credential access.
+Return at most 10 ranked groups — the long tail is not useful at the prioritization stage.
 
-Example — process tree (use ES|QL with `KEEP`; avoid `--full` which produces 10K+ lines):
+Data needed: per-entity group with `alert_count`, top alert `_id`, top rule name, severity, and `alert_score` breakdown
+(base + MITRE boost + status modifier).
+
+### Step 4 — Enrich the top groups (best-effort)
+
+Before querying Entity Analytics, preflight each index with `GET /_resolve/index/{pattern}`. If either index is absent
+or returns no results, skip the corresponding boost (set to 0) and continue.
+
+When the Risk Engine is available, look up the primary entity of each of the top 10 groups:
 
 ```esql
-FROM logs-endpoint.events.process-*
-| WHERE agent.id == "<agent_id>" AND @timestamp >= "<alert_time - 5min>" AND @timestamp <= "<alert_time + 10min>"
-  AND process.parent.name IS NOT NULL
-  AND process.name NOT IN ("svchost.exe", "conhost.exe", "agentbeat.exe")
-| KEEP @timestamp, process.name, process.command_line, process.pid, process.parent.name, process.parent.pid
-| SORT @timestamp | LIMIT 80
+FROM risk-score.risk-score-latest-*
+| WHERE host.name IN ("<host1>", "<host2>") OR user.name IN ("<user1>", "<user2>")
+| KEEP host.name, host.risk.calculated_level, host.risk.calculated_score_norm,
+       user.name, user.risk.calculated_level, user.risk.calculated_score_norm
+| LIMIT 50
 ```
 
-| Data type | Index pattern                    |
-| --------- | -------------------------------- |
-| Alerts    | `.alerts-security.alerts-*`      |
-| Processes | `logs-endpoint.events.process-*` |
-| Network   | `logs-endpoint.events.network-*` |
-| Logs      | `logs-*`                         |
+When asset criticality is available:
 
-For full query templates and classification criteria, see
-[references/classification-guide.md](references/classification-guide.md).
-
-### Step 3: Create or update case
-
-After gathering context, create a case and attach alert(s). Use `--rule-id` and `--rule-name` (required; 400 error
-without them):
-
-```bash
-node skills/security/case-management/scripts/case-manager.js create \
-  --title "<concise summary>" \
-  --description "<findings, IOCs, attack chain, MITRE techniques>" \
-  --tags "classification:<benign|unknown|malicious>" "confidence:<0-100>" "mitre:<technique>" "agent_id:<id>" \
-  --severity <low|medium|high|critical>
-
-node skills/security/case-management/scripts/case-manager.js attach-alert \
-  --case-id <case_id> --alert-id <alert_id> --alert-index <index> \
-  --rule-id <rule_uuid> --rule-name "<rule name>"
-
-# Multiple alerts: attach-alerts --alert-ids <id1> <id2>
-# Add notes: add-comment --case-id <id> --comment "Findings..."
+```esql
+FROM .asset-criticality.asset-criticality-*
+| WHERE (id_field == "host.name" AND id_value IN ("<host1>", "<host2>"))
+     OR (id_field == "user.name" AND id_value IN ("<user1>", "<user2>"))
+| KEEP id_field, id_value, criticality_level
+| LIMIT 50
 ```
 
-**Case description:** Summary (1-2 sentences); Attack chain; IOCs (hashes, IPs, paths); MITRE techniques; Behavioral
-findings; Response context (remediation, credentials at risk).
+Add the entity risk boost and asset criticality boost to each group's score using the weight table above. Re-sort the
+ten groups by updated `group_score`.
 
-### Step 4: Acknowledge alerts
+When an entity enrichment re-ranks a group above a higher base-score peer, explain why: cite the entity risk level and
+asset criticality boost explicitly.
 
-Acknowledge ALL related alerts together. Use `--dry-run` first to confirm scope, then run without it:
+Data needed: entity risk level and asset criticality for the primary entity of each top group.
 
-```bash
-# By host name — preferred when triaging a host
-node skills/security/alert-triage/scripts/acknowledge-alert.js --query --host <hostname> --dry-run
-node skills/security/alert-triage/scripts/acknowledge-alert.js --query --host <hostname> --yes
+### Step 5 — Rank and report
 
-# By agent ID — preferred when agent.id is known
-node skills/security/alert-triage/scripts/acknowledge-alert.js --related --agent <id> --timestamp <ts> --window 60 --dry-run
-node skills/security/alert-triage/scripts/acknowledge-alert.js --related --agent <id> --timestamp <ts> --window 60 --yes
-```
+Sort the ten groups by `group_score` descending. Summarize the top 2–3 groups in detail; list the remaining groups
+briefly.
 
-Increase `--window` for longer attack chains (e.g., `300` for 5 minutes). Report the exact count of acknowledged alerts
-from the tool output. Pass `--yes` to skip the confirmation prompt (required when called by an agent).
+For each top group, report:
 
-### Step 5: Repeat
+- The entity or context (for example, "4 alerts on host WIN-SRV01")
+- The group score and what drove it (base risk + MITRE boost + entity risk + asset criticality)
+- The primary entity's risk level and asset criticality when present (copy values verbatim, for example `Critical`,
+  `extreme_impact`)
+- Whether any alerts are acknowledged or already in a case (with the score modifier noted)
+- The top alert rule names in the group
+- **The top alert `_id` verbatim** — this is mandatory, not optional
 
-```bash
-node skills/security/alert-triage/scripts/fetch-next-alert.js
-```
+End with a brief summary of the total alerts assessed and the number of groups identified.
 
-## Tool reference
-
-### fetch-next-alert.js
-
-Fetches the oldest unacknowledged Elastic Security alert.
-
-```bash
-node skills/security/alert-triage/scripts/fetch-next-alert.js [--days <n>] [--json] [--full] [--verbose]
-```
-
-### run-query.js
-
-Runs KQL or ES|QL queries against Elasticsearch.
-
-**PowerShell warning**: ES|QL queries contain pipe characters (`|`) which PowerShell interprets as shell pipes. ALWAYS
-use `--query-file` for ES|QL:
-
-```bash
-# Write query to file, then run
-node skills/security/alert-triage/scripts/run-query.js --query-file query.esql --type esql
-```
-
-KQL queries without pipes can be passed directly:
-
-```bash
-node skills/security/alert-triage/scripts/run-query.js "agent.id:<id>" --index "logs-*" --days 7
-```
-
-| Arg                  | Description                                              |
-| -------------------- | -------------------------------------------------------- |
-| `query`              | KQL query (positional)                                   |
-| `--query-file`, `-q` | Read query from file (required for ES\|QL on PowerShell) |
-| `--type`, `-t`       | `kql` or `esql` (default: kql)                           |
-| `--index`, `-i`      | Index pattern (default: `logs-*`)                        |
-| `--size`, `-s`       | Max results (default: 100)                               |
-| `--days`, `-d`       | Limit to last N days                                     |
-| `--json`             | Raw JSON output                                          |
-| `--full`             | Full document source                                     |
-
-### acknowledge-alert.js
-
-Acknowledges alerts by updating `workflow_status` to `acknowledged`.
-
-| Mode    | Command                                                                                                                                |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Single  | `node skills/security/alert-triage/scripts/acknowledge-alert.js <alert_id> --index <index> --yes`                                      |
-| Related | `node skills/security/alert-triage/scripts/acknowledge-alert.js --related --agent <id> --timestamp <ts> [--window 60] --yes`           |
-| By host | `node skills/security/alert-triage/scripts/acknowledge-alert.js --query --host <hostname> [--time-start <ts>] [--time-end <ts>] --yes` |
-| Query   | `node skills/security/alert-triage/scripts/acknowledge-alert.js --query --agent <id> [--time-start <ts>] [--time-end <ts>] --yes`      |
-| Dry run | Add `--dry-run` to any mode (no confirmation needed)                                                                                   |
-| Confirm | All write modes prompt for confirmation; pass `--yes` to skip                                                                          |
-
-## Examples
-
-- "Fetch the next unacknowledged alert and triage it"
-- "Investigate alert ID abc-123 — gather context, classify, and create a case if malicious"
-- "Process the top 5 critical alerts from the last 24 hours"
+Recommend the **security-alert-analysis** skill by name as the next step for any group the analyst wants to investigate
+further.
 
 ## Guidelines
 
-- Report only tool output — do not invent IDs, hostnames, IPs, or details not present in the tool response.
-- Preserve identifiers from the request — use exact values the user provides in tool calls and responses.
-- Confirm actions concisely using the tool's return data.
-- Distinguish facts from inference — label conclusions beyond tool output as your assessment.
+- **This skill is read-only.** Do not acknowledge alerts, create cases, or run investigation queries. All writes belong
+  in security-alert-analysis.
+- **Do not deep-investigate.** Prioritization is the output; investigation is the next step.
+- **Copy identifiers verbatim.** `entityRiskLevel`, `assetCriticality`, `entityName`, and alert `_id`s must be copied
+  exactly from tool output. Do not paraphrase level names or abbreviate IDs.
+- **Explain re-rankings.** When entity enrichment lifts a group above a peer with a higher base score, explain why —
+  cite the specific boost components.
+- **Acknowledged alerts are deprioritized, not hidden.** Flag the −5 modifier and surface the group.
+- **Building-block alerts are excluded automatically** by the `kibana.alert.building_block_type IS NULL` filter.
+- **If the queue is empty**, tell the analyst no open alerts match the criteria and suggest widening the time window or
+  changing the workflow scope.
 
-## Production use
+## Examples
 
-- All write operations (`acknowledge-alert.js`) prompt for confirmation. Pass `--yes` or `-y` to skip when called by an
-  agent.
-- Use `--dry-run` before bulk acknowledgments to preview scope without modifying data.
-- The acknowledge script uses the Kibana Detection Engine API, which is compatible with both self-managed and Serverless
-  deployments.
-- Verify environment variables point to the intended cluster before running any script — no undo for acknowledgments.
+**Query**: "What should I focus on right now?"
 
-## Environment variables
+Scope: `{ timeWindowHours: 24, workflowStatus: "open" }`. Run the queue path, cluster, enrich, and return the top 10
+groups.
 
-| Variable                | Required | Description                          |
-| ----------------------- | -------- | ------------------------------------ |
-| `ELASTICSEARCH_URL`     | Yes      | Elasticsearch URL                    |
-| `ELASTICSEARCH_API_KEY` | Yes      | Elasticsearch API key                |
-| `KIBANA_URL`            | Yes      | Kibana URL (for case management)     |
-| `KIBANA_API_KEY`        | Yes      | Kibana API key (for case management) |
+**Query**: "Prioritize alerts from the last 8 hours"
+
+Scope: `{ timeWindowHours: 8, workflowStatus: "open" }`. Adjust the `@timestamp` filter to `>= NOW() - 8 hours`.
+
+**Query**: "Which of these alerts should I look at first?" (with alert IDs)
+
+Scope: `{ alertIds: ["<id1>", "<id2>", ...] }`. Use the explicit-IDs path so a selected alert that is acknowledged or
+old is never silently dropped.
+
+**Query**: "Prioritize the queue. Include acknowledged alerts."
+
+Scope: `{ timeWindowHours: 24, workflowStatus: "open+acknowledged" }`. Adjust the workflow filter in the ES|QL `WHERE`
+clause.
+
+## Response format
+
+Present results as ranked groups. The top alert `_id` is required in every group — analysts use it to hand off to
+investigation directly.
+
+```text
+**Group 1 — [entity or context]** (score: N)
+- Alerts: N alerts | Top rule: [rule name] | Severity: critical/high
+- Score drivers: base risk [N] + MITRE tactic boost [+N, tactic name] + entity risk [+N, level] + asset criticality [+N, level]
+- Entity signals: risk level [Critical/High/…], asset criticality [extreme_impact/…] (omit if unavailable)
+- Status: [N acknowledged (−5 each), N in a case (−5 each)] (omit if none)
+- **Top alert ID: [exact _id from the query result]**
+- Recommended next step: investigate with security-alert-analysis
+
+**Group 2 — [entity or context]** (score: N)
+…
+```
+
+End with: "Total alerts assessed: N across M groups."
+
+## References
+
+- [Elastic Security detection alerts](https://www.elastic.co/docs/solutions/security/detect-and-alert)
+- [Entity Analytics risk scoring](https://www.elastic.co/docs/solutions/security/advanced-entity-analytics/entity-risk-scoring)
+- [Asset criticality](https://www.elastic.co/docs/solutions/security/advanced-entity-analytics/asset-criticality)
+
+## Operations
+
+| HTTP API (shorthand)            | `elastic` CLI command                                 |
+| ------------------------------- | ----------------------------------------------------- |
+| `POST /_query`                  | `elastic es esql query --format tsv --query '<esql>'` |
+| `GET /_resolve/index/{pattern}` | `elastic es indices resolve-index --name '<pattern>'` |
+
+This skill is read-only. Acknowledgement and case management operations are deliberately not bound here — use the
+**security-alert-analysis** skill for those operations.
