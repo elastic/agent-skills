@@ -9,10 +9,11 @@ Elasticsearch 9.2+.
 > 9.3-introduced set — `DERIV`, `PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`, `VARIANCE_OVER_TIME`), the `TBUCKET`
 > grouping function, the new `WITHOUT(...)` grouping function, and the new `METRICS_INFO` and `TS_INFO` discovery
 > commands are **GA since 9.4** (preview from 9.2 to 9.3 for the 9.2/9.3 features; new in 9.4 for `WITHOUT`,
-> `METRICS_INFO`, and `TS_INFO`). `TRANGE` remains in preview. **Looking for PromQL?** Elasticsearch 9.4+ also exposes a
-> `PROMQL` source command for running Prometheus Query Language directly against TSDS indices. See
-> [promql-command.md](promql-command.md). Prefer `PROMQL` only when the user explicitly thinks in PromQL or is migrating
-> Prometheus dashboards/alerts; otherwise prefer `TS` and the inner/outer aggregation paradigm described below.
+> `METRICS_INFO`, and `TS_INFO`). `TRANGE` remains in preview. **Looking for PromQL?** Elasticsearch also exposes a
+> `PROMQL` source command (preview in 9.4, GA in 9.5+ and Serverless) for running Prometheus Query Language directly
+> against TSDS indices. See [promql-command.md](promql-command.md). Prefer `PROMQL` only when the user explicitly thinks
+> in PromQL or is migrating Prometheus dashboards/alerts; otherwise prefer `TS` and the inner/outer aggregation paradigm
+> described below.
 
 ## Table of Contents
 

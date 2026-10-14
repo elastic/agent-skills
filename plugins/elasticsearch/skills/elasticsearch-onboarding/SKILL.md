@@ -6,10 +6,13 @@ description: >
   a search experience with best practices baked in. Use this when the user shows intent
   to build search-related functionality, asks about Elasticsearch-related concepts
   for their use case, or expresses the need for help getting started with Elasticsearch.
-compatibility: Elasticsearch 9.x
+compatibility: Elasticsearch 8.x or 9.x, self-managed, Elastic Cloud Hosted, or Elastic
+  Cloud Serverless. Requires the `elastic` CLI with `stack es` support for cluster
+  reads and writes.
 metadata:
   author: elastic
-  version: 0.1.0
+  version: 0.3.0
+  universal: true
 ---
 
 # Elastic Developer Guide
@@ -20,6 +23,47 @@ generating tested, production-ready code. Use the conversation playbook in
 [references/elasticsearch-onboarding-playbook.md](references/elasticsearch-onboarding-playbook.md) to structure the
 conversation. Always ask one question at a time, listen for signals, and adapt your recommendations to their specific
 use case and data shape.
+
+<!-- begin-partial: preamble -->
+
+## Environment Configuration
+
+This skill executes Elasticsearch operations through the `elastic` CLI. If the
+[`elastic` CLI](https://github.com/elastic/cli#configuration) is not installed, tell the user what it is needed for. Do
+not guess credentials, call the HTTP API directly, or attempt other workarounds.
+
+This skill references operations in HTTP-shorthand form (e.g., `GET /`, `GET /_cat/indices`, `GET /{index}/_mapping`,
+`GET /{index}/_settings/index.mode`, `POST /_query`). The [Operations](#operations) table at the end of this document
+maps each shorthand to the equivalent `elastic` CLI command — always use the CLI rather than calling the HTTP API
+directly.
+
+<!-- end-partial: preamble -->
+
+## Cluster Access
+
+Cluster interaction splits into **reads** and **writes**. Load
+[references/cluster-access/cluster-access.md](references/cluster-access/cluster-access.md) for the full protocol.
+
+**Reads happen automatically.** Ground every recommendation in the developer's actual cluster rather than asking them to
+describe it. Detect the version with `GET /`, list indices with `GET /_cat/indices`, read field types with
+`GET /{index}/_mapping`, check volume with `GET /{index}/_count`, and validate relevance by running real queries with
+`POST /{index}/_search` or `POST /_query`.
+
+**Writes require confirmation.** Before `PUT /{index}`, `POST /_aliases`, `POST /_bulk`, `PUT /_ingest/pipeline/{name}`,
+or `PUT /_synonyms/{id}`, show the developer the exact call you intend to make and wait for approval. Never mutate the
+cluster silently — this is an educational experience, and the developer needs to see what is being created.
+
+**Don't volunteer connection state; do answer connection questions.** Two different situations, and the distinction
+matters:
+
+- **Unprompted** — never open on your own connection or credential status. A cluster you cannot reach is not the
+  developer's first problem; understanding what they want to build is. Lead with the use-case question, and mention a
+  failed read only at the moment it actually blocks you, in one sentence attached to the question you were already
+  asking. Onboarding works fine before any cluster exists.
+- **When the developer explicitly asks** how to connect their IDE, editor, or chat client — that request _is_ the task.
+  Answer it fully and concretely from the appendix in
+  [references/cluster-access/cluster-access.md](references/cluster-access/cluster-access.md), then ask the use-case
+  question at the end. Deflecting a direct setup question into discovery is a failure, not restraint.
 
 ## Examples
 
@@ -44,6 +88,8 @@ Example user intents that should trigger this skill:
 ## Guidelines
 
 - Ask one question at a time, then wait.
+- Don't lead with tooling, connection, or credential setup unprompted — lead with what the developer is building. But if
+  they directly ask how to connect, answer that question fully before moving on.
 - Only generate code once the user confirms the approach and the mapping.
 - Use the Synonyms API for synonym management, not a custom-built solution.
 - Always use a versioned index name + alias (e.g. `products_v1` + `products_current`) and explain why.
@@ -52,3 +98,19 @@ Example user intents that should trigger this skill:
 - Ask what programming language the user wants to use, don't assume.
 - Avoid generating code with deprecated APIs. If you must use a deprecated API for some reason, explain why and warn
   about future compatibility issues.
+
+## Operations
+
+| HTTP API (shorthand)           | `elastic` CLI command                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `GET /`                        | `elastic es info`                                                                    |
+| `GET /_cat/indices`            | `elastic es cat indices --index '<pattern>'`                                         |
+| `GET /{index}/_mapping`        | `elastic es indices get-mapping --index '<index>'`                                   |
+| `GET /{index}/_count`          | `elastic es count --index '<index>'`                                                 |
+| `POST /{index}/_search`        | `elastic es search --index '<index>' --input-file '<search-body.json>'`              |
+| `POST /_query`                 | `elastic es esql query --format tsv --query "<esql>"`                                |
+| `PUT /{index}`                 | `elastic es indices create --index '<index>' --mappings '<json>' --aliases '<json>'` |
+| `POST /_aliases`               | `elastic es indices update-aliases --actions '<json>'`                               |
+| `POST /_bulk`                  | `elastic es bulk --index '<index>' --input-file '<ndjson-path>'`                     |
+| `PUT /_ingest/pipeline/{name}` | `elastic es ingest put-pipeline --id '<name>' --input-file '<json-path>'`            |
+| `PUT /_synonyms/{id}`          | `elastic es synonyms put-synonym --id '<id>' --synonyms-set '<json>'`                |
