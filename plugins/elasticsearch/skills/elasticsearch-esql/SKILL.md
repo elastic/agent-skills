@@ -6,7 +6,7 @@ description: >
   charts and dashboards from ES|QL results.
 metadata:
   author: elastic
-  version: 0.7.0
+  version: 0.9.2
   universal: true
 compatibility: Elasticsearch 8.14 or later (ES|QL GA; introduced 8.11 as tech preview),
   self-managed, Elastic Cloud Hosted, or Elastic Cloud Serverless; individual ES|QL
@@ -109,8 +109,8 @@ ES|QL uses pipes (`|`) to chain commands:
    - "spike," "dip," "anomaly," "when did X change" → `CHANGE_POINT value ON key`
    - "trend over time," "time series" → `STATS ... BY BUCKET(@timestamp, interval)` or `TS` for TSDB
    - "PromQL", "Prometheus query/dashboard/alert", `sum by (instance) (...)`, label matchers like `{cluster="prod"}` →
-     `PROMQL` source command (9.4+ preview); see [PROMQL Command](references/promql-command.md). Prefer `TS` for native
-     ES|QL phrasing.
+     `PROMQL` source command (GA in 9.5+/Serverless, preview in 9.4); see
+     [PROMQL Command](references/promql-command.md). Prefer `TS` for native ES|QL phrasing.
    - "search," "find documents matching" → `MATCH` (default), `QSTR` (advanced boolean), `KQL` (Kibana migration). For
      content/document relevance search, follow the [ES|QL Search Strategy](references/esql-search-strategy.md)
    - "count," "average," "breakdown" → `STATS` with aggregation functions
@@ -122,8 +122,8 @@ ES|QL uses pipes (`|`) to chain commands:
      CIDR_MATCH), common templates, and ambiguity handling
    - [Time Series Queries](references/time-series-queries.md) - **read before any TS query**: inner/outer aggregation
      model, TBUCKET syntax, RATE constraints, histogram metrics
-   - [PROMQL Command](references/promql-command.md) — **read before any PROMQL query**: options, output schema,
-     limitations, and `PROMQL` vs `TS` decision matrix (9.4+ preview)
+   - [PROMQL Command](references/promql-command.md) — **read before any PROMQL query**: options, output schema, handling
+     unsupported PromQL, and `PROMQL` vs `TS` decision matrix (GA in 9.5+/Serverless, preview in 9.4)
    - [ES|QL Complete Reference](references/esql-reference.md) - full syntax for all commands and functions
    - [ES|QL Search Strategy](references/esql-search-strategy.md) — for content/document relevance search (retrieve →
      fuse → rerank)
@@ -238,6 +238,8 @@ FROM logs-*
 
 **Log categorization (Platinum license):** Use `CATEGORIZE` to auto-cluster log messages into pattern groups. Prefer
 this over running multiple `STATS ... BY field` queries when exploring or finding patterns in unstructured text.
+`CATEGORIZE(field)` must be the **first** grouping key in `STATS ... BY` — any other grouping (a time bucket, a service
+name) has to come after it.
 
 ```esql
 FROM logs-*
@@ -245,6 +247,14 @@ FROM logs-*
 | STATS count = COUNT(*) BY category = CATEGORIZE(message)
 | SORT count DESC
 | LIMIT 20
+```
+
+```esql
+// WRONG — CATEGORIZE is not the first BY key
+| STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 hour), category = CATEGORIZE(message)
+
+// CORRECT — CATEGORIZE first, other groupings after
+| STATS c = COUNT(*) BY category = CATEGORIZE(message), bucket = BUCKET(@timestamp, 1 hour)
 ```
 
 **Change point detection (Platinum license):** Use `CHANGE_POINT` to detect spikes, dips, and trend shifts in a metric
@@ -277,18 +287,19 @@ TS metrics-*
 | STATS total_gc = SUM(jvm.gc.duration::exponential_histogram) BY TBUCKET(1 hour), service.name
 ```
 
-**Time series with PromQL syntax (9.4+ preview):** Use the `PROMQL` source command when the user explicitly asks for
-PromQL, references Prometheus syntax (`sum by (instance) (...)`, label matchers like `{cluster="prod"}`), or is
-migrating a Prometheus dashboard or alert. The `PROMQL` command accepts standard PromQL with optional `index`, `step`,
-`buckets`, `start`, `end`, and `scrape_interval` options, and produces a table that the rest of the ES|QL pipeline can
-process. Range selectors are optional — when omitted, the window is `max(step, scrape_interval)`. Otherwise prefer `TS`
-(GA in 9.4). `PROMQL` does **not** support group modifiers, set operators (`or`/`and`/`unless`), or functions like
-`histogram_quantile`, `predict_linear`, and `label_join` — fall back to `TS` for those. See
-[PROMQL Command](references/promql-command.md) for the full reference.
+**Time series with PromQL syntax (GA in 9.5+/Serverless, preview in 9.4):** Use the `PROMQL` source command when the
+user explicitly asks for PromQL, references Prometheus syntax (`sum by (instance) (...)`, label matchers like
+`{cluster="prod"}`), or is migrating a Prometheus dashboard or alert. Otherwise prefer `TS`. Its output flows into the
+rest of the ES|QL pipeline; the time column is `step`, and there is no `@timestamp` column. Not every PromQL construct
+is supported yet. **Read [PROMQL Command](references/promql-command.md) before writing a PROMQL query**: it mirrors the
+Elasticsearch docs, including best practices, single-value results, and the unsupported constructs.
 
 ```esql
 // Adaptive Kibana query — date picker drives time range and step
-PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+PROMQL index=metrics-* http_rate=(sum(rate(http_requests_total)))
+
+// (9.5+; Serverless) Current value for a metric or gauge panel — instant query at the end of the date picker range
+PROMQL index=metrics-* time=?_tend load=(avg(node_load1))
 
 // Named result, post-processed with ES|QL
 PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
@@ -383,7 +394,8 @@ For complete ES|QL syntax including all commands, functions, and operators, read
 - [Query Patterns](references/query-patterns.md) - Natural language to ES|QL translation
 - [Generation Tips](references/generation-tips.md) - Best practices for query generation
 - [Time Series Queries](references/time-series-queries.md) - TS command, time series aggregation functions, TBUCKET
-- [PROMQL Command](references/promql-command.md) - PromQL source command for TSDS indices (9.4+ preview)
+- [PROMQL Command](references/promql-command.md) - PromQL source command for TSDS indices (GA in 9.5+/Serverless,
+  preview in 9.4)
 - [Query Approximation](references/query-approximation.md) - Approximate STATS via sampling/extrapolation (GA in
   9.5+/Serverless, preview in 9.4)
 - [DSL to ES|QL Migration](references/dsl-to-esql-migration.md) - Convert Query DSL to ES|QL
@@ -397,6 +409,10 @@ When query execution fails, read the error message from Elasticsearch and correc
 - Type mismatch → Use type conversion functions (TO_STRING, TO_INTEGER, etc.)
 - Syntax error → Review ES|QL reference for correct syntax. Always use **double quotes** for strings, never single
   quotes.
+- Unexplained parse error on a column name → the name may be a reserved keyword (`first`, `last`, `in`, `is`, `with`,
+  `score`, `set`, `group`, …). Rename the column to something descriptive (`first_seen`) or wrap it in backticks. The
+  same applies to a reserved word appearing as a segment of a dotted field name. See
+  [Generation Tips](references/generation-tips.md#reserved-words-need-backticks-as-identifiers).
 - No results → Check time range and filter conditions
 - Wrong function name → ES|QL uses underscored names: `STD_DEV()` not `STDDEV()`, `MEDIAN_ABSOLUTE_DEVIATION()` not
   `MAD()`. Use `CONCAT()` for strings, not `+`. Use `CASE(cond, val, ...)` not `CASE WHEN...THEN...END`.
@@ -454,4 +470,5 @@ FROM logs-*
 | `GET /_cat/indices`                 | `elastic es cat indices --index '<pattern>'`                          |
 | `GET /{index}/_mapping`             | `elastic es indices get-mapping --index '<index>'`                    |
 | `GET /{index}/_settings/index.mode` | `elastic es indices get-settings --index '<index>' --name index.mode` |
+| `GET /_resolve/index/{name}`        | `elastic es indices resolve-index --name '<name>'`                    |
 | `POST /_query`                      | `elastic es esql query --format tsv --query "<esql>"`                 |
