@@ -9,10 +9,11 @@ Elasticsearch 9.2+.
 > 9.3-introduced set — `DERIV`, `PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`, `VARIANCE_OVER_TIME`), the `TBUCKET`
 > grouping function, the new `WITHOUT(...)` grouping function, and the new `METRICS_INFO` and `TS_INFO` discovery
 > commands are **GA since 9.4** (preview from 9.2 to 9.3 for the 9.2/9.3 features; new in 9.4 for `WITHOUT`,
-> `METRICS_INFO`, and `TS_INFO`). `TRANGE` remains in preview. **Looking for PromQL?** Elasticsearch 9.4+ also exposes a
-> `PROMQL` source command for running Prometheus Query Language directly against TSDS indices. See
-> [promql-command.md](promql-command.md). Prefer `PROMQL` only when the user explicitly thinks in PromQL or is migrating
-> Prometheus dashboards/alerts; otherwise prefer `TS` and the inner/outer aggregation paradigm described below.
+> `METRICS_INFO`, and `TS_INFO`). `TRANGE` remains in preview. **Looking for PromQL?** Elasticsearch also exposes a
+> `PROMQL` source command (preview in 9.4, GA in 9.5+ and Serverless) for running Prometheus Query Language directly
+> against TSDS indices. See [promql-command.md](promql-command.md). Prefer `PROMQL` only when the user explicitly thinks
+> in PromQL or is migrating Prometheus dashboards/alerts; otherwise prefer `TS` and the inner/outer aggregation paradigm
+> described below.
 
 ## Table of Contents
 
@@ -176,8 +177,8 @@ TS metrics-*
 
 `SUM` totals the values the histograms were originally created from; `COUNT` counts the number of values the histograms
 were created from — it does _not_ count the number of histograms; use `PERCENTILE`/`MEDIAN`/`AVG` for latency. Prefer
-the histogram metric from `METRICS_INFO` over a companion `*.summary` / `aggregate_metric_double` in `schema` unless the
-user asks for it. Do not fall back to `*_OVER_TIME` or `TO_STRING`/`REPLACE` JSON parsing. For OTel ingestion
+the histogram metric from `METRICS_INFO` over a companion `*.summary` / `aggregate_metric_double` in the mapping unless
+the user asks for it. Do not fall back to `*_OVER_TIME` or `TO_STRING`/`REPLACE` JSON parsing. For OTel ingestion
 background, see [OTel histogram metrics in ES\|QL](https://www.elastic.co/search-labs/blog/otel-histogram-metrics-esql).
 
 **Availability:** Histogram metric querying in `TS` is preview in 9.3 and **GA since 9.4** (same as

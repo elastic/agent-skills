@@ -146,14 +146,23 @@ knowing wherever `FORK` is followed by a limit.
 Swap the `affected` expression for the symptom under investigation:
 
 - Failures: `EVAL affected = CASE(event.outcome == "failure", 1, 0)`
-- Slow requests: `EVAL affected = CASE(duration > 100000000, 1, 0)` — pick the nanosecond threshold from the p95 of the
-  healthy window, not from a round number.
+- Slow requests: `EVAL affected = CASE(duration > 100000000, 1, 0)` — `duration` is the field Elastic writes on
+  OTel-native spans, in nanoseconds (the value above is 100 ms; OpenTelemetry itself carries only start and end
+  timestamps). The APM-compatibility fields `span.duration.us` and `transaction.duration.us` are microseconds. Pick the
+  threshold from the p95 of the healthy window, not from a round number, and convert before reporting: a 3 000 000 000
+  ns span is three seconds, not three thousand.
 
-Repeat the query once per candidate attribute, changing only the `BY attribute_value = ...` clause. Candidates worth
+Repeat the query once per candidate attribute, changing only the `BY attribute_value = ...` clause. Columns with the
+same name must have the same type in every `FORK` branch, and the `overall` branch fixes `attribute_value` as a keyword
+with `"*"` — so cast any key that is not a keyword, or the query is rejected with
+`conflicting data types in FORK branches`: `BY attribute_value = http.response.status_code::string`. Candidates worth
 testing, in the order they usually pay off:
 
 `service.version` · `k8s.pod.name` · `host.name` · `k8s.deployment.name` · `container.id` · `cloud.region` ·
-`cloud.availability_zone` · `service.environment` · `span.name` · `transaction.name` · `http.response.status_code`
+`cloud.availability_zone` · `service.environment` · `span.name` · `transaction.name` ·
+`http.response.status_code::string` · then the service's own request-scoped attributes — whatever the application sets
+on its spans (a SKU, tenant, plan, customer tier, feature flag), usually under `attributes.*`. A fault keyed on one of
+those is invisible to every infrastructure attribute above.
 
 ### What makes an attribute correlated
 
@@ -164,7 +173,9 @@ An attribute value is correlated when all three hold:
 2. **Volume.** It has enough events to be stable. Discard groups below about 20 events; a single failure out of three
    requests is a 33% rate and means nothing.
 3. **Concentration.** It accounts for a substantial share of the total affected events. An attribute with a 90% failure
-   rate that explains 4 of 500 failures is a curiosity, not the cause.
+   rate that explains 4 of 500 failures is a curiosity, not the cause. Measure the share on the service that sets the
+   attribute: one slow request produces one slow span per hop, so across several services a request-scoped attribute
+   appears to cover a fraction of the affected spans while covering all of them on the service where it originates.
 
 An attribute that shows high lift **and** covers most of the affected events is the localization. On live data, frontend
 server spans grouped by route gave a 3.8% slow rate for `POST` against a 0.9% overall rate — a 4x lift covering half the
@@ -179,7 +190,10 @@ Two traps:
   check whether the attribute values move together.
 
 When no attribute shows lift, the degradation is uniform across the population. That is itself a result: report that the
-problem is service-wide and look at dependencies or infrastructure instead of hunting for a slice.
+problem is service-wide and look at dependencies or infrastructure instead of hunting for a slice — but only after the
+service's own request-scoped attributes have been tested. No lift on route, status, instance and version says the split
+is not by where the request ran; on live data a fault confined to one product SKU showed a flat 4–9% slow rate against
+6% overall on every infrastructure attribute and 100% on the SKU attribute.
 
 ## ML anomalies
 

@@ -295,8 +295,8 @@ TS k8s
 ### PROMQL
 
 Queries time series data streams (TSDS) using **Prometheus Query Language (PromQL)** instead of ES|QL syntax. Like `TS`,
-it produces a table that the rest of the ES|QL pipeline can process. Available since **9.4 (preview)** and on Elastic
-Cloud Serverless. See [promql-command.md](promql-command.md) for the full reference.
+it produces a table that the rest of the ES|QL pipeline can process. **GA** on Elastic Cloud Serverless and Elastic
+Stack **9.5+**, **preview** in **9.4**. See [promql-command.md](promql-command.md) for the full reference.
 
 **Syntax:**
 
@@ -310,21 +310,26 @@ PROMQL [ <option> ... ] [ <result_name> = ] ( <PromQL expression> )
 - `step` — query resolution step width
 - `buckets` — target bucket count for auto-step (default `100`, mutually exclusive with `step`)
 - `start`, `end` — explicit time range (defaults to Kibana date picker, otherwise unrestricted)
+- `time` (9.5+; Serverless) — evaluate once at that time (instant query); cannot be combined with `step`, `buckets`,
+  `start`, or `end`
 - `scrape_interval` — expected metric collection interval (default `1m`); used for the implicit range selector window
 - `<result_name>=( ... )` — name the metric output column
 
 **Output columns:**
 
 - The PromQL expression (or `<result_name>`) as `double` — the metric value
-- `step` (`date`) — timestamp for each evaluation step
-- One `keyword` column per `by`/`without` grouping label, or a single `_timeseries` JSON column when there is no
-  cross-series aggregation
+- `step` (`date`) — timestamp for each evaluation step (instant query: the `time`); there is no `@timestamp` column
+- One `keyword` column per `by` grouping label; no label columns for an aggregation without grouping (`sum(...)`);
+  otherwise (no cross-series aggregation, or `without`) a single `_timeseries` JSON column
 
 **Examples:**
 
 ```esql
 // Fully adaptive Kibana query — date picker drives time range and step
-PROMQL index=metrics-* sum by (instance) (rate(http_requests_total))
+PROMQL index=metrics-* http_rate=(sum(rate(http_requests_total)))
+
+// (9.5+; Serverless) Instant query — current value at the end of the date picker range
+PROMQL index=metrics-* time=?_tend load=(avg(node_load1))
 
 // Explicit range query with a named result column
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
@@ -345,15 +350,10 @@ PROMQL index=metrics-*
 `rate(http_requests_total[5m])`); the engine uses `max(step, scrape_interval)` as the window. This makes the query scale
 with the date picker.
 
-**Limitations (9.4 preview):**
-
-- Group modifiers (`on(...) group_left(...)`) are not supported
-- Set operators (`or`, `and`, `unless`) are not supported
-- Some PromQL functions are not available, including `histogram_quantile`, `predict_linear`, and `label_join`
-- Time buckets align to fixed calendar boundaries rather than the query start time, which can cause slight differences
-  from native Prometheus for short ranges or large step sizes
-
-When any of these are required, use the [`TS` command](#ts) and express the equivalent computation in ES|QL.
+**Limitations:** Not every PromQL construct is supported, and coverage varies by version. Elasticsearch rejects
+unsupported constructs with a `verification_exception` naming them. See
+[promql-command.md](promql-command.md#limitations) for the unsupported constructs and
+[how to handle them](promql-command.md#handling-unsupported-constructs).
 
 ### SHOW
 
@@ -1299,6 +1299,9 @@ Used in the `BY` clause of `STATS` and `INLINE STATS` to create dynamic groups.
 | `WITHOUT(dim, ...)`   | Group time series by every dimension except those listed (GA in 9.4) | `STATS total = SUM(network.cost) BY WITHOUT(pod)`     |
 | `CATEGORIZE(field)`   | Auto-categorize text values (8.18/9.0+, Platinum)                    | `STATS count = COUNT(*) BY cat = CATEGORIZE(message)` |
 
+`CATEGORIZE` must be the **first** grouping key in the `BY` clause — any additional grouping must follow it. It is not
+supported as an `INLINE STATS` grouping function.
+
 **CATEGORIZE options (9.2+):**
 
 | Option                 | Type    | Default | Description                                                       |
@@ -1804,8 +1807,14 @@ ROW a = 123, b = 0.23, c = 2E3, d = 1.2e-3
 
 ### Identifiers and Escaping
 
-Field names that don't start with a letter, `_`, or `@` must be enclosed in backticks. A literal backtick inside a
-backtick-quoted identifier is escaped by doubling it.
+Identifiers must be enclosed in backticks if:
+
+- they don't start with a letter, `_`, or `@`
+- any other character is not a letter, number, or `_`
+- they clash with a reserved keyword, including when that word is a segment of a dotted name
+
+A literal backtick inside a backtick-quoted identifier is escaped by doubling it. Quoting with backticks always works,
+even when it is not required.
 
 ```esql
 // Backtick-quoted identifiers for special field names
@@ -1813,7 +1822,33 @@ FROM index | EVAL val = `1.field`
 
 // Escaping backticks within identifiers
 FROM index | EVAL val = `field``name`
+
+// Reserved keyword as a column alias
+FROM logs-* | STATS `first` = MIN(@timestamp) BY service.name
+
+// Reserved keyword as a segment of a dotted field name (`in` is the IN operator)
+FROM metrics-* | WHERE `host.network.interface.in.utilization` IS NOT NULL
 ```
+
+**Reserved keywords.** ES|QL keywords are case-insensitive, so `in`, `IN`, and `In` are the same token. These words are
+not reserved in every command — they are treated as keywords only in the corresponding context.
+
+Always reserved:
+
+`AND`, `AS`, `ASC`, `BY`, `DESC`, `DISSECT`, `DROP`, `ENRICH`, `EVAL`, `FALSE`, `FIRST`, `FROM`, `GROK`, `IN`, `INFO`,
+`IS`, `JOIN`, `KEEP`, `LAST`, `LIKE`, `LIMIT`, `LOOKUP`, `METADATA`, `MV_EXPAND`, `NOT`, `NULL`, `NULLS`, `ON`, `OR`,
+`RENAME`, `RLIKE`, `ROW`, `SHOW`, `SORT`, `STATS`, `TRUE`, `USING`, `WHERE`, `WITH`
+
+Reserved as newer commands and functions landed (reserved on clusters that have the feature):
+
+- 9.1+: `CHANGE_POINT`, `COMPLETION`, `FORK`, `SAMPLE`
+- 9.2+: `FUSE`, `GROUP`, `INLINE`, `KEY`, `RERANK`, `SCORE`, `SET`, `TS`
+- 9.4+: `METRICS_INFO`, `MMR`, `PROMQL`, `REGISTERED_DOMAIN`, `TS_INFO`, `URI_PARTS`, `USER_AGENT`
+- 9.5+: `IP_LOCATION`, `TS_COLLAPSE`
+- Serverless GA / planned for Stack: `DEDUP`, `DENSE_VECTOR`, `HIGHLIGHT`
+
+`SCORE`, `KEY`, `GROUP`, `SET`, and `SAMPLE` read like natural column names but fail to parse bare as aliases on a
+cluster that has the corresponding feature — the same trap as `first`/`last`.
 
 ### Timespan Literals
 

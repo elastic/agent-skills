@@ -37,6 +37,53 @@ ES|QL uses **double quotes** for string literals — never single quotes. This i
 
 This applies everywhere: `WHERE`, `EVAL`, `CASE`, `STATS ... BY`, function arguments, and string constants.
 
+### Reserved Words Need Backticks as Identifiers
+
+ES|QL reserves a set of keywords that cannot be used bare as column names, aliases, or as a segment of a dotted field
+name. `first` and `last` are the most common traps because they read like natural column names for earliest/latest
+timestamps. Keywords are case-insensitive, so `first`, `FIRST`, and `First` are the same token.
+
+```esql
+// WRONG — `first` is a reserved keyword
+| STATS first = MIN(@timestamp) BY service.name
+
+// CORRECT — rename the column (preferred)
+| STATS first_seen = MIN(@timestamp) BY service.name
+
+// CORRECT — or backtick-quote it
+| STATS `first` = MIN(@timestamp) BY service.name
+```
+
+**Prefer renaming the output column over backticking it** — a descriptive alias like `first_seen` or `earliest` reads
+better and avoids the quoting entirely. Backticks are the only option when the clash is in a real field name you do not
+control, including a reserved word buried in a dotted path:
+
+```esql
+// WRONG — `in` is the IN operator, so the dotted name fails to parse
+| WHERE host.network.interface.in.utilization IS NOT NULL
+
+// CORRECT — backtick-quote the whole identifier
+| WHERE `host.network.interface.in.utilization` IS NOT NULL
+```
+
+**Always reserved:** `AND`, `AS`, `ASC`, `BY`, `DESC`, `DISSECT`, `DROP`, `ENRICH`, `EVAL`, `FALSE`, `FIRST`, `FROM`,
+`GROK`, `IN`, `INFO`, `IS`, `JOIN`, `KEEP`, `LAST`, `LIKE`, `LIMIT`, `LOOKUP`, `METADATA`, `MV_EXPAND`, `NOT`, `NULL`,
+`NULLS`, `ON`, `OR`, `RENAME`, `RLIKE`, `ROW`, `SHOW`, `SORT`, `STATS`, `TRUE`, `USING`, `WHERE`, `WITH`.
+
+**Reserved as newer commands and functions landed** (reserved on clusters that have the feature):
+
+- 9.1+: `CHANGE_POINT`, `COMPLETION`, `FORK`, `SAMPLE`
+- 9.2+: `FUSE`, `GROUP`, `INLINE`, `KEY`, `RERANK`, `SCORE`, `SET`, `TS`
+- 9.4+: `METRICS_INFO`, `MMR`, `PROMQL`, `REGISTERED_DOMAIN`, `TS_INFO`, `URI_PARTS`, `USER_AGENT`
+- 9.5+: `IP_LOCATION`, `TS_COLLAPSE`
+- Serverless GA / planned for Stack: `DEDUP`, `DENSE_VECTOR`, `HIGHLIGHT`
+
+`SCORE`, `KEY`, `GROUP`, `SET`, and `SAMPLE` are the same alias trap as `first`/`last` — they read like natural column
+names but fail to parse bare on a cluster that has the corresponding feature.
+
+These words are only treated as keywords in the contexts where they are meaningful, so a bare use sometimes slips
+through. Quoting always works, so when in doubt, backtick it.
+
 ### CASE Uses Condition-Value Pairs (Not SQL Syntax)
 
 ES|QL `CASE` takes alternating condition-value pairs with an optional default — it does **not** support
@@ -209,18 +256,24 @@ field is `NULL` (missing). When generating negation filters, always add an `IS N
 
 **Question:** Does the user want raw data or aggregated results?
 
-| User Intent                          | Approach                           |
-| ------------------------------------ | ---------------------------------- |
-| "show me", "list", "find"            | Raw data with KEEP, SORT, LIMIT    |
-| "count", "how many"                  | STATS with COUNT                   |
-| "average", "total", "sum"            | STATS with aggregation function    |
-| "by X", "per X", "grouped by"        | STATS ... BY grouping              |
-| "top N", "most common"               | STATS + SORT DESC + LIMIT          |
-| "distribution", "breakdown"          | STATS COUNT BY category            |
-| "over time", "trend"                 | STATS BY DATE_TRUNC                |
-| "patterns", "categorize", "types of" | STATS ... BY CATEGORIZE(field)     |
-| "spike", "dip", "anomaly", "change"  | CHANGE_POINT value ON key          |
-| "patterns over time"                 | CATEGORIZE + BUCKET + CHANGE_POINT |
+| User Intent                          | Approach                        |
+| ------------------------------------ | ------------------------------- |
+| "show me", "list", "find"            | Raw data with KEEP, SORT, LIMIT |
+| "count", "how many"                  | STATS with COUNT                |
+| "average", "total", "sum"            | STATS with aggregation function |
+| "by X", "per X", "grouped by"        | STATS ... BY grouping           |
+| "top N", "most common"               | STATS + SORT DESC + LIMIT       |
+| "distribution", "breakdown"          | STATS COUNT BY category         |
+| "over time", "trend"                 | STATS BY DATE_TRUNC             |
+| "patterns", "categorize", "types of" | STATS ... BY CATEGORIZE(field)  |
+| "spike", "dip", "anomaly", "change"  | CHANGE_POINT value ON key       |
+| "patterns over time"                 | CATEGORIZE + BUCKET             |
+
+When combining `CATEGORIZE` with a time bucket, `CATEGORIZE` must be the first `BY` key — see
+[CATEGORIZE Must Be the First BY Key](#categorize-must-be-the-first-by-key). To find _when_ a category's count shifted,
+add `CHANGE_POINT value ON bucket BY category` — but per-group `CHANGE_POINT` (the `BY` clause) is GA only on 9.5+ /
+Serverless. Without `BY`, `CHANGE_POINT` treats the whole input as one series, so differences between categories look
+like temporal changes.
 
 **Prefer single advanced queries over multiple basic ones.** When the user asks to "find patterns" or "analyze logs,"
 use `CATEGORIZE` in one query rather than running several `STATS ... BY field` queries against different fields.
@@ -300,8 +353,9 @@ Some indices may use non-ECS field names:
 - `hostname` instead of `host.name`
 - `timestamp` instead of `@timestamp`
 
-**Recommendation:** Always run `./esql.js schema <index>` to discover actual field names before generating queries.
-Never guess — index and field names vary across deployments.
+**Recommendation:** Always discover actual field names with `GET /{index}/_mapping`, listing candidate indices first
+with `GET /_cat/indices`, before generating queries (see the Operations table in `SKILL.md` for the `elastic` CLI
+invocation). Never guess — index and field names vary across deployments.
 
 ---
 
@@ -376,6 +430,25 @@ FROM kibana_sample_data_flights
 ---
 
 ## Key Patterns
+
+### CATEGORIZE Must Be the First BY Key
+
+`CATEGORIZE(field)` is only valid as the **first** grouping key in `STATS ... BY`. Listing any other grouping ahead of
+it — a time bucket, a service name, a host — fails to parse. This bites most often when combining categorization with
+time bucketing for a "patterns over time" question.
+
+```esql
+// WRONG — time bucket listed before CATEGORIZE
+FROM logs-*
+| STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 minute), category = CATEGORIZE(message)
+
+// CORRECT — CATEGORIZE first, bucket second
+FROM logs-*
+| STATS c = COUNT(*) BY category = CATEGORIZE(message), bucket = BUCKET(@timestamp, 1 minute)
+| SORT category, bucket
+```
+
+`CATEGORIZE` is also unsupported as an `INLINE STATS` grouping function.
 
 ### Per-Aggregation WHERE (8.16+)
 
@@ -456,7 +529,8 @@ FROM support_tickets
 
 ### Time Series (TS) Queries
 
-When `schema` reports `Index mode: time_series`, use the `TS` source command instead of `FROM`. Critical syntax rules:
+When `GET /{index}/_settings/index.mode` reports `time_series`, use the `TS` source command instead of `FROM`. Critical
+syntax rules:
 
 **1. Use the data stream name, not the resolved backing index:**
 
@@ -464,11 +538,12 @@ When `schema` reports `Index mode: time_series`, use the `TS` source command ins
 // WRONG — resolved backing index
 FROM .ds-metrics-tsds-2026.03.09-000001
 
-// CORRECT — data stream name (shown by schema command)
+// CORRECT — data stream name
 TS metrics-tsds
 ```
 
-The `schema` command displays the data stream name when the index is a TSDS backing index.
+Read the backing index's `data_stream` from `GET /_resolve/index/{name}` to find the data stream name. Do not derive it
+from the backing index name.
 
 **2. TBUCKET takes only a duration — not @timestamp:**
 
@@ -782,5 +857,5 @@ FROM logs-*
 - Returns top 10 hosts by error count
 
 === To Execute ===
-./esql.js raw "FROM logs-* | WHERE @timestamp > NOW() - 1 hour | WHERE level == \"error\" | STATS count = COUNT(*) BY host.name | SORT count DESC | LIMIT 10"
+POST /_query  (see the Operations table in SKILL.md for the elastic CLI invocation)
 ```
