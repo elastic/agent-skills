@@ -18,7 +18,7 @@ compatibility: >
   Elasticsearch ML APIs. Read-only.
 metadata:
   author: elastic
-  version: 0.5.1
+  version: 0.5.2
   universal: true
 ---
 

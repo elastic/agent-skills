@@ -9,10 +9,11 @@ Elasticsearch 9.2+.
 > 9.3-introduced set — `DERIV`, `PERCENTILE_OVER_TIME`, `STDDEV_OVER_TIME`, `VARIANCE_OVER_TIME`), the `TBUCKET`
 > grouping function, the new `WITHOUT(...)` grouping function, and the new `METRICS_INFO` and `TS_INFO` discovery
 > commands are **GA since 9.4** (preview from 9.2 to 9.3 for the 9.2/9.3 features; new in 9.4 for `WITHOUT`,
-> `METRICS_INFO`, and `TS_INFO`). `TRANGE` remains in preview. **Looking for PromQL?** Elasticsearch 9.4+ also exposes a
-> `PROMQL` source command for running Prometheus Query Language directly against TSDS indices. See
-> [promql-command.md](promql-command.md). Prefer `PROMQL` only when the user explicitly thinks in PromQL or is migrating
-> Prometheus dashboards/alerts; otherwise prefer `TS` and the inner/outer aggregation paradigm described below.
+> `METRICS_INFO`, and `TS_INFO`). `TRANGE` remains in preview. **Looking for PromQL?** Elasticsearch also exposes a
+> `PROMQL` source command (preview in 9.4, GA in 9.5+ and Serverless) for running Prometheus Query Language directly
+> against TSDS indices. See [promql-command.md](promql-command.md). Prefer `PROMQL` only when the user explicitly thinks
+> in PromQL or is migrating Prometheus dashboards/alerts; otherwise prefer `TS` and the inner/outer aggregation paradigm
+> described below.
 
 ## Table of Contents
 
@@ -28,6 +29,7 @@ Elasticsearch 9.2+.
 - [Kibana Time Filtering](#kibana-time-filtering)
 - [Common Query Patterns](#common-query-patterns)
 - [Guidelines](#guidelines)
+- [Counter and Gauge Casts (9.5)](#counter-and-gauge-casts-95)
 - [References](#references)
 
 ---
@@ -176,8 +178,8 @@ TS metrics-*
 
 `SUM` totals the values the histograms were originally created from; `COUNT` counts the number of values the histograms
 were created from — it does _not_ count the number of histograms; use `PERCENTILE`/`MEDIAN`/`AVG` for latency. Prefer
-the histogram metric from `METRICS_INFO` over a companion `*.summary` / `aggregate_metric_double` in `schema` unless the
-user asks for it. Do not fall back to `*_OVER_TIME` or `TO_STRING`/`REPLACE` JSON parsing. For OTel ingestion
+the histogram metric from `METRICS_INFO` over a companion `*.summary` / `aggregate_metric_double` in the mapping unless
+the user asks for it. Do not fall back to `*_OVER_TIME` or `TO_STRING`/`REPLACE` JSON parsing. For OTel ingestion
 background, see [OTel histogram metrics in ES\|QL](https://www.elastic.co/search-labs/blog/otel-histogram-metrics-esql).
 
 **Availability:** Histogram metric querying in `TS` is preview in 9.3 and **GA since 9.4** (same as
@@ -690,11 +692,25 @@ smaller and larger than the bucket interval for different metrics in the same qu
   `::exponential_histogram` when plain `histogram` is present, types are mixed, or a type error occurs — see
   [Histogram Metrics](#histogram-metrics).
 
+## Counter and Gauge Casts (9.5)
+
+Only needed when `METRICS_INFO` reports the wrong `metric_type` for a field. `x::counter` / `TO_COUNTER(x)` and
+`x::gauge` / `TO_GAUGE(x)` (GA 9.5) change the type annotation only, inside `TS ... | STATS` (`EVAL` cannot return a
+counter):
+
+```esql
+TS metrics-tsds
+| STATS bytes_per_sec = SUM(RATE(network.bytes_in::counter)) BY host
+```
+
+To get one row per time series from `PROMQL`, append `| TS_COLLAPSE` (preview 9.5; needs explicit `start`/`end` outside
+Kibana) — see [esql-reference.md](esql-reference.md#ts_collapse-preview-95).
+
 ## References
 
 - [ES|QL TS Command](https://www.elastic.co/docs/reference/query-languages/esql/commands/ts)
 - [ES|QL PROMQL Command](https://www.elastic.co/docs/reference/query-languages/esql/commands/promql) — alternative
-  source command using PromQL syntax (9.4+ preview)
+  source command using PromQL syntax (preview 9.4, GA 9.5)
 - [promql-command.md](promql-command.md) — PROMQL command reference in this skill
 - [Time Series Aggregation Functions](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/time-series-aggregation-functions)
 - [TBUCKET Function](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/grouping-functions/tbucket)

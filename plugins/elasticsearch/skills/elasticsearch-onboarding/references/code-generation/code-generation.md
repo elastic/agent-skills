@@ -1,9 +1,9 @@
 ---
 name: code-generation
 description:
-  Guide for generating Elasticsearch code during onboarding. Covers source verification via Docs MCP, the write
-  confirmation protocol, client library references, and idiomatic code generation principles. Focused on Elasticsearch
-  resource operations, not generic application code.
+  Guide for generating Elasticsearch code during onboarding. Covers documentation verification before generating, the
+  write confirmation protocol, client library references, and idiomatic code generation principles. Focused on
+  Elasticsearch resource operations, not generic application code.
 ---
 
 # Elasticsearch Code Generation
@@ -15,14 +15,15 @@ that.
 
 ## Verify API Docs Before Generating
 
-Before generating any Elasticsearch code, verify the API syntax against the developer's cluster version using the
-**Elastic Docs MCP server**. If the Docs MCP is not connected, set it up — the agent cannot reliably generate
-version-correct code without it.
+Before generating any Elasticsearch code, verify the API syntax against the developer's cluster version. Generating from
+memory produces code that is wrong for the version the developer is actually running.
 
-Check whether the `elastic-docs` MCP server is available. If not, load [mcp-setup](../mcp-setup/mcp-setup.md) and follow
-the Elastic Docs MCP Server section to configure it.
+Use whatever documentation retrieval the runtime provides. The **Elastic Docs MCP server** is the preferred source where
+MCP is available — see the Documentation Lookup section in
+[cluster-access](../cluster-access/cluster-access.md#documentation-lookup) for the endpoint, its tools, and the config
+block. Runtimes without MCP fetch the documentation URLs directly.
 
-Use the Docs MCP to verify before generating:
+Verify these before generating:
 
 - **Elasticsearch REST API syntax** — Endpoint paths, request body structure, required vs. optional fields. APIs change
   across versions; do not assume syntax from memory.
@@ -32,15 +33,10 @@ Use the Docs MCP to verify before generating:
   rapidly.
 - **Ingest pipeline processors** — Available processors, their parameters, and version availability.
 
-Key Docs MCP tools:
-
-- `search_docs` — Search by topic (e.g., "bulk API Python client", "semantic_text field type")
-- `get_document_by_url` — Fetch a specific doc page when you know the URL
-
 ## Client Library References
 
-Generate code using the official Elasticsearch client for the developer's language. Use the Docs MCP to look up current
-method signatures; do not rely on memorized APIs.
+Generate code using the official Elasticsearch client for the developer's language. Look up current method signatures;
+do not rely on memorized APIs.
 
 | Language              | Client docs                                                                                 |
 | --------------------- | ------------------------------------------------------------------------------------------- |
@@ -59,7 +55,7 @@ For the full client overview: [Elasticsearch clients](https://www.elastic.co/doc
 Before executing any write operation against the cluster (creating an index, ingesting documents, configuring a
 pipeline, creating a synonym set), follow this protocol:
 
-1. Use the Docs MCP to verify the correct API syntax for the developer's Elasticsearch version.
+1. Verify the correct API syntax for the developer's Elasticsearch version against the documentation.
 2. Show the developer the exact API call:
    > I'll create the index with this call:
    >
@@ -77,7 +73,7 @@ pipeline, creating a synonym set), follow this protocol:
 
 When generating Elasticsearch code, briefly explain the language-agnostic API pattern before showing the
 language-specific implementation. The developer should understand the underlying REST operation so they can adapt it to
-any client or use `curl`/Dev Tools directly. Keep the explanation to one or two sentences — don't lecture.
+any client or run it from Kibana Dev Tools themselves. Keep the explanation to one or two sentences — don't lecture.
 
 ### Generate focused, minimal code
 
@@ -94,9 +90,13 @@ Use the conventions of the developer's chosen language and its Elasticsearch cli
 - Java — `elasticsearch-java`, builder patterns, typed responses
 - Go — `go-elasticsearch`, idiomatic error handling
 
-Do not transliterate Python into another language. Look up the client's actual API surface via the Docs MCP.
+Do not transliterate Python into another language. Look up the client's actual API surface in its documentation.
 
 ### Connection setup
+
+This section is about the **application you generate for the developer**, which has to open its own connection. It does
+not describe how this skill reaches the cluster — that binding is handled by the runtime, and you should never ask the
+developer for an endpoint or key in order to perform a read yourself.
 
 Use the Elasticsearch URL + `api_key` for connection. Include self-managed alternatives in a comment.
 
@@ -105,7 +105,7 @@ When generated code includes a connection block, tell the developer where to fin
 - **Elasticsearch URL** — In Kibana: help icon (?) → **Connection details**. Also at <https://cloud.elastic.co> →
   deployment overview.
 - **API key** — In Kibana: **Management → Security → API keys → Create API key**. Copy the **Encoded** value.
-- **Self-managed** — Use `hosts=["https://your-host:9200"]` with `api_key` or `basic_auth`.
+- **Self-managed** — Point `hosts` at their cluster endpoint with `api_key` or `basic_auth`.
 
 The developer already has a cluster — never suggest signing up.
 
