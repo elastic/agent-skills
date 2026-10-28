@@ -162,8 +162,9 @@ Prefer the semantic field representing the **main document body**.
 
 ### Vector Retrieval
 
-> **Version:** `KNN` is 9.2+ (preview). `TEXT_EMBEDDING` is 9.3+. Verify cluster version via `esql-version-history.md`
-> before using these functions. For clusters below 9.2, use semantic retrieval with `semantic_text` + `MATCH` instead.
+> **Version:** `KNN` is preview 9.2, GA 9.4. `TEXT_EMBEDDING` is preview 9.3, GA 9.4. Verify cluster version via
+> `esql-version-history.md` before using these functions. For clusters below 9.2, use semantic retrieval with
+> `semantic_text` + `MATCH` instead.
 
 Use when embeddings are stored as `dense_vector`. `KNN` can also target `semantic_text` fields.
 
@@ -182,8 +183,9 @@ Rules:
 
 ### Hybrid Retrieval
 
-> **Version:** `FORK` is 8.19/9.1+ (preview). `FUSE` is 9.2+ (preview). On clusters below 9.2, use lexical retrieval
-> followed by `RERANK` as a fallback. On clusters below 8.19/9.1, use a single-branch `MATCH` with `RERANK`.
+> **Version:** `FORK` is 8.19/9.1+ (preview, GA in 9.4). `FUSE` is 9.2+ (preview, GA in 9.5). On clusters below 9.2, use
+> lexical retrieval followed by `RERANK` as a fallback. On clusters below 8.19/9.1, use a single-branch `MATCH` with
+> `RERANK`.
 
 Use when both lexical and semantic fields exist.
 
@@ -234,10 +236,12 @@ FROM my-index METADATA _score
 
 ## Reranking Stage
 
-> **Version:** `RERANK` is 9.2+ (preview). On clusters below 9.2, skip the reranking stage and rely on initial retrieval
-> scoring. For clusters below 9.2, sorting by `_score DESC` after `MATCH` provides BM25 or vector-based ordering.
+> **Version:** `RERANK` is preview 9.2, GA 9.4. On clusters below 9.2, skip the reranking stage and rely on initial
+> retrieval scoring. For clusters below 9.2, sorting by `_score DESC` after `MATCH` provides BM25 or vector-based
+> ordering.
 
-Always rerank a bounded candidate set.
+Always rerank a bounded candidate set. `RERANK` rewrites `_score` without re-sorting rows, so follow it with
+`SORT _score DESC`.
 
 ### Semantic Reranking
 
@@ -246,7 +250,7 @@ FROM my-index METADATA _score
 | WHERE MATCH(body, ?query)
 | SORT _score DESC
 | LIMIT 100
-| RERANK body ON ?query
+| RERANK ?query ON body
 | SORT _score DESC
 | LIMIT 20
 ```
@@ -258,7 +262,7 @@ Use when:
 
 ### Embedding Similarity Rescore
 
-> **Version:** `V_COSINE` and other vector similarity functions are 9.3+ (preview). Verify cluster version via
+> **Version:** `V_COSINE` and other vector similarity functions are preview 9.3, GA 9.4. Verify cluster version via
 > `esql-version-history.md` before using these functions.
 
 Use when document embeddings exist.

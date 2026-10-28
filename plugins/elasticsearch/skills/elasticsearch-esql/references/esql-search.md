@@ -22,7 +22,7 @@ Full-text search in ES|QL uses analyzer-aware functions for fast, relevance-rank
 - [FORK / FUSE (Hybrid Search)](#fork--fuse-hybrid-search)
 - [LOOKUP JOIN](#lookup-join)
 - [Parameters in ES|QL](#parameters-in-esql)
-- [Advanced Search Functions (Preview)](#advanced-search-functions-preview)
+- [Advanced Search Functions](#advanced-search-functions)
 - [Placement Rules](#placement-rules)
 - [Common Patterns](#common-patterns)
 - [Full-Text Search vs Pattern Matching](#full-text-search-vs-pattern-matching)
@@ -526,11 +526,11 @@ FROM orders-*
 
 ---
 
-## Advanced Search Functions (Preview)
+## Advanced Search Functions
 
-These functions are available in recent versions as tech preview.
+These functions were added in recent versions. `KNN` is GA since 9.4; `TOP_SNIPPETS` and `DECAY` are still preview.
 
-### KNN — Dense Vector Search (9.2+, preview)
+### KNN — Dense Vector Search (preview 9.2, GA 9.4)
 
 ```esql
 FROM index METADATA _score
@@ -558,7 +558,19 @@ FROM articles METADATA _score
 | LIMIT 10
 ```
 
-Options: `num_snippets` (number of snippets to return), `num_words` (max words per snippet).
+Options: `num_snippets` (number of snippets to return), `num_words` (max words per snippet; `0` disables chunking,
+9.4+).
+
+**9.5+ options (preview):** `highlight` (boolean, wrap matched terms in tags), `pre_tag` / `post_tag` (defaults `<em>` /
+`</em>`), `encoder` (`default` or `html`), `order` (`score` default, or `none` for original text order), and `analyzer`
+(registered analyzer for scoring and highlighting, default `standard`):
+
+```esql
+FROM articles
+| WHERE MATCH(content, "elasticsearch")
+| EVAL snippets = TOP_SNIPPETS(content, "elasticsearch", {"num_snippets": 2, "highlight": true, "pre_tag": "<b>", "post_tag": "</b>", "encoder": "html"})
+| KEEP title, snippets
+```
 
 ### DECAY — Distance-Based Scoring (9.3+, preview)
 
@@ -576,28 +588,46 @@ FROM events METADATA _score
 
 ## Placement Rules
 
-Full-text search functions (`MATCH`, `QSTR`, `KQL`, `MATCH_PHRASE`) must appear in a `WHERE` clause **before** any
-processing command has modified the column set. In practice this means they must be placed in the `WHERE` immediately
-after `FROM` (or after another `WHERE`). They can also appear in per-aggregation `STATS ... WHERE` filters.
+Full-text search functions on indexed fields use the inverted index, so they must appear in a `WHERE` close to `FROM`.
+How close depends on the function:
 
-They **cannot** be used after any of these commands: `EVAL`, `GROK`, `DISSECT`, `KEEP`, `DROP`, `RENAME`, `MV_EXPAND`,
-`STATS`, `LIMIT`, `SHOW`, `ROW`.
+- **`QSTR` and `KQL`** — only after `FROM`, `WHERE`, or `SORT`. They fail after `EVAL`, `GROK`, `DISSECT`, `KEEP`,
+  `DROP`, `RENAME`, `MV_EXPAND`, `STATS`, and `LIMIT` (unchanged in 9.5).
+- **`MATCH`, `:`, and `MATCH_PHRASE` on an indexed field** — can also follow `EVAL`, `GROK`, `DISSECT`, `KEEP`, `DROP`,
+  and `RENAME` (a renamed field still counts as indexed), but fail after `MV_EXPAND`, `STATS`, and `LIMIT`.
+- All of them can appear in per-aggregation `STATS ... WHERE` filters.
+
+**Before 9.5**, full-text functions accept only index-mapped fields: a column created by `EVAL` (even
+`EVAL m = message`) or `ROW` fails with `cannot operate on [m], which is not a field from an index mapping`.
+
+**From 9.5 (MATCH on expressions, preview)**, `MATCH` and `:` also accept expressions such as `EVAL` columns, scanning
+row by row. On 9.5 Stack this is still rejected after `STATS` (and `LIMIT`), takes no `options`, and scores `0`;
+`MATCH_PHRASE`, `QSTR`, and `KQL` still require indexed fields. Serverless relaxes these limits — see
+[MATCH on expressions](esql-reference.md#match-colon-operator).
 
 ```esql
-// CORRECT — MATCH directly after FROM
+// CORRECT — MATCH on an indexed field after EVAL
 FROM logs-* METADATA _score
+| EVAL lower_msg = TO_LOWER(message)
 | WHERE MATCH(message, "timeout")
 | SORT _score DESC
 | LIMIT 50
 
-// WRONG — MATCH after EVAL will fail
+// WRONG — QSTR after EVAL fails
 FROM logs-*
 | EVAL lower_msg = TO_LOWER(message)
-| WHERE MATCH(message, "timeout")
-```
+| WHERE QSTR("message:timeout")
 
-**Important:** Full-text functions require indexed fields. They cannot operate on runtime-computed values, `ROW`
-literals, or fields created by `EVAL`.
+// WRONG — MATCH on an indexed field after STATS fails
+FROM logs-*
+| STATS c = COUNT(*) BY message
+| WHERE MATCH(message, "timeout")
+
+// 9.5+ (preview) — MATCH on an EVAL column; wrap keyword expressions in TO_TEXT for analyzed search
+FROM logs-*
+| EVAL t = TO_TEXT(CONCAT(level, " ", message))
+| WHERE MATCH(t, "timeout")
+```
 
 ---
 

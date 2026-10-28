@@ -437,7 +437,7 @@ FROM flights
 | KEEP flight_id, destination, distance, avg_dist
 ```
 
-### Grouped Top-N with LIMIT BY (9.4+; Serverless)
+### Grouped Top-N with LIMIT BY (preview 9.4)
 
 ```text
 "top 3 error types per service"
@@ -463,7 +463,7 @@ FROM events-*
 | KEEP user.name, @timestamp, event.action
 ```
 
-### Subquery Composition (9.4+; Serverless)
+### Subquery Composition (preview 9.4, GA 9.5)
 
 ```text
 "combine web server errors and application errors into one view"

@@ -17,6 +17,7 @@ Guidelines for generating accurate ES|QL queries from natural language.
 - [Common Query Templates](#common-query-templates)
 - [Handling Ambiguity](#handling-ambiguity)
 - [Output Formatting Suggestions](#output-formatting-suggestions)
+- [9.5 Additions](#95-additions)
 
 ## Critical Syntax Rules
 
@@ -36,6 +37,50 @@ ES|QL uses **double quotes** for string literals — never single quotes. This i
 ```
 
 This applies everywhere: `WHERE`, `EVAL`, `CASE`, `STATS ... BY`, function arguments, and string constants.
+
+### Reserved Words Need Backticks as Identifiers
+
+A few ES|QL keywords cannot be used bare as column names, aliases, or as a segment of a dotted field name. `first` and
+`last` are the most common traps because they read like natural column names for earliest/latest timestamps. Keywords
+are case-insensitive, so `first`, `FIRST`, and `First` are the same token.
+
+```esql
+// WRONG — `first` is a reserved keyword
+| STATS first = MIN(@timestamp) BY service.name
+
+// CORRECT — rename the column (preferred)
+| STATS first_seen = MIN(@timestamp) BY service.name
+
+// CORRECT — or backtick-quote it
+| STATS `first` = MIN(@timestamp) BY service.name
+```
+
+**Prefer renaming the output column over backticking it** — a descriptive alias like `first_seen` or `earliest` reads
+better and avoids the quoting entirely. Backticks are the only option when the clash is in a real field name you do not
+control, including a reserved word buried in a dotted path:
+
+```esql
+// WRONG — `in` is the IN operator, so the dotted name fails to parse
+| WHERE host.network.interface.in.utilization IS NOT NULL
+
+// CORRECT — backtick-quote the whole identifier
+| WHERE `host.network.interface.in.utilization` IS NOT NULL
+```
+
+**Never bare in an expression:** `FIRST`, `LAST`, `BY`, `IN`, `IS`, `ON`, `WITH`, plus the operator and literal words
+`AND`, `OR`, `NOT`, `LIKE`, `RLIKE`, `NULL`, `TRUE`, `FALSE`, `ASC`, `DESC`, `NULLS`. They fail in every expression
+position: `EVAL`/`STATS` aliases, `BY`, `WHERE`, `SORT`, function arguments, and dotted segments (`x.in.y`). Only the
+looser name lists of `KEEP`, `DROP`, and the `RENAME` source accept them bare.
+
+**Keywords only in one context:**
+
+- `AS` fails bare only inside `RENAME`; `METADATA` only inside `FROM`.
+- `SCORE`, `KEY`, and `GROUP` fail bare only as the column right after `FUSE ... SCORE BY`, `KEY BY`, or `GROUP BY` —
+  write `` FUSE linear SCORE BY `score` ``. Elsewhere they are ordinary column names.
+- Command names (`SET`, `SAMPLE`, `DEDUP`, `LIMIT`, `SORT`, `FUSE`, `FORK`, `RERANK`, `COMPLETION`, `CHANGE_POINT`, …)
+  are keywords only as the first word of a pipe segment, so `EVAL sample = 1` or `STATS c = COUNT(*) BY score` parse.
+
+Backquoting any identifier always works. If a name causes an unexplained parse error, backquote it.
 
 ### CASE Uses Condition-Value Pairs (Not SQL Syntax)
 
@@ -209,18 +254,24 @@ field is `NULL` (missing). When generating negation filters, always add an `IS N
 
 **Question:** Does the user want raw data or aggregated results?
 
-| User Intent                          | Approach                           |
-| ------------------------------------ | ---------------------------------- |
-| "show me", "list", "find"            | Raw data with KEEP, SORT, LIMIT    |
-| "count", "how many"                  | STATS with COUNT                   |
-| "average", "total", "sum"            | STATS with aggregation function    |
-| "by X", "per X", "grouped by"        | STATS ... BY grouping              |
-| "top N", "most common"               | STATS + SORT DESC + LIMIT          |
-| "distribution", "breakdown"          | STATS COUNT BY category            |
-| "over time", "trend"                 | STATS BY DATE_TRUNC                |
-| "patterns", "categorize", "types of" | STATS ... BY CATEGORIZE(field)     |
-| "spike", "dip", "anomaly", "change"  | CHANGE_POINT value ON key          |
-| "patterns over time"                 | CATEGORIZE + BUCKET + CHANGE_POINT |
+| User Intent                          | Approach                        |
+| ------------------------------------ | ------------------------------- |
+| "show me", "list", "find"            | Raw data with KEEP, SORT, LIMIT |
+| "count", "how many"                  | STATS with COUNT                |
+| "average", "total", "sum"            | STATS with aggregation function |
+| "by X", "per X", "grouped by"        | STATS ... BY grouping           |
+| "top N", "most common"               | STATS + SORT DESC + LIMIT       |
+| "distribution", "breakdown"          | STATS COUNT BY category         |
+| "over time", "trend"                 | STATS BY DATE_TRUNC             |
+| "patterns", "categorize", "types of" | STATS ... BY CATEGORIZE(field)  |
+| "spike", "dip", "anomaly", "change"  | CHANGE_POINT value ON key       |
+| "patterns over time"                 | CATEGORIZE + BUCKET             |
+
+When combining `CATEGORIZE` with a time bucket, `CATEGORIZE` must be the first `BY` key — see
+[CATEGORIZE Must Be the First BY Key](#categorize-must-be-the-first-by-key). To find _when_ a category's count shifted,
+add `CHANGE_POINT value ON bucket BY category` — but per-group `CHANGE_POINT` (the `BY` clause) is GA only on 9.5+ /
+Serverless. Without `BY`, `CHANGE_POINT` treats the whole input as one series, so differences between categories look
+like temporal changes.
 
 **Prefer single advanced queries over multiple basic ones.** When the user asks to "find patterns" or "analyze logs,"
 use `CATEGORIZE` in one query rather than running several `STATS ... BY field` queries against different fields.
@@ -300,8 +351,9 @@ Some indices may use non-ECS field names:
 - `hostname` instead of `host.name`
 - `timestamp` instead of `@timestamp`
 
-**Recommendation:** Always run `./esql.js schema <index>` to discover actual field names before generating queries.
-Never guess — index and field names vary across deployments.
+**Recommendation:** Always discover actual field names with `GET /{index}/_mapping`, listing candidate indices first
+with `GET /_cat/indices`, before generating queries (see the Operations table in `SKILL.md` for the `elastic` CLI
+invocation). Never guess — index and field names vary across deployments.
 
 ---
 
@@ -376,6 +428,25 @@ FROM kibana_sample_data_flights
 ---
 
 ## Key Patterns
+
+### CATEGORIZE Must Be the First BY Key
+
+`CATEGORIZE(field)` is only valid as the **first** grouping key in `STATS ... BY`. Listing any other grouping ahead of
+it — a time bucket, a service name, a host — fails to parse. This bites most often when combining categorization with
+time bucketing for a "patterns over time" question.
+
+```esql
+// WRONG — time bucket listed before CATEGORIZE
+FROM logs-*
+| STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 1 minute), category = CATEGORIZE(message)
+
+// CORRECT — CATEGORIZE first, bucket second
+FROM logs-*
+| STATS c = COUNT(*) BY category = CATEGORIZE(message), bucket = BUCKET(@timestamp, 1 minute)
+| SORT category, bucket
+```
+
+`CATEGORIZE` is also unsupported as an `INLINE STATS` grouping function.
 
 ### Per-Aggregation WHERE (8.16+)
 
@@ -456,7 +527,8 @@ FROM support_tickets
 
 ### Time Series (TS) Queries
 
-When `schema` reports `Index mode: time_series`, use the `TS` source command instead of `FROM`. Critical syntax rules:
+When `GET /{index}/_settings/index.mode` reports `time_series`, use the `TS` source command instead of `FROM`. Critical
+syntax rules:
 
 **1. Use the data stream name, not the resolved backing index:**
 
@@ -464,11 +536,12 @@ When `schema` reports `Index mode: time_series`, use the `TS` source command ins
 // WRONG — resolved backing index
 FROM .ds-metrics-tsds-2026.03.09-000001
 
-// CORRECT — data stream name (shown by schema command)
+// CORRECT — data stream name
 TS metrics-tsds
 ```
 
-The `schema` command displays the data stream name when the index is a TSDS backing index.
+Read the backing index's `data_stream` from `GET /_resolve/index/{name}` to find the data stream name. Do not derive it
+from the backing index name.
 
 **2. TBUCKET takes only a duration — not @timestamp:**
 
@@ -569,7 +642,7 @@ ES|QL before 9.2**. There is no fallback.
 When the cluster is pre-9.2 and the question requires per-row vs. aggregate comparison, explain that `INLINE STATS` is
 needed and suggest the user either upgrade or perform the comparison client-side.
 
-### Pipe Commands: URI_PARTS, USER_AGENT, REGISTERED_DOMAIN (9.4+; Serverless)
+### Pipe Commands: URI_PARTS, USER_AGENT, REGISTERED_DOMAIN (preview 9.4)
 
 These are **pipe commands** (like `DISSECT`/`GROK`), not scalar functions. They must appear on their own pipeline stage
 with `target = expression` syntax. A target prefix is mandatory.
@@ -592,7 +665,7 @@ When the user asks to "parse URLs", "extract domains", or "parse user agents", r
 | Parse a user agent string | `USER_AGENT`        |
 | Extract registered domain | `REGISTERED_DOMAIN` |
 
-### Grouped Top-N with LIMIT BY (9.4+; Serverless)
+### Grouped Top-N with LIMIT BY (preview 9.4)
 
 `LIMIT n BY field` keeps the top N rows per group after sorting. The number comes **before** `BY`.
 
@@ -607,10 +680,18 @@ FROM logs-*
 
 This replaces the common `INLINE STATS` + rank-and-filter pattern for simple grouped top-N.
 
+### Unique Combinations (Deduplicating Rows)
+
+For "unique combinations, no duplicates", produce one row per combination of the columns that define a duplicate:
+
+- **Serverless:** `| KEEP host.name, service.name | DEDUP` (preview). Stack 9.5 and earlier reject `DEDUP`.
+- **Stack 9.4+:** `| LIMIT 1 BY host.name, service.name`; `SORT` first to choose which row each group keeps.
+- **Any version:** `| STATS BY host.name, service.name` (add `COUNT(*)` to count each combination).
+
 ### Subqueries in FROM vs FORK
 
-**Subqueries** (9.4+; Serverless) combine results from **different** data sources (UNION ALL semantics). **FORK** runs
-**different analyses** on the **same** data source.
+**Subqueries** (preview 9.4, GA 9.5) combine results from **different** data sources (UNION ALL semantics). **FORK**
+runs **different analyses** on the **same** data source.
 
 | Scenario                              | Use        |
 | ------------------------------------- | ---------- |
@@ -642,6 +723,9 @@ FROM security-events
 | WHERE event.outcome == "failure"
   AND NOT CIDR_MATCH(source.ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 ```
+
+When the IP field is mapped as `keyword`, convert it first: `EVAL ip = TO_IP(client_ip)`, then use `ip` in `CIDR_MATCH`,
+comparisons, `IN (FROM …)`, and `LOOKUP JOIN` (the last two reject an expression on the left).
 
 ---
 
@@ -782,5 +866,24 @@ FROM logs-*
 - Returns top 10 hosts by error count
 
 === To Execute ===
-./esql.js raw "FROM logs-* | WHERE @timestamp > NOW() - 1 hour | WHERE level == \"error\" | STATS count = COUNT(*) BY host.name | SORT count DESC | LIMIT 10"
+POST /_query  (see the Operations table in SKILL.md for the elastic CLI invocation)
 ```
+
+---
+
+## 9.5 Additions
+
+Use these on 9.5+ Stack and on Serverless (all preview unless noted). Full syntax is in
+[esql-reference.md](esql-reference.md).
+
+- **Allow/deny lists:** `WHERE source.ip NOT IN (FROM allowed_ips | KEEP ip)` — the subquery returns one column. Use
+  `LOOKUP JOIN` instead when you also need columns from the reference index.
+- **GeoIP at query time:** `| IP_LOCATION geo = source.ip` is a pipe command; calling it as a function inside `EVAL`
+  fails. Default columns are `geo.country_name`, `geo.city_name`, `geo.location`, and the ISO/region fields; use
+  `WITH {"database_file": "GeoLite2-ASN.mmdb"}` for ASN/organization.
+- **Data Federation** (external sources such as S3) is experimental and not for production use, and available on ECH and
+  self-managed only (not Serverless) — do not generate it unless the user asks, and then warn about that status. Never
+  create data sources or datasets to answer a question about data already in an index. When the user names a dataset,
+  query it with `FROM <dataset>`; it is not listed by `GET /_cat/indices` or `GET /{index}/_mapping`, so read its
+  columns with `FROM <dataset> | LIMIT 0`. Use it only as the source of a `LOOKUP JOIN`, never as the lookup target, and
+  never with `TS`. See [Data Federation](esql-reference.md#data-federation-95-experimental--not-for-production-use).
