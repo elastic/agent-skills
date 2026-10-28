@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.8.0
+
+### New Skills
+
+- `skills/security/threat-hunting` (v0.2.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.7.0
 
 ### New Skills

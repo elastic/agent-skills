@@ -96,7 +96,7 @@ Skills in this repository focus on:
 </details>
 
 <details>
-<summary>Security (6)</summary>
+<summary>Security (7)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
@@ -106,6 +106,7 @@ Skills in this repository focus on:
 | [security-detection-rule-management](skills/security/detection-rule-management/SKILL.md) | Create, tune, and manage Elastic Security detection rules (SIEM and Endpoint). Use for false positives, exceptions, new coverage, noisy rules, or rule management via Kibana API. | 0.1.0 | elastic |
 | [security-generate-security-sample-data](skills/security/generate-security-sample-data/SKILL.md) | Generate sample security events, attack scenarios, and synthetic alerts for Elastic Security. Use when demoing, populating dashboards, testing detection rules, or setting up a POC. | 0.1.0 | elastic |
 | [security-ml-integrations](skills/security/ml-integrations/SKILL.md) | Install and manage Elastic security ML integration packages (beaconing, ded, dga, lmd, pad, problemchild). Handles the full lifecycle: pre-flight checks, Fleet package install, component templates, ingest pipelines, transforms, data views, ML anomaly detection jobs, and detection rules. Use when a user asks to install, set up, check the status of, or troubleshoot a security ML integration package. | 0.1.0 | elastic |
+| [security-threat-hunting](skills/security/threat-hunting/SKILL.md) | Hypothesis-driven threat hunting in Elastic Security using iterative ES\|QL exploration. Covers IOC search, anomaly identification, baseline comparison, lateral movement tracking, and turning hunt findings into cases and detection rules. Use when running a proactive hunt, investigating suspicious activity patterns, searching for indicators of compromise, or looking for rare events in security telemetry. | 0.2.0 | elastic |
 
 </details>
 

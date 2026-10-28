@@ -1,7 +1,7 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "1a9bb41b0a5bbe47a291b89f44788d8355e9c33b",
+  "sandbox_sha": "70962fd2fb37177464f8b5fd6f5a638325870eec",
   "skills": {
     "skills/cloud/onboarding": {
       "name": "cloud-onboarding",
@@ -126,6 +126,10 @@
     "skills/security/ml-integrations": {
       "name": "security-ml-integrations",
       "version": "0.1.0"
+    },
+    "skills/security/threat-hunting": {
+      "name": "security-threat-hunting",
+      "version": "0.2.0"
     }
   }
 }
