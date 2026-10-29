@@ -25,3 +25,12 @@ repo = "elastic/claude-plugin"
 [[sync.target.copies]]
 source = "skills"
 dest = "skills"
+
+[[sync.target]]
+name = "copilot-cowork"
+repo = "elastic/copilot-cowork-plugin"
+
+[[sync.target.copies]]
+source = "skills"
+dest = "skills"
+exclude = ["security/**", "observability/**"]
