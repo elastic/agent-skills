@@ -5,13 +5,15 @@ agents and Agent Builder: the body cites HTTP shorthand; the Operations table bi
 
 ## What's included
 
-A single Agent Skill (`SKILL.md` at the package root) covering the full install lifecycle for six security ML packages:
-**beaconing**, **ded**, **dga**, **lmd**, **pad**, **problemchild**.
+A single Agent Skill (`SKILL.md` at the package root) covering the full install lifecycle for seven security ML
+packages: **beaconing**, **ded**, **dga**, **lmd**, **pad**, **problemchild**, and technical preview **security_ai**
+(Security for AI).
 
-**Kibana version:** Requires **Kibana 9.4+** with Fleet, ML, and Security; a Platinum, Enterprise, or trial license (or
-Serverless); `manage_ml`; and the `elastic` CLI ≥ 0.5.
+**Kibana version:** Requires **Kibana 9.4+** with Fleet, ML, and Security. Security for AI requires **Kibana 9.6+**.
+Also requires a Platinum, Enterprise, or trial license (or Serverless), `manage_ml`, and the `elastic` CLI ≥ 0.5.
 
-- [package-capabilities.md](package-capabilities.md) — source patterns, shared template fields, ingest-pipeline wiring
+- [package-capabilities.md](package-capabilities.md) — source patterns, shared template fields, ingest-pipeline wiring,
+  and Security for AI datasets
 
 ## Using this package from agent-skills-sandbox
 
