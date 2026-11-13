@@ -34,3 +34,11 @@ repo = "elastic/copilot-cowork-plugin"
 source = "skills"
 dest = "skills"
 exclude = ["security/**", "observability/**"]
+
+[[sync.target]]
+name = "codex"
+repo = "elastic/codex-plugin"
+
+[[sync.target.copies]]
+source = "skills"
+dest = "skills"
