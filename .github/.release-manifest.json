@@ -1,7 +1,7 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "source_repo": "elastic/agent-skills",
-  "sandbox_sha": "1a9bb41b0a5bbe47a291b89f44788d8355e9c33b",
+  "sandbox_sha": "7f6fc6ace698e877d68017ba73325bc46d64e26c",
   "skills": {
     "skills/cloud/onboarding": {
       "name": "cloud-onboarding",
@@ -57,7 +57,7 @@
     },
     "skills/kibana/kibana-alerting-rules": {
       "name": "kibana-alerting-rules",
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     "skills/kibana/kibana-anomaly-detection": {
       "name": "kibana-anomaly-detection",
@@ -125,7 +125,11 @@
     },
     "skills/security/ml-integrations": {
       "name": "security-ml-integrations",
-      "version": "0.1.0"
+      "version": "0.2.0"
+    },
+    "skills/security/threat-hunting": {
+      "name": "security-threat-hunting",
+      "version": "0.2.0"
     }
   }
 }

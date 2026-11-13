@@ -72,7 +72,7 @@ Skills in this repository focus on:
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
 | [kibana-agent-builder](skills/kibana/kibana-agent-builder/SKILL.md) | Create and manage Kibana Agent Builder agents and custom tools. Use when asked to create, update, delete, test, or inspect agents or tools in Agent Builder, or when the user wants to understand what agents or tools already exist. | 0.3.0 | elastic |
-| [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules. Use when creating, updating, or managing rule lifecycle (enable, disable, mute, snooze), choosing metric threshold rule types and params, or read-only find/list with tag filters. | 0.3.0 | elastic |
+| [kibana-alerting-rules](skills/kibana/kibana-alerting-rules/SKILL.md) | Create and manage Kibana alerting rules and the action policies that notify on their alerts, for both Universal Alerting and classic alerting. Use when the user wants to be alerted or notified about conditions in their data, change where or how often alerts notify (including snoozing notifications), edit, enable, disable, or delete existing rules or action policies, or list existing alerting. Not for Security detection rules. | 0.4.0 | elastic |
 | [kibana-anomaly-detection](skills/kibana/kibana-anomaly-detection/SKILL.md) | Elastic ML anomaly detection — investigation/RCA, score explanation, job lifecycle troubleshooting, and job operations. Use when answering "what broke?"/"which entity?"/RCA, "why is score high/low?"/renormalization, "datafeed stopped"/"memory limit"/hard_limit, or configuring ML anomaly detection jobs. Reads results from `.ml-anomalies-*` and job state from ML REST APIs. | 0.3.0 | elastic |
 | [kibana-cases](skills/kibana/kibana-cases/SKILL.md) | Manage investigation and incident cases across Elastic Security, Observability, and Stack Management — create, search, update, and enrich cases with comments, alerts, events, and observables (IOCs). Use when tracking incidents, correlating alerts to a case, adding investigation notes, updating status or severity, or managing triage output. | 0.2.0 | elastic |
 | [kibana-context-engine](skills/kibana/kibana-context-engine/SKILL.md) | Query Elastic Context Engine AI Indices, and the Knowledge Indicators (KIs) they store. Use when asked to search, explore, count, or answer questions from an AI Index / KI / Context Engine knowledge index, and when writing the ES\|QL that queries one. | 0.2.1 | elastic |
@@ -96,7 +96,7 @@ Skills in this repository focus on:
 </details>
 
 <details>
-<summary>Security (6)</summary>
+<summary>Security (7)</summary>
 
 | Skill | Description | Version | Author |
 | ----- | ----------- | ------- | ------ |
@@ -105,7 +105,8 @@ Skills in this repository focus on:
 | [security-case-management](skills/security/case-management/SKILL.md) | Create, search, update, and manage SOC cases via the Kibana Cases API. Use when tracking incidents, linking alerts to cases, adding investigation notes, or managing triage output. | 0.1.0 | elastic |
 | [security-detection-rule-management](skills/security/detection-rule-management/SKILL.md) | Create, tune, and manage Elastic Security detection rules (SIEM and Endpoint). Use for false positives, exceptions, new coverage, noisy rules, or rule management via Kibana API. | 0.1.0 | elastic |
 | [security-generate-security-sample-data](skills/security/generate-security-sample-data/SKILL.md) | Generate sample security events, attack scenarios, and synthetic alerts for Elastic Security. Use when demoing, populating dashboards, testing detection rules, or setting up a POC. | 0.1.0 | elastic |
-| [security-ml-integrations](skills/security/ml-integrations/SKILL.md) | Install and manage Elastic security ML integration packages (beaconing, ded, dga, lmd, pad, problemchild). Handles the full lifecycle: pre-flight checks, Fleet package install, component templates, ingest pipelines, transforms, data views, ML anomaly detection jobs, and detection rules. Use when a user asks to install, set up, check the status of, or troubleshoot a security ML integration package. | 0.1.0 | elastic |
+| [security-ml-integrations](skills/security/ml-integrations/SKILL.md) | Install and manage Elastic security ML integration packages (beaconing, ded, dga, lmd, pad, problemchild, security_ai). Handles the full lifecycle: pre-flight checks, Fleet package install, component templates, ingest pipelines, transforms, data views, ML anomaly detection jobs, and detection rules. Use when a user asks to install, set up, check the status of, or troubleshoot a security ML integration package, including the technical preview Security for AI package. | 0.2.0 | elastic |
+| [security-threat-hunting](skills/security/threat-hunting/SKILL.md) | Hypothesis-driven threat hunting in Elastic Security using iterative ES\|QL exploration. Covers IOC search, anomaly identification, baseline comparison, lateral movement tracking, and turning hunt findings into cases and detection rules. Use when running a proactive hunt, investigating suspicious activity patterns, searching for indicators of compromise, or looking for rare events in security telemetry. | 0.2.0 | elastic |
 
 </details>
 
