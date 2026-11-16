@@ -10,6 +10,8 @@ from ci_tools.commands.sync.core import (
     apply_sync,
     apply_versions,
     copy_tree,
+    find_skills,
+    flatten_skills,
     load_sync_config,
     navigate_field,
     resolve_field,
@@ -281,6 +283,120 @@ class TestCopyTree:
         assert deleted == 0
         assert (dst / "keep.md").exists()
         assert (dst / "also_keep.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# flatten_skills
+# ---------------------------------------------------------------------------
+
+
+def _write_skill(path: Path, name: str, body: str = "Body\n") -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "SKILL.md").write_text(f"---\nname: {name}\ndescription: d\n---\n{body}")
+
+
+class TestFlattenSkills:
+    def test_copies_each_skill_to_its_frontmatter_name(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        dst = tmp_path / "out"
+        _write_skill(src / "cloud" / "onboarding", "cloud-onboarding")
+        (src / "cloud" / "onboarding" / "references").mkdir()
+        (src / "cloud" / "onboarding" / "references" / "api.md").write_text("api")
+        _write_skill(src / "kibana" / "kibana-cases", "kibana-cases")
+
+        copied, deleted = flatten_skills(src, dst)
+        assert copied == 3
+        assert deleted == 0
+        assert sorted(p.name for p in dst.iterdir()) == ["cloud-onboarding", "kibana-cases"]
+        assert (dst / "cloud-onboarding" / "references" / "api.md").read_text() == "api"
+        assert not (dst / "cloud").exists()
+
+    def test_deletes_stale_skill_dirs_and_files(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        dst = tmp_path / "out"
+        _write_skill(src / "cloud" / "onboarding", "cloud-onboarding")
+        _write_skill(dst / "removed-upstream", "removed-upstream")
+        (dst / "removed-upstream" / "extra.md").write_text("x")
+        (dst / "stray.txt").write_text("x")
+        _write_skill(dst / "cloud-onboarding", "cloud-onboarding", body="old\n")
+
+        copied, deleted = flatten_skills(src, dst)
+        assert copied == 1
+        assert deleted == 3
+        assert sorted(p.name for p in dst.iterdir()) == ["cloud-onboarding"]
+        assert (dst / "cloud-onboarding" / "SKILL.md").read_text().endswith("Body\n")
+
+    def test_preserve_keeps_dest_entries(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        dst = tmp_path / "out"
+        _write_skill(src / "cloud" / "onboarding", "cloud-onboarding")
+        (dst / "local-skill").mkdir(parents=True)
+        (dst / "local-skill" / "SKILL.md").write_text("mine")
+        (dst / "README.md").write_text("keep")
+
+        flatten_skills(src, dst, preserve=["README.md", "local-skill"])
+        assert (dst / "README.md").read_text() == "keep"
+        assert (dst / "local-skill" / "SKILL.md").read_text() == "mine"
+
+    def test_exclude_matches_source_relative_path(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        dst = tmp_path / "out"
+        _write_skill(src / "cloud" / "onboarding", "cloud-onboarding")
+        _write_skill(src / "security" / "alert-triage", "security-alert-triage")
+
+        flatten_skills(src, dst, exclude=["security/**"])
+        assert sorted(p.name for p in dst.iterdir()) == ["cloud-onboarding"]
+
+    def test_nested_skill_md_inside_a_skill_is_not_a_skill(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        _write_skill(src / "kibana" / "kibana-workflows", "kibana-workflows")
+        _write_skill(src / "kibana" / "kibana-workflows" / "references" / "example", "example")
+
+        assert list(find_skills(src)) == ["kibana-workflows"]
+
+    def test_duplicate_names_raise(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        _write_skill(src / "cloud" / "onboarding", "onboarding")
+        _write_skill(src / "observability" / "onboarding", "onboarding")
+
+        with pytest.raises(ValueError, match="duplicate skill name 'onboarding'"):
+            find_skills(src)
+
+    def test_missing_name_raises(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        (src / "cloud" / "x").mkdir(parents=True)
+        (src / "cloud" / "x" / "SKILL.md").write_text("---\ndescription: d\n---\nBody\n")
+
+        with pytest.raises(ValueError, match="frontmatter has no name"):
+            find_skills(src)
+
+    def test_quoted_name(self, tmp_path: Path) -> None:
+        src = tmp_path / "skills"
+        (src / "a" / "b").mkdir(parents=True)
+        (src / "a" / "b" / "SKILL.md").write_text('---\nname: "quoted-name"\n---\n')
+
+        assert list(find_skills(src)) == ["quoted-name"]
+
+    def test_apply_copies_uses_flatten(self, tmp_path: Path) -> None:
+        src_root = tmp_path / "source"
+        tgt_root = tmp_path / "target"
+        _write_skill(src_root / "skills" / "cloud" / "onboarding", "cloud-onboarding")
+
+        apply_copies(
+            src_root,
+            tgt_root,
+            [CopyMapping(source="skills", dest="skills", flatten=True)],
+        )
+        assert (tgt_root / "skills" / "cloud-onboarding" / "SKILL.md").exists()
+        assert not (tgt_root / "skills" / "cloud").exists()
+
+    def test_flatten_loads_from_toml(self, tmp_path: Path) -> None:
+        cfg_path = _write_toml(
+            tmp_path / "ci-tools.toml",
+            _minimal_toml() + "flatten = true\n",
+        )
+        cfg = load_sync_config(cfg_path)
+        assert cfg.target[0].copies[0].flatten is True
 
 
 # ---------------------------------------------------------------------------

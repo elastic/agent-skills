@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import tomllib
 from fnmatch import fnmatch
 from pathlib import Path
+
 
 def _matches_any(rel_str: str, patterns: list[str]) -> bool:
     for pat in patterns:
@@ -101,6 +103,91 @@ def copy_tree(
     return files_copied, files_deleted
 
 
+_FRONTMATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|\Z)", re.DOTALL)
+_NAME_LINE = re.compile(r"^name:[ \t]*(.+?)[ \t]*$")
+
+
+def skill_name(skill_md: Path) -> str:
+    """Frontmatter `name` of a SKILL.md (the Agent Skills spec's folder name)."""
+    match = _FRONTMATTER.match(skill_md.read_text())
+    if not match:
+        raise ValueError(f"{skill_md}: missing YAML frontmatter")
+    for line in match.group(1).splitlines():
+        name_match = _NAME_LINE.match(line)
+        if name_match:
+            name = name_match.group(1).strip("'\"")
+            if name:
+                return name
+    raise ValueError(f"{skill_md}: frontmatter has no name")
+
+
+def find_skills(source: Path, *, exclude: list[str] | None = None) -> dict[str, Path]:
+    """Map frontmatter name -> skill directory for every skill under `source`.
+
+    A skill is a directory containing SKILL.md; SKILL.md files nested inside
+    another skill (e.g. in its references) are not skills. `exclude` patterns
+    are matched against the source-relative path of the SKILL.md.
+    """
+    exclude = exclude or []
+    skills: dict[str, Path] = {}
+    skill_dirs: list[Path] = []
+    if not source.is_dir():
+        return skills
+    for skill_md in sorted(source.rglob("SKILL.md")):
+        if not skill_md.is_file():
+            continue
+        skill_dir = skill_md.parent
+        if any(parent == skill_dir or parent in skill_dir.parents for parent in skill_dirs):
+            continue
+        if _matches_any(str(skill_md.relative_to(source)), exclude):
+            continue
+        name = skill_name(skill_md)
+        if name in skills:
+            raise ValueError(
+                f"duplicate skill name '{name}' in {skills[name]} and {skill_dir}"
+            )
+        skills[name] = skill_dir
+        skill_dirs.append(skill_dir)
+    return skills
+
+
+def flatten_skills(
+    source: Path,
+    dest: Path,
+    *,
+    exclude: list[str] | None = None,
+    preserve: list[str] | None = None,
+) -> tuple[int, int]:
+    """Copy each skill under `source` to `dest/<name>/`; remove stale entries."""
+    exclude = exclude or []
+    preserve = preserve or []
+    skills = find_skills(source, exclude=exclude)
+    files_copied = 0
+    files_deleted = 0
+
+    # Delete dest entries that are no longer a skill and aren't preserved.
+    if dest.is_dir():
+        for entry in sorted(dest.iterdir()):
+            if _matches_any(entry.name, preserve):
+                continue
+            if entry.is_dir() and entry.name in skills:
+                continue
+            if entry.is_dir():
+                files_deleted += sum(1 for f in entry.rglob("*") if f.is_file())
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+                files_deleted += 1
+
+    for name, skill_dir in skills.items():
+        copied, deleted = copy_tree(
+            skill_dir, dest / name, exclude=exclude, preserve=preserve
+        )
+        files_copied += copied
+        files_deleted += deleted
+    return files_copied, files_deleted
+
+
 def apply_copies(
     source_root: Path, target_root: Path, copies: list[CopyMapping]
 ) -> tuple[int, int]:
@@ -109,7 +196,8 @@ def apply_copies(
     for mapping in copies:
         src = source_root / mapping.source
         dst = target_root / mapping.dest
-        copied, deleted = copy_tree(src, dst, exclude=mapping.exclude, preserve=mapping.preserve)
+        copy = flatten_skills if mapping.flatten else copy_tree
+        copied, deleted = copy(src, dst, exclude=mapping.exclude, preserve=mapping.preserve)
         total_copied += copied
         total_deleted += deleted
     return total_copied, total_deleted

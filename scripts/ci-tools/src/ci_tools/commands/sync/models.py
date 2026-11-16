@@ -8,6 +8,11 @@ class CopyMapping(BaseModel):
     dest: str
     exclude: list[str] = []
     preserve: list[str] = []
+    # Copy each skill directory under `source` (any depth, identified by its
+    # SKILL.md) to `dest/<frontmatter name>/` instead of mirroring the tree.
+    # For targets that need the flat `skills/<name>/` layout of the Agent
+    # Skills / Agent Plugins specs.
+    flatten: bool = False
 
 class VersionUpdate(BaseModel):
     file: str
