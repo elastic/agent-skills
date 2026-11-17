@@ -1,24 +1,28 @@
 ---
 name: elasticsearch-ingest
 description: >
-  Load CSV, JSON, and NDJSON files into Elasticsearch indices using the bulk API and
-  explicit mappings when field types matter. Use when batch-importing local files,
-  converting CSV rows or JSON arrays to NDJSON bulk format, confirming cluster connectivity
-  with elastic es info before ingest, or verifying document counts and mappings after
-  ingest — not for Logstash pipelines, Beats, custom scripts, or index-to-index reindex.
+  Load local CSV, JSON array, and NDJSON files into Elasticsearch indices with the
+  bulk API through the `elastic` CLI, creating an explicit mapping first when field
+  types matter. Use when batch-importing local files, loading a pre-formed bulk NDJSON
+  body, or verifying document counts and mappings after a load — not for Logstash
+  pipelines, Beats, Elastic Agent, continuous ingestion, or index-to-index reindex.
 metadata:
   author: elastic
-  version: 0.1.3
+  version: 0.2.0
   universal: true
 compatibility: Elasticsearch 8.x or 9.x, self-managed, Elastic Cloud Hosted, or Elastic
   Cloud Serverless; uses the bulk API available on all deployment types. Requires
-  the `elastic` CLI ≥ 0.2 with `stack es` support.
+  the `elastic` CLI ≥ 0.5 with `stack es` support.
 ---
 
 # Elasticsearch File Ingest
 
-Load local data files into Elasticsearch by converting them to bulk NDJSON, creating an index with the right mappings
-when types matter, bulk-indexing documents, and verifying the outcome.
+Load local files into an index with `POST /_bulk`. The
+[Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk.md) covers the NDJSON
+action-and-source format, action semantics, the 100 MB request limit, and the `errors`/`items` response. The
+[mapping overview](https://www.elastic.co/docs/manage-data/data-store/mapping.md) covers field types and why they can't
+change after indexing. This skill holds what those pages and the CLI help don't make obvious. Mapping design for
+specific access patterns belongs to the elasticsearch-index-design skill.
 
 <!-- begin-partial: preamble -->
 
@@ -35,171 +39,71 @@ directly.
 
 <!-- end-partial: preamble -->
 
-## Scope
-
-This skill covers **file → index** loading through `POST /_bulk`. It does not use Logstash, Filebeat, Elastic Agent,
-Node.js ingest tools, or other sidecar pipelines. For copying documents between existing indices, use index-to-index
-reindex instead of re-parsing source files.
-
-Supported source shapes:
-
-| Source shape        | Example                          | Bulk requirement                                                                                            |
-| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| CSV with header row | `id,name,age,...` then data rows | Parse header into field names; emit one action line + one JSON object per data row                          |
-| JSON array file     | `[{"a":1},{"a":2}]`              | Split into per-document lines — never bulk-load the raw array as a single document                          |
-| NDJSON / JSON Lines | one JSON object per line         | If action and document lines already alternate, pass as-is to `POST /_bulk`; otherwise prepend action lines |
-
-Parquet, Arrow, and other binary columnar formats are out of scope unless the user converts them to CSV or JSON first.
-
-## Process
-
-1. **Confirm connectivity.** Call `GET /` first. Do not start with `_cat/indices`, file inspection, or bulk. If `GET /`
-   fails, stop and resolve CLI configuration before reading files or mutating cluster state.
-
-2. **Inspect the source file and classify its shape.** Open the file (or sample the first lines) and decide:
-   - **CSV** — first line is a comma-separated header; subsequent lines are records. Count data rows (exclude the
-     header) — you will report this count after load.
-   - **JSON array** — file starts with `[` and contains an array of objects. Count array elements — each element becomes
-     one indexed document, not one.
-   - **NDJSON** — one JSON value per line; lines alternate action metadata and document source, or each line is a
-     document that still needs a preceding action line.
-
-   The decision: pick the conversion path from [NDJSON Bulk Format](references/ndjson-bulk-format.md). **Never** send
-   raw CSV text or a raw JSON array body to `POST /_bulk`.
-
-3. **Choose the target index name.** Use the name the user supplied, or propose a lowercase name derived from the file.
-   Index names must be lowercase, cannot contain spaces or `/`, and should not start with `-`, `_`, or `+`.
-
-4. **Decide whether an explicit mapping is required.** Call `GET /{index}/_mapping` if the index may already exist.
-
-   Create an explicit mapping **before** bulk loading when:
-   - CSV columns include numbers, dates, or booleans that must be queryable as typed fields (not plain text).
-   - The user asks for usable column types or aggregation-friendly fields.
-   - A prior load indexed everything as `text`/`keyword` strings and must be corrected.
-
-   When every field can remain string-like and the user did not specify types, dynamic mapping on first bulk ingest may
-   suffice — but prefer explicit mappings for CSV unless the user explicitly accepts all-string typing.
-
-   Read [Mapping Design for Ingest](references/mapping-design.md) for type choices. When the index exists with wrong
-   types, do not delete it in the same turn. Ask the user to confirm before calling `DELETE /{index}` and recreating it.
-   A wrong mapping is not permission to delete. If asked whether to delete "right now", the answer is no until they
-   explicitly confirm.
-
-5. **Create the index when needed.** When step 4 requires explicit types (or the index does not exist), call
-   `PUT /{index}` with a `mappings` block **before** bulk loading. Do not rely on dynamic mapping to infer `long`,
-   `date`, or `boolean` from CSV string cells — dynamic mapping often maps ambiguous strings to `text` with a `.keyword`
-   sub-field.
-
-6. **Convert the file to bulk NDJSON.** Write a temporary NDJSON file where **each document occupies two lines**:
-   - Line 1 — action metadata, e.g. `{"index":{"_index":"<index>"}}` (add `"_id"` only when the user requires stable
-     IDs).
-   - Line 2 — document JSON with correctly typed values (numbers as JSON numbers, booleans as `true`/`false`, dates as
-     ISO-8601 strings such as `2023-01-15`).
-
-   For CSV, map the header row to JSON field names and convert cell values to the JSON types that match the mapping from
-   step 5. For JSON arrays, iterate each array element and emit the action line + object line pair. See worked examples
-   in [NDJSON Bulk Format](references/ndjson-bulk-format.md).
-
-7. **Bulk index the documents.** Call `POST /_bulk` with the NDJSON file produced in step 6. Inspect the response: if
-   `errors` is `true`, read per-item `error` objects, fix mapping or document issues, and retry failed items after
-   remediation. Do not assume success from a zero exit code alone.
-
-8. **Verify the outcome.** Always confirm the load — never report counts from file inspection alone.
-   - Call `GET /{index}/_count` and compare to the expected row/element count from step 2.
-   - When typed columns matter, call `GET /{index}/_mapping` and confirm fields such as `age` are numeric (`long` /
-     `integer`), dates are `date`, and booleans are `boolean` — not `text`.
-
-   Report the verified document count and, when relevant, the confirmed field types. If count or mapping checks fail,
-   see [Troubleshooting](references/troubleshooting.md).
-
 ## Guidelines
 
-- **Connectivity first.** Confirm the cluster is reachable with `GET /` before anything else.
-- **Bulk only.** All file loads go through `POST /_bulk` with NDJSON action lines — not single-document `PUT` loops for
-  batch files, not ingest pipelines as a substitute for client-side CSV parsing, and not posting the untouched source
-  file.
-- **Pre-formed bulk NDJSON is ready.** When the file already alternates action lines and document lines, pass it as-is
-  to `POST /_bulk` — do not add more action lines.
-- **Do not delete without confirmation.** Elasticsearch cannot change field types in place. If the target index exists
-  with the wrong mapping, ask the user to confirm before `DELETE /{index}`. If asked whether to delete "right now", the
-  answer is no until they explicitly confirm.
-- **JSON arrays must be split.** A four-element array bulk-loaded as one document yields count `1`; the correct load
-  yields count `4`.
-- **CSV header is schema.** The first CSV row names fields; each remaining row is one document. A file with one header
-  plus five data rows must report count `5` after ingest.
-- **Type coercion happens in the document JSON.** CSV cells arrive as strings; when mappings declare `long`, `date`, or
-  `boolean`, emit JSON numbers, ISO date strings, and boolean literals in the bulk body — do not rely on Elasticsearch
-  to infer types from quoted CSV strings after dynamic mapping chose `text`.
-- **Prefer explicit mappings for typed CSV.** Creating the index with `PUT /{index}` first prevents silent all-text
-  indexing that breaks range queries and aggregations.
-- **Idempotent re-loads.** When reloading into an existing index, ask the user before deleting data. Duplicate bulk
-  `index` actions append new documents unless `_id` is specified.
+- **Check the cluster before touching files.** `GET /` confirms the CLI context works; if it fails, fix configuration
+  before converting or loading anything.
+- **Create the index before the first bulk request when types matter.** The first document fixes each field's type
+  permanently
+  ([dynamic field mapping](https://www.elastic.co/docs/manage-data/data-store/mapping/dynamic-field-mapping.md)).
+  Without a mapping, quoted numbers and booleans become `text` with a `.keyword` sub-field, quoted ISO dates become
+  `date`, and a numeric column whose first value is `0` becomes `long`, so later `12.5` values are truncated. Look at
+  `GET /{index}/_mapping` if the index might exist, then `PUT /{index}` with `mappings`.
+- **The mapping does the typing, not the JSON.** With an explicit mapping, `"36"` indexes into a `long`
+  ([coerce](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/coerce.md)) and `"true"` into a
+  `boolean` ([boolean](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/boolean.md)). Values that
+  can't be parsed still fail per item: `"N/A"` in a number, `01/15/2023` in a `date` without a matching
+  [`format`](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/date.md), and empty CSV cells, which
+  arrive as `""` (that reads as `false` in a boolean field). Send blanks as `null` or omit the field.
+- **Let the CLI's bulk-ingest helper parse CSV, JSON arrays, and documents-only NDJSON.** The `POST /{index}/_bulk`
+  helper in Operations splits arrays per element, batches by bytes (5 MB default), sends batches in parallel, and
+  retries batches that fail outright. For CSV it turns `true`/`false` into booleans and every numeric-looking cell into
+  a number, which strips leading zeros from ZIP codes and padded IDs whatever the mapping says. Convert such files to
+  NDJSON yourself with those columns kept as strings, then load that.
+- **Send a pre-formed bulk body through `POST /_bulk`, not the helper.** The helper prefixes every line with an `index`
+  action, so a file that already alternates action and source lines would index its action lines as documents. The CLI
+  takes the body as a JSON file shaped `{"operations": [action, source, …]}` rather than raw NDJSON; keep each request
+  well under 100 MB.
+- **Use `POST /_bulk` when the helper's fixed `index` action is wrong.** The helper can't set `_id`, so a rerun
+  duplicates every document. Stable `_id`s make reloads overwrite instead. Data streams accept only `create` actions and
+  need a matching index template
+  ([use a data stream](https://www.elastic.co/docs/manage-data/data-store/data-streams/use-data-stream.md)).
+- **Don't trust a zero exit code.** Bulk returns 200 with `errors: true` when individual items fail, and the helper's
+  summary only counts `failed` documents without the reasons. Before a full load, send a few documents through
+  `POST /_bulk` and read each item's `error.type` and `reason`; fix the mapping or the conversion, not the cluster. Back
+  off on `429` rather than retrying immediately
+  ([tune for indexing speed](https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance/indexing-speed.md)).
+- **Wrong types on an existing index: ask before deleting.** `DELETE /{index}` destroys data that may not exist anywhere
+  else, so get explicit confirmation in the conversation first. A wrong mapping isn't permission. The non-destructive
+  path is a new index (`users-v2`) with the right mapping, loaded from the file again
+  ([explicit mapping](https://www.elastic.co/docs/manage-data/data-store/mapping/explicit-mapping.md)).
+- **Report what the cluster says.** Documents are invisible to search until a refresh (default 1s on Stack, 5s on
+  Serverless; [refresh](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter.md)), so run
+  `POST /{index}/_refresh` or send the last `POST /_bulk` with `refresh=wait_for`. Then compare `GET /{index}/_count`
+  with the rows or elements in the file, and check `GET /{index}/_mapping` when types matter. A low count means failed
+  items, overwritten `_id`s, or a missed refresh; a high count means a duplicate load.
 
 ## Examples
 
-### Confirm connectivity first
-
-```http
-GET /
-```
-
-Run this before reading files or calling `POST /_bulk`.
-
-### CSV with typed columns
-
-Source (`users.csv` — header + 5 data rows):
-
-```csv
-id,name,age,signup_date,active
-1,Ada Lovelace,36,2023-01-15,true
-```
-
-Create the index with explicit types, convert rows to NDJSON (five action+document pairs for five data rows), bulk load,
-then verify count `5` and mapping types. Full walkthrough:
-[Mapping Design for Ingest](references/mapping-design.md#csv-with-mixed-types) and
-[NDJSON Bulk Format](references/ndjson-bulk-format.md#csv-to-bulk-ndjson).
-
-### JSON array file
-
-Source (`events.json`):
-
-```json
-[
-  { "event_id": "e-1", "type": "login", "user_id": 1, "value": 12.5 },
-  { "event_id": "e-2", "type": "logout", "user_id": 1, "value": 0.0 }
-]
-```
-
-Convert to four bulk line pairs for four array elements (not one pair for the whole array). Verify `GET /{index}/_count`
-returns `4`. See [NDJSON Bulk Format](references/ndjson-bulk-format.md#json-array-to-bulk-ndjson).
-
-### NDJSON already prepared
-
-When the file already alternates action lines and document lines, it is ready as-is. Pass it directly to `POST /_bulk`
-without adding more action lines, after confirming the target index and mappings.
-
-## When Not to Use
-
-- **Continuous or streaming ingestion** — use Elastic Agent or Beats to tail logs and metrics.
-- **Complex enrichment pipelines** — design server-side ingest pipelines separately; this skill still converts files to
-  bulk NDJSON client-side before load.
-- **Index-to-index copy or mapping migration** — reindex between indices instead of exporting to files.
-- **Very large binary columnar files** — convert to CSV or JSON offline first, then follow this skill.
-
-## References
-
-- [NDJSON Bulk Format](references/ndjson-bulk-format.md) — CSV and JSON-array conversion, action-line syntax, batch
-  sizing
-- [Mapping Design for Ingest](references/mapping-design.md) — explicit mappings for CSV types, eval-style schemas
-- [Troubleshooting](references/troubleshooting.md) — wrong counts, text-typed numerics, bulk item errors
+- "Load `users.csv` with usable column types" — create `users` with `long`, `date`, and `boolean` fields first, load
+  with the helper in CSV mode, refresh, then confirm the count equals the data rows (not the header).
+- "Import `events.json` (a JSON array)" — the helper splits the array; the count should equal the number of elements.
+- "Load `orders.csv` with a `zip` column like `02134`" — the helper's CSV casting would drop the leading zero, so
+  convert to NDJSON with `zip` as a string and map it as `keyword`.
+- "Load `bulk.ndjson`, which already has action lines with `_id`s" — wrap it as `operations` for `POST /_bulk`; the
+  helper would double-wrap it.
+- "The index exists but `age` is `text`; delete it now?" — not without explicit confirmation; offer a new index loaded
+  from the same file instead.
 
 ## Operations
 
-| HTTP API (shorthand)    | `elastic` CLI command                                             |
-| ----------------------- | ----------------------------------------------------------------- |
-| `GET /`                 | `elastic es info`                                                 |
-| `PUT /{index}`          | `elastic es indices create --index '<index>' --mappings '<json>'` |
-| `DELETE /{index}`       | `elastic es indices delete --index '<index>'`                     |
-| `POST /_bulk`           | `elastic es bulk --index '<index>' --input-file '<ndjson-path>'`  |
-| `GET /{index}/_count`   | `elastic es count --index '<index>'`                              |
-| `GET /{index}/_mapping` | `elastic es indices get-mapping --index '<index>'`                |
+| HTTP API (shorthand)           | `elastic` CLI command                                                                         |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
+| `GET /`                        | `elastic es info`                                                                             |
+| `GET /{index}/_mapping`        | `elastic es indices get-mapping --index '<index>'`                                            |
+| `PUT /{index}`                 | `elastic es indices create --index '<index>' --mappings '<json>'`                             |
+| `DELETE /{index}`              | `elastic es indices delete --index '<index>'`                                                 |
+| `POST /{index}/_bulk` (helper) | `elastic es helpers bulk-ingest --index '<index>' --data-file '<path>' [--source-format csv]` |
+| `POST /_bulk`                  | `elastic es bulk --input-file '<operations.json>' [--refresh wait_for]`                       |
+| `POST /{index}/_refresh`       | `elastic es indices refresh --index '<index>'`                                                |
+| `GET /{index}/_count`          | `elastic es count --index '<index>'`                                                          |

@@ -117,9 +117,15 @@ cases. If the answer is an AI application, route to **vector-hybrid-search**.
 **Follow-up (for human-facing search): "Will users also search in natural language?"** This determines whether to
 recommend semantic search alongside keyword. If the developer isn't sure, suggest hybrid as a safe default.
 
-**Follow-up: "Do different users see different data?"** Ask before designing the mapping. If yes, flag
-[document-level security](https://www.elastic.co/docs/deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level)
-and the need for a tenant field. Don't skip this for multi-tenancy use cases (SaaS, marketplaces, talent platforms).
+**Follow-up: "Do different users see different data?"** This is mandatory before the mapping, and it is the next
+question — before data shape — when the use case is a marketplace, SaaS app, B2B inventory, or talent platform where
+companies or customers list their own data. Ask only: "Do different users or tenants see different data?" A request to
+move on to the mapping is not an answer; ask this first.
+
+If they say each customer or company should only see their own listings, the very next reply must do both of these in
+words: flag **document-level security**, and recommend a keyword **tenant** field (customer or company id) on every
+document. Do not describe this only as an API filter. Link
+[document-level security](https://www.elastic.co/docs/deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level).
 
 **Time-series data.** If data is append-only and timestamped, recommend **data streams** instead of regular indices.
 
@@ -149,10 +155,16 @@ Match ingestion to the data source. If they have real data ready, generate code 
 already in Elasticsearch, inspect their existing indices and mappings directly with `GET /_cat/indices` and
 `GET /{index}/_mapping` — don't ask them to describe what you can read.
 
-**Third: What language?** Generate all code in their language using the official Elasticsearch client. Don't assume
+**Third: How often does the data change?** Ask this separately whenever data comes from a database, API, or stream. If
+they want frequent updates and do not want to re-run a full bulk index, recommend **incremental ingestion**: index each
+document with a stable `_id` (the source primary key) so re-indexing a changed record overwrites it, use partial updates
+(`_update` / bulk `update`) for fields like price or stock, and trigger them from change events (CDC, a queue, or an
+`updated_at` high-water-mark query). Do not recommend scheduled full re-indexing. Skip embedding unchanged fields.
+
+**Fourth: What language?** Generate all code in their language using the official Elasticsearch client. Don't assume
 Python.
 
-**Fourth (RAG only): Which LLM?** Default to OpenAI if they're unsure.
+**Fifth (RAG only): Which LLM?** Default to OpenAI if they're unsure.
 
 Use what you learn to determine fields to map, embedding model needs, ingestion path, and client library.
 
@@ -206,6 +218,9 @@ or a user-provided inference endpoint, slightly slower indexing — but catches 
 Wait for confirmation before generating code.
 
 ### Step 5: Walk Through the Mapping
+
+Do not present a mapping until you have asked whether different users or tenants see different data. If the answer is
+yes, the mapping includes a keyword `tenant` field and you have already named document-level security.
 
 Present the proposed **index mapping** field by field. Changing mappings later requires reindexing — get this right
 upfront.
@@ -361,5 +376,7 @@ Use these Elastic-specific terms consistently:
 - Don't hardcode synonyms inline — use the Synonyms API
 - Don't create indices without aliases
 - Don't skip the mapping walkthrough — most expensive thing to change later
+- Don't present a mapping for a marketplace, SaaS, or B2B inventory app before asking whether different users or tenants
+  see different data. When they must be isolated, say "document-level security" and include a `tenant` field.
 - Don't write to the cluster without showing the developer the exact API call and getting confirmation
 - Don't ask the developer to describe cluster state you can read via MCP

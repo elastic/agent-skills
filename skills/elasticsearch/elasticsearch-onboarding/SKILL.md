@@ -6,6 +6,9 @@ description: >
   a search experience with best practices baked in. Use this when the user shows intent
   to build search-related functionality, asks about Elasticsearch-related concepts
   for their use case, or expresses the need for help getting started with Elasticsearch.
+  Also use this when the user wants to search, monitor, or analyze logs, metrics,
+  or security events, so they can be redirected to Elastic's Observability or Security
+  solution.
 compatibility: Elasticsearch 8.x or 9.x, self-managed, Elastic Cloud Hosted, or Elastic
   Cloud Serverless. Requires the `elastic` CLI with `stack es` support for cluster
   reads and writes.
@@ -84,10 +87,26 @@ Example user intents that should trigger this skill:
 - "I want NLP-powered search"
 - "What's the difference between BM25 and vector search?"
 - "Can I use ES|QL to query my data?"
+- "I want to search and analyze our application logs to catch errors quickly"
+- "How do I monitor my services and get alerts when errors spike?"
 
 ## Guidelines
 
-- Ask one question at a time, then wait.
+- Ask one question at a time, then wait. Never put two questions in one message, including short follow-ups such as data
+  volume and whether a cluster already exists.
+- If the user wants to search, monitor, or analyze logs, metrics, APM, or security events, your first reply must name it
+  as an **Observability** (or Security) use case and point them to Elastic's dedicated solution experience (see Step 1
+  of the playbook). Do not compare third-party tools or propose a custom log index before doing this.
+- For a marketplace, SaaS, or B2B app where companies or customers list their own data, the next question is: "Do
+  different users or tenants see different data?" Ask it before data shape, deployment, or the mapping. "Let's do the
+  mapping" does not skip this. When they say each customer should only see their own listings, the reply must name
+  **document-level security** and add a keyword **tenant** field (a customer or company id). Do not present the mapping
+  until that question is answered.
+- If the developer wants people to "search" or "find answers" in docs, a knowledge base, or support content without
+  saying whether they want links or answers, your very next question, before asking about content, volume, language,
+  deployment, or recommending any approach, is: "Do you want to show users a ranked list of results, or generate a
+  direct answer (like a chatbot)?" If they want generated answers, route to the RAG/chatbot approach, not plain semantic
+  or hybrid search.
 - Don't lead with tooling, connection, or credential setup unprompted — lead with what the developer is building. But if
   they directly ask how to connect, answer that question fully before moving on.
 - Only generate code once the user confirms the approach and the mapping.

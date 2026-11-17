@@ -172,26 +172,52 @@ Common regions for serverless projects:
 
 ### AWS
 
-| Region ID          | Location        |
-| ------------------ | --------------- |
-| `aws-us-east-1`    | N. Virginia, US |
-| `aws-us-east-2`    | Ohio, US        |
-| `aws-us-west-2`    | Oregon, US      |
-| `aws-eu-west-1`    | Ireland         |
-| `aws-eu-central-1` | Frankfurt       |
+| Region ID            | Location    |
+| -------------------- | ----------- |
+| `aws-us-east-1`      | N. Virginia |
+| `aws-us-east-2`      | Ohio        |
+| `aws-us-west-2`      | Oregon      |
+| `aws-eu-west-1`      | Ireland     |
+| `aws-eu-central-1`   | Frankfurt   |
+| `aws-ap-southeast-1` | Singapore   |
+| `aws-eu-west-2`      | London      |
+| `aws-ap-northeast-1` | Tokyo       |
+| `aws-ap-southeast-2` | Sydney      |
+| `aws-ca-central-1`   | Canada      |
 
 ### GCP
 
-| Region ID          | Location |
-| ------------------ | -------- |
-| `gcp-us-central1`  | Iowa, US |
-| `gcp-europe-west1` | Belgium  |
+| Region ID               | Location       |
+| ----------------------- | -------------- |
+| `gcp-us-central1`       | Iowa           |
+| `gcp-europe-west1`      | Belgium        |
+| `gcp-us-west1`          | Oregon         |
+| `gcp-europe-west2`      | London         |
+| `gcp-asia-northeast1`   | Tokyo          |
+| `gcp-asia-south1`       | Mumbai         |
+| `gcp-us-east4`          | N. Virginia    |
+| `gcp-us-east1`          | South Carolina |
+| `gcp-asia-southeast1`   | Singapore      |
+| `gcp-europe-west3`      | Frankfurt      |
+| `gcp-europe-west4`      | Netherlands    |
+| `gcp-europe-southwest1` | Madrid         |
 
 ### Azure
 
-| Region ID      | Location     |
-| -------------- | ------------ |
-| `azure-eastus` | Virginia, US |
+| Region ID                  | Location        |
+| -------------------------- | --------------- |
+| `azure-eastus`             | Virginia        |
+| `azure-australiaeast`      | New South Wales |
+| `azure-northeurope`        | Ireland         |
+| `azure-germanywestcentral` | Frankfurt       |
+| `azure-southeastasia`      | Singapore       |
+| `azure-spaincentral`       | Madrid          |
+| `azure-uaenorth`           | Dubai           |
+| `azure-swedencentral`      | Stockholm       |
+| `azure-westus2`            | Washington      |
+| `azure-eastus2`            | Virginia        |
+| `azure-brazilsouth`        | Sao Paulo       |
+| `azure-centralus`          | Iowa            |
 
 Use `GET /api/v1/serverless/regions` for the complete, up-to-date list. Only regions with
 `project_creation_enabled: true` accept new projects.

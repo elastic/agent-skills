@@ -1,24 +1,28 @@
 ---
 name: kibana-alerting-rules
 description: >
-  Create and manage Kibana alerting rules. Use when creating, updating, or managing
-  rule lifecycle (enable, disable, mute, snooze), choosing metric threshold rule types
-  and params, or read-only find/list with tag filters.
+  Create and manage Kibana alerting rules and the action policies that notify on their
+  alerts, for both Universal Alerting and classic alerting. Use when the user wants
+  to be alerted or notified about conditions in their data, change where or how often
+  alerts notify (including snoozing notifications), edit, enable, disable, or delete
+  existing rules or action policies, or list existing alerting, including managing
+  rules with Terraform. Not for Security detection rules.
 metadata:
   author: elastic
-  version: 0.3.0
+  version: 0.4.0
   universal: true
-compatibility: Kibana 8.x or 9.x with matching Elasticsearch, self-managed, Elastic
-  Cloud Hosted, or Elastic Cloud Serverless; some rule types and features are version-
-  or license-gated (for example, rule-level flapping is GA in 9.3). Requires the `elastic`
-  CLI ≥ 0.2 with `stack kb` support.
+compatibility: 'Classic rules: Kibana 8.x or 9.x and every Elastic Cloud Serverless
+  project. Universal Alerting: Kibana 9.6 or later, or Serverless Observability projects,
+  with the `alerting:v2:enabled` advanced setting on (default); action policies need
+  Kibana Workflows and an Enterprise or trial license. Self-managed, Elastic Cloud
+  Hosted, or Serverless. Requires the `elastic` CLI with `stack kb` support.'
 ---
 
-# Kibana Alerting Rules
+# Kibana Alerting
 
-Create, inspect, update, and manage Kibana alerting rules: choose the right rule type, encode threshold and grouping
-semantics, attach actions only when requested, and list or filter rules read-only when the user asks to discover
-existing coverage.
+Turn a monitoring goal into working alerting and manage what already exists. Create Universal Alerting rules and action
+policies by default; use classic alerting only when the user names a classic rule type, edits an existing classic rule,
+or Universal Alerting is unavailable. Load only the chosen system's references before writing anything.
 
 <!-- begin-partial: preamble -->
 
@@ -37,183 +41,238 @@ directly.
 
 ## Core concepts
 
-A rule has three parts: **conditions** (`params` + `rule_type_id`), **schedule** (how often conditions are checked), and
-**actions** (optional connectors run when alerts fire). When conditions are met, the rule creates **alerts**; actions
-deliver notifications through **connectors**. Do not create connectors or actions unless the user explicitly asks for
-notification wiring — many tasks require only the rule definition.
+Kibana has two alerting systems. They do not share rules, APIs, or notification wiring.
 
-Required privileges: `all` on the owning Kibana feature (Stack Rules, Observability, Security, etc.) and `all` on Rules
-Settings. Managing connectors needs `all` on Actions and Connectors; `read` is sufficient to attach existing connectors
-as rule actions.
+- **Universal Alerting** is the default for all new alerting, also called alerting v2. A rule evaluates an ES|QL query
+  on a schedule and opens alerts. Notifications are managed independently of rules through **action policies**. A
+  policy's matcher selects alerts by their content or scopes them to specific rules through routing tags, and the policy
+  dispatches the matched alerts to workflows (Slack, email, PagerDuty, and other connectors). A policy can be created
+  before, after, or together with the rules it matches. Available on Kibana 9.6 or later and in Serverless Observability
+  projects; Serverless Security and Elasticsearch projects do not offer it. Action policies and workflows require an
+  Enterprise or trial license; rules do not.
+- **Classic alerting** covers the classic rule types listed in `classic-rule-types.md`. Its details live entirely in the
+  classic references — do not load them for any other task. Classic alerting has no action policies: each classic rule
+  notifies through its own actions, which run connectors.
 
-**On-premises prerequisite:** configure a stable `xpack.encryptedSavedObjects.encryptionKey` in `kibana.yml` before
-creating rules — it encrypts rule API keys and connector secrets. If it is unset, each restart regenerates it and breaks
-existing rules; all Kibana nodes in a cluster must share the same key.
+## Universal Alerting availability
+
+If the user states a Kibana version before 9.6, use classic alerting without the check below.
+
+Otherwise, before the first Universal Alerting call, check it once with `GET kbn:/api/alerting/v2/rules` and
+`per_page=1`:
+
+| Response                                | Meaning                                                                                                            | Do                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 200                                     | Available                                                                                                          | Use Universal Alerting                                                        |
+| 404, and `GET kbn:/api/status` succeeds | Not in this Kibana: a version before 9.6 (see `version.number`), or a Serverless Security or Elasticsearch project | Use classic alerting                                                          |
+| 503 with code `ALERTING_DISABLED`       | Turned off by an administrator (`alerting:v2:enabled`)                                                             | Use classic alerting                                                          |
+| 403                                     | Available, but the user lacks the **Rules** feature privilege                                                      | Stop and tell the user which privilege they need; do not use classic alerting |
+
+Any other result — another status code, a 404 followed by a failed `GET kbn:/api/status`, an authentication error, or no
+connection — says nothing about availability: stop and report the error. Do not use classic alerting.
+
+When using classic alerting, do not ask first, and say in the final report why the rule is classic: the stated version
+or the meaning from the table. For a find or list request, report classic results only and say why. A request that needs
+an action policy or routing tag has no classic equivalent; tell the user why Universal Alerting is unavailable instead.
 
 ## Process
 
-1. **Classify the task.** Decide whether the user needs to **create** a rule, **find/list** rules (read-only),
-   **update** an existing rule, or perform a **lifecycle** change (enable, disable, mute, snooze, delete). If the user
-   only asks to show or list rules, treat the request as read-only — do not create, update, enable, or delete anything.
+1. **Identify the job.** Match the request to one or more rows below. A request can combine jobs — for example a new
+   rule and its notifications — and they can be done in either order, because a shared routing tag links a Universal
+   Alerting rule to its policies.
 
-2. **For find/list tasks, filter and page sensibly.** Call `GET kbn:/api/alerting/rules/_find` with query parameters
-   that narrow results instead of dumping every rule:
-   - **By tag:** `filter=alert.attributes.tags:"production"` (KQL on saved-object attributes).
-   - **By text:** `search` with `search_fields` and `default_search_operator` as needed.
-   - **Paging:** set `per_page` and iterate `page` when results may exceed one page.
-   - **Sort:** `sort_field=name` and `sort_order=asc` for stable listings.
+   | Job                                           | Example request                                                               | System                                                                                                                                                                              | Read before writing                                                                                           |
+   | --------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+   | Find or list                                  | "Show me all production alerting rules"                                       | Both systems, read-only — create, update, enable, or delete nothing                                                                                                                 | —                                                                                                             |
+   | New rule with notifications                   | "Alert me / page on-call when CPU is above 90% on any host"                   | Universal Alerting                                                                                                                                                                  | `universal-rules.md`, `universal-action-policies.md`, `universal-workflow-destinations.md`                    |
+   | New rule without notifications                | "Record every time checkout latency exceeds 2 seconds"                        | Universal Alerting                                                                                                                                                                  | `universal-rules.md`                                                                                          |
+   | Notifications only                            | "Send payments alerts to Slack instead of email", "Snooze the on-call policy" | Universal Alerting — action policies; a rule changes only to add a routing tag the user agrees to                                                                                   | `universal-action-policies.md`, plus `universal-workflow-destinations.md` when a destination changes          |
+   | Edit an existing rule or change its lifecycle | "Disable rule `cpu-web`"                                                      | Either system, depends on where result appears                                                                                                                                      | That system's references                                                                                      |
+   | New rule of a named classic type              | "Create an Elasticsearch query rule that…"                                    | Classic                                                                                                                                                                             | `classic-rules.md`, `classic-rule-types.md`, plus `classic-actions-connectors-terraform.md` for notifications |
+   | Terraform for a rule                          | "Manage an index threshold rule with Terraform"                               | Route as any other request. The Terraform resource (`elasticstack_kibana_alerting_rule`) covers classic rules only: for Universal Alerting, tell the user and offer the API instead | `classic-actions-connectors-terraform.md` for a classic rule                                                  |
 
-   Enumerate matching rule ids and names. If no rules match, say so plainly — do not invent results. Query alerting
-   rules specifically, not connectors or streams.
+   Reference paths are relative to `references/` (see [References](#references)). Never mix systems: Universal Alerting
+   rules have no rule-level actions, and classic rules have no action policies or routing tags.
 
-3. **For create tasks, choose the rule type before writing params.** Match the user's intent to a metric/threshold rule
-   type — not log, anomaly, or unrelated types:
-   - **Numeric metric over a time window, optionally per host/service** → `.index-threshold` with
-     `consumer: "stackAlerts"`.
-   - **Document count or Query DSL condition** → `.es-query` with `consumer: "stackAlerts"`.
-   - **Observability metric in the metrics app** → `metrics.alert.threshold` with `consumer: "metrics"` or
-     `"infrastructure"`.
+2. **Find what the request refers to.** If the request does not identify which rules or action policies it intends — for
+   example "the payments rules" or "my production alerts" with no tag, name, or ID — ask the user before making any API
+   calls; do not search rule names to guess the set. When the user refers to an existing rule by ID, name, or tag,
+   search both systems — Universal Alerting first, then classic — and use whichever returns a match. Run both searches
+   even when the first one matches, so a rule with the same name or tag in the other system is not missed:
 
-   Read [rule-types-reference.md](references/rule-types-reference.md) for param schemas, valid consumers, and action
-   groups. When the user specifies an index, field, threshold, duration, and grouping field, encode all four explicitly
-   in `params` — do not substitute a connector or action for the condition.
+   | Given       | Universal Alerting                                                           | Classic alerting                                                                |
+   | ----------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+   | ID          | `GET kbn:/api/alerting/v2/rules/{id}`                                        | `GET kbn:/api/alerting/rule/{id}`                                               |
+   | Name        | `GET kbn:/api/alerting/v2/rules` with `search=<name>`                        | `GET kbn:/api/alerting/rules/_find` with `search=<name>&search_fields=name`     |
+   | Tag         | `GET kbn:/api/alerting/v2/rules` with `filter=metadata.tags:"<tag>"`         | `GET kbn:/api/alerting/rules/_find` with `filter=alert.attributes.tags:"<tag>"` |
+   | Routing tag | `GET kbn:/api/alerting/v2/rules` with `filter=metadata.routing_tags:"<tag>"` | — (classic rules have no routing tags)                                          |
 
-4. **Encode threshold, duration, and grouping correctly.** These three dimensions are independent:
-   - **Threshold:** set `threshold` and `thresholdComparator` on the aggregated value. Match field scale — ECS
-     `system.cpu.total.pct` is typically fractional (`0.9` for 90%); use `90` only when the field is on a 0–100 scale.
-   - **"For N minutes" semantics:** set `timeWindowSize` and `timeWindowUnit` in `params` (lookback evaluated each run).
-     Align `schedule.interval` with that window (e.g., both five minutes) so a brief spike does not fire on a mismatched
-     cadence. Add `alert_delay: {"active": N}` only when the user wants N **consecutive** matching runs, not a single
-     lookback window.
-   - **Per-host / per-entity grouping:** for `.index-threshold`, set `groupBy: "top"`, `termField` to the grouping field
-     (e.g., `host.name`), and a `termSize` large enough to cover all entities ("any host"). Without grouping, the rule
-     aggregates globally and will not alert per host.
+   List and find responses are paged: request the next `page` while the items returned so far are fewer than `total`.
 
-5. **Build the create payload.** Required fields: `name`, `rule_type_id`, `consumer`, `schedule`, `params`. Optional:
-   `tags`, `enabled`, `actions`, `alert_delay`, `flapping`. Use the user-supplied rule id in the URL when given;
-   otherwise let Kibana generate one.
+   Skip one search only when the user's wording belongs to a single system:
 
-   **Example params — CPU > 90% on any host for 5 minutes on `eval-alert-metrics`:**
+   | User says                                                                             | Search                  |
+   | ------------------------------------------------------------------------------------- | ----------------------- |
+   | "routing tag", "action policy", "alert kind" or "signal kind", "universal rule", "v2" | Universal Alerting only |
+   | A classic rule type ("index threshold rule", "Elasticsearch query rule")              | Classic only            |
+   | "connector", "tag", "label", or a bare name or ID                                     | Both systems            |
 
-   ```json
-   {
-     "name": "CPU exceeds 90% for 5 minutes",
-     "rule_type_id": ".index-threshold",
-     "consumer": "stackAlerts",
-     "schedule": { "interval": "5m" },
-     "params": {
-       "index": ["eval-alert-metrics"],
-       "timeField": "@timestamp",
-       "aggType": "avg",
-       "aggField": "system.cpu.total.pct",
-       "groupBy": "top",
-       "termField": "host.name",
-       "termSize": 1000,
-       "threshold": [0.9],
-       "thresholdComparator": ">",
-       "timeWindowSize": 5,
-       "timeWindowUnit": "m"
-     },
-     "tags": ["production"]
-   }
-   ```
+   "Snooze" and "mute" do not determine which alerting system to use: classic rules are snoozed on the rule, while
+   Universal Alerting notifications are snoozed on action policies.
 
-   Omit `actions` when the user only asks to create the rule condition.
+   If only one system matches, use it. If both match, show both to the user and ask which they mean. If neither matches,
+   say so — do not create a rule in its place. For a find or list request with no system named, report the results from
+   both systems, labeled by system.
 
-6. **Create and confirm.** Call `POST kbn:/api/alerting/rule/{id}` with the payload. On **409 Conflict**, the id already
-   exists — call `GET kbn:/api/alerting/rule/{id}` to inspect or choose a different id. After a successful create, call
-   `GET kbn:/api/alerting/rule/{id}` and confirm success to the user with the live rule id, name, and enabled state — do
-   not claim success without verifying on Kibana.
+   Before editing or deleting a rule, confirm matches with user to ensure they're mutating the intended object. Do not
+   assume without their confirmation unless a single result matches exactly.
 
-7. **For update tasks, read then replace.** `rule_type_id` and `consumer` are immutable. Call
-   `GET kbn:/api/alerting/rule/{id}`, merge intended changes, then `PUT kbn:/api/alerting/rule/{id}` with the
-   **complete** rule body. On **409 Conflict**, another user changed the rule — re-fetch and retry. Set per-action
-   `frequency` objects; rule-level `notify_when` and `throttle` are deprecated.
+   Action policies exist only in Universal Alerting; find them with
+   [Find policies](references/universal-action-policies.md#find-policies).
 
-8. **For lifecycle tasks, call the narrowest endpoint.** Disable temporarily with
-   `POST kbn:/api/alerting/rule/{id}/_disable` (rule retains config); re-enable with
-   `POST kbn:/api/alerting/rule/{id}/_enable`. Mute all alerts with `POST kbn:/api/alerting/rule/{id}/_mute_all`;
-   restore with `POST kbn:/api/alerting/rule/{id}/_unmute_all`. Mute a single active alert with
-   `POST kbn:/api/alerting/rule/{rule_id}/alert/{alert_id}/_mute`; unmute with
-   `POST kbn:/api/alerting/rule/{rule_id}/alert/{alert_id}/_unmute`. Schedule snoozes with
-   `POST kbn:/api/alerting/rule/{id}/snooze_schedule`; remove with
-   `DELETE kbn:/api/alerting/rule/{ruleId}/snooze_schedule/{scheduleId}`. Delete permanently with
-   `DELETE kbn:/api/alerting/rule/{id}`. When a rule fails due to API key ownership, call
-   `POST kbn:/api/alerting/rule/{id}/_update_api_key`.
+3. **Verify by reading back.** After every write, read the rule or policy again and report its live id, name, enabled
+   state, and, for notifications, the matcher and destinations. Do not claim success without the read-back.
 
 ## Examples
 
-### Create a threshold alert
+### Notify on a new condition (Universal Alerting, default)
 
-User: "Alert me when CPU exceeds 90% on any host for 5 minutes. Query `eval-alert-metrics` (`system.cpu.total.pct`,
-grouped by `host.name`). Create the rule with id `eval-cpu-rule`."
+User: "Page the on-call workflow `wf-pagerduty` when CPU is above 90% on any host for 5 minutes."
 
-1. Choose `.index-threshold` / `stackAlerts`.
-2. Encode fractional threshold `[0.9]`, five-minute `timeWindowSize`/`timeWindowUnit`, and `groupBy`/`termField` for
-   `host.name`.
-3. `POST kbn:/api/alerting/rule/eval-cpu-rule` with `schedule.interval: "5m"`. Omit actions.
-4. `GET kbn:/api/alerting/rule/eval-cpu-rule` and confirm to the user.
+1. Job: new rule with notifications → Universal Alerting. `GET kbn:/api/alerting/v2/rules` with `per_page=1` →
+   available.
+2. Read `universal-rules.md`; `POST kbn:/api/alerting/v2/rules` with an alert-kind rule grouped by `host.name` and a
+   routing tag such as `notify-host-cpu-high`.
+3. Read `universal-action-policies.md` and `universal-workflow-destinations.md`; check the license and `wf-pagerduty`,
+   then `POST kbn:/api/alerting/v2/action_policies` matching that routing tag.
+4. Read both back and confirm.
 
-### Find rules by tag (read-only)
+### Route an existing rule's alerts somewhere new (Universal Alerting)
 
-User: "Show me all production alerting rules."
+User: "Send alerts from rules tagged `team-payments` to Slack workflow `wf-slack` instead of email."
 
-1. `GET kbn:/api/alerting/rules/_find` with `filter=alert.attributes.tags:"production"`, sensible `per_page`, and
-   `sort_field=name`.
-2. Page through results if `total` exceeds `per_page`.
-3. Report ids and names only — no mutations.
+The user wants to change where alerts are sent, not what triggers them, so edit action policies and leave the rules'
+queries unchanged. Alerts can match several policies, so changing one policy may leave another still sending email:
 
-### Pause a rule temporarily
+1. Find the rules: `GET kbn:/api/alerting/v2/rules` with `filter=metadata.tags:"team-payments"`, and collect their
+   `metadata.routing_tags`.
+2. Read `universal-action-policies.md` and list the policies that send those rules' alerts: those that always match
+   (catch-alls, and tag matches without an expression) and, labeled as possible matches, those with a
+   `matcher.expression`.
+3. Show them with their destinations and confirm with the user which ones to change. If the rules have no routing tags,
+   their alerts reach only catch-all and expression policies that other rules may share; ask whether to add a routing
+   tag to those rules and create a policy for it instead.
+4. Verify `wf-slack`, then `PATCH` the `destinations` of each confirmed policy.
 
-User: "Disable rule `abc123` until next Monday."
+### Edit an existing rule of unknown system
 
-1. `POST kbn:/api/alerting/rule/abc123/_disable`.
-2. Re-enable later with `POST kbn:/api/alerting/rule/abc123/_enable`.
+User: "Snooze rule `cpu-web` for two hours."
 
-For planned downtime spanning multiple rules, prefer a maintenance window over disabling or snoozing each rule
-individually.
+1. `GET kbn:/api/alerting/v2/rules/cpu-web` → 404. `GET kbn:/api/alerting/rule/cpu-web` → found.
+2. The rule is classic: read `classic-rules.md` and use its snooze call.
+
+### Classic rule type named
+
+User: "Create an Elasticsearch query rule that fires when more than 100 error logs arrive in 10 minutes."
+
+The user named a classic rule type: read `classic-rules.md` and `classic-rule-types.md`, then create the classic rule
+they describe.
 
 ## Guidelines
 
-- Set `frequency` inside each action object — rule-level `notify_when` and `throttle` are deprecated.
-- `rule_type_id` and `consumer` are immutable after creation; delete and recreate to change them.
-- Prefix paths with `kbn:/s/<space_id>/api/alerting/` for non-default Kibana Spaces (connectors are space-scoped too).
-- A rule action cannot reference a connector from a different space — the rule and its connectors must share one Space.
-- Pair active notification actions with a **Recovered** action for PagerDuty, Jira, and ServiceNow.
-- Use `alert_delay` to require consecutive matches; use flapping settings to suppress unstable alerts. Per-rule tuning
-  via the `flapping` object is GA since 9.3; earlier versions support only space-level flapping settings.
-- Debug action templates with `{{{.}}}` in any template field — it renders the whole variable context as JSON, which
-  helps discover correct paths like `{{context.reason}}` or `{{alert.flapping}}`.
-- Do **not** use this skill for Security detection rules: `consumer: "securitySolution"`/`"siem"` belongs to the
-  dedicated Security Detections API (`/api/detection_engine/rules`), which has different rule type ids and lifecycle.
-- Tag rules consistently (`production`, `staging`, team names) for find API filtering.
-- Minimum recommended check interval is `1m`; expensive rules are cancelled after the server run timeout (default `5m`).
+- Treat find and list requests as strictly read-only.
+- Load classic references only for a named classic rule type, an existing classic rule, or when
+  [Universal Alerting is unavailable](#universal-alerting-availability); for every other job, use Universal Alerting
+  references only.
+- Prefix paths with `kbn:/s/<space_id>/` for non-default Kibana spaces. Rules, policies, connectors, and workflows are
+  space-scoped and must share a space.
+- Confirm with the user before deleting rules or action policies.
+- Do **not** migrate classic rules to Universal Alerting; it is not supported. Edit a classic rule in place.
+- Do **not** use this skill for Security detection rules: `consumer: "securitySolution"`/`"siem"` and
+  `/api/detection_engine/rules` belong to the Security Detections API.
 
 ## Common pitfalls
 
-1. **Wrong rule type** — using a log or ML rule for a metric threshold condition.
-2. **Missing per-entity grouping** — global aggregation when the user asked for "any host" or "per service".
-3. **Threshold scale mismatch** — `90` vs `0.9` on fractional CPU fields.
-4. **Duration conflated with schedule** — a one-minute schedule with a five-minute window behaves differently from both
-   set to five minutes.
-5. **Unrequested actions** — attaching connectors when the user only asked to create the rule.
-6. **Read-only violations** — creating or mutating rules when the user asked only to list or filter.
-7. **Concurrent update conflicts** — PUT without a fresh GET returns 409.
-8. **Import/export** — saved-object import disables rules and strips connector secrets.
+1. **Wrong system** — creating a classic rule for a new request that did not name a classic rule type while Universal
+   Alerting is available, or editing an existing rule without looking it up in both systems.
+2. **Mixed concepts** — rule-level actions or connectors in a Universal Alerting answer, or action policies and routing
+   tags in a classic one.
+3. **Wrong notification scope** — creating policies, workflows, or actions when the user only asked for a rule, or
+   skipping notifications when the user asked to be alerted, or inventing a destination the user did not name.
+4. **Read-only violations** — creating or mutating anything when the user asked only to list or filter.
+5. **Unverified success** — reporting success without reading the rule or policy back.
 
 ## References
 
-- [rule-types-reference.md](references/rule-types-reference.md) — Rule types, params, consumers, action groups
-- [connectors-actions-terraform.md](references/connectors-actions-terraform.md) — Actions, workflows, Terraform
+- [universal-rules.md](references/universal-rules.md) — Universal rule kinds, fields, ES|QL query, recovery, no-data,
+  lifecycle
+- [universal-action-policies.md](references/universal-action-policies.md) — Action policy find, create, update,
+  lifecycle, bulk, and ownership
+- [universal-matching-grouping-throttle.md](references/universal-matching-grouping-throttle.md) — Matcher fields,
+  grouping modes, throttle strategies, dispatch flow
+- [universal-workflow-destinations.md](references/universal-workflow-destinations.md) — Destination workflow
+  requirements, dispatch payload, example workflow
+- [classic-rules.md](references/classic-rules.md) — Classic only (Process step 1): find, create, update, lifecycle,
+  tuning
+- [classic-rule-types.md](references/classic-rule-types.md) — Classic only: rule types, params, consumers, action groups
+- [classic-actions-connectors-terraform.md](references/classic-actions-connectors-terraform.md) — Classic only: rule
+  actions, workflows as connectors, Terraform
 - [Kibana Alerting API](https://www.elastic.co/docs/api/doc/kibana/group/endpoint-alerting)
+- [Kibana Universal Alerting API](https://www.elastic.co/docs/api/doc/kibana/group/endpoint-alerting-v2) — Request and
+  response fields, bounds, and error codes. Before writing a Universal Alerting request body, read the operation's page:
+  `https://www.elastic.co/docs/api/doc/kibana/operation/operation-<command>`, where `<command>` is the CLI command name
+  from the [Operations](#operations) table (for example `operation-patch-alerting-v2-action-policies-id`)
 - [Alerting concepts](https://www.elastic.co/docs/explore-analyze/alerting/alerts)
-- [Rule action variables](https://www.elastic.co/docs/explore-analyze/alerting/alerts/rule-action-variables)
-- [Alerting production considerations](https://www.elastic.co/docs/deploy-manage/production-guidance/kibana-alerting-production-considerations)
+- [Kibana Workflows](https://www.elastic.co/docs/explore-analyze/workflows)
 
 ## Operations
 
+`elastic kb` is shorthand for `elastic stack kb`. Universal Alerting and Workflows write commands take the JSON body
+from `--input-file '<path.json>'`. Add `--space '<space_id>'` for a non-default space. If the CLI rejects a command name
+from this table, run `elastic kb alerting-v2 --help` (or the matching command group) and use the listed name.
+
 | HTTP API (shorthand)                                                  | `elastic` CLI command                                                                                                                                                                                            |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /_license`                                                       | `elastic es license get`                                                                                                                                                                                         |
+| `GET kbn:/api/status`                                                 | `elastic kb system get-status`                                                                                                                                                                                   |
+| `POST /_query`                                                        | `elastic es esql query --query '<esql>'`                                                                                                                                                                         |
+| `GET kbn:/api/alerting/v2/rules`                                      | `elastic kb alerting-v2 get-alerting-v2-rules [--filter '<kql>'] [--search '<q>'] [--page <n>] [--per-page <n>] [--sort-field <field>] [--sort-order asc\|desc]`                                                 |
+| `POST kbn:/api/alerting/v2/rules`                                     | `elastic kb alerting-v2 post-alerting-v2-rules --input-file '<rule.json>'`                                                                                                                                       |
+| `GET kbn:/api/alerting/v2/rules/{id}`                                 | `elastic kb alerting-v2 get-alerting-v2-rules-id --id '<id>'`                                                                                                                                                    |
+| `PUT kbn:/api/alerting/v2/rules/{id}`                                 | `elastic kb alerting-v2 put-alerting-v2-rules-id --id '<id>' --input-file '<rule.json>'`                                                                                                                         |
+| `PATCH kbn:/api/alerting/v2/rules/{id}`                               | `elastic kb alerting-v2 patch-alerting-v2-rules-id --id '<id>' --input-file '<patch.json>'`                                                                                                                      |
+| `DELETE kbn:/api/alerting/v2/rules/{id}`                              | `elastic kb alerting-v2 delete-alerting-v2-rules-id --id '<id>'`                                                                                                                                                 |
+| `POST kbn:/api/alerting/v2/rules/{id}/_enable`                        | `elastic kb alerting-v2 post-alerting-v2-rules-id-enable --id '<id>'`                                                                                                                                            |
+| `POST kbn:/api/alerting/v2/rules/{id}/_disable`                       | `elastic kb alerting-v2 post-alerting-v2-rules-id-disable --id '<id>'`                                                                                                                                           |
+| `POST kbn:/api/alerting/v2/rules/_bulk_enable`                        | `elastic kb alerting-v2 post-alerting-v2-rules-bulk-enable --input-file '<ids.json>'`                                                                                                                            |
+| `POST kbn:/api/alerting/v2/rules/_bulk_disable`                       | `elastic kb alerting-v2 post-alerting-v2-rules-bulk-disable --input-file '<ids.json>'`                                                                                                                           |
+| `POST kbn:/api/alerting/v2/rules/_bulk_delete`                        | `elastic kb alerting-v2 post-alerting-v2-rules-bulk-delete --input-file '<ids.json>'`                                                                                                                            |
+| `GET kbn:/api/alerting/v2/action_policies`                            | `elastic kb alerting-v2 get-alerting-v2-action-policies [--filter '<kql>'] [--search '<q>'] [--page <n>] [--per-page <n>] [--sort-field <field>] [--sort-order asc\|desc]`                                       |
+| `GET kbn:/api/alerting/v2/action_policies/{id}`                       | `elastic kb alerting-v2 get-alerting-v2-action-policies-id --id '<id>'`                                                                                                                                          |
+| `POST kbn:/api/alerting/v2/action_policies`                           | `elastic kb alerting-v2 post-alerting-v2-action-policies --input-file '<policy.json>'`                                                                                                                           |
+| `PUT kbn:/api/alerting/v2/action_policies/{id}`                       | `elastic kb alerting-v2 put-alerting-v2-action-policies-id --id '<id>' --input-file '<policy.json>'`                                                                                                             |
+| `PATCH kbn:/api/alerting/v2/action_policies/{id}`                     | `elastic kb alerting-v2 patch-alerting-v2-action-policies-id --id '<id>' --input-file '<patch.json>'`                                                                                                            |
+| `DELETE kbn:/api/alerting/v2/action_policies/{id}`                    | `elastic kb alerting-v2 delete-alerting-v2-action-policies-id --id '<id>'`                                                                                                                                       |
+| `POST kbn:/api/alerting/v2/action_policies/{id}/_enable`              | `elastic kb alerting-v2 post-alerting-v2-action-policies-id-enable --id '<id>'`                                                                                                                                  |
+| `POST kbn:/api/alerting/v2/action_policies/{id}/_disable`             | `elastic kb alerting-v2 post-alerting-v2-action-policies-id-disable --id '<id>'`                                                                                                                                 |
+| `POST kbn:/api/alerting/v2/action_policies/{id}/_snooze`              | `elastic kb alerting-v2 post-alerting-v2-action-policies-id-snooze --id '<id>' --input-file '<snooze.json>'`                                                                                                     |
+| `POST kbn:/api/alerting/v2/action_policies/{id}/_unsnooze`            | `elastic kb alerting-v2 post-alerting-v2-action-policies-id-unsnooze --id '<id>'`                                                                                                                                |
+| `POST kbn:/api/alerting/v2/action_policies/{id}/_update_api_key`      | `elastic kb alerting-v2 post-alerting-v2-action-policies-id-update-api-key --id '<id>'`                                                                                                                          |
+| `POST kbn:/api/alerting/v2/action_policies/_bulk_enable`              | `elastic kb alerting-v2 post-alerting-v2-action-policies-bulk-enable --input-file '<ids.json>'`                                                                                                                  |
+| `POST kbn:/api/alerting/v2/action_policies/_bulk_disable`             | `elastic kb alerting-v2 post-alerting-v2-action-policies-bulk-disable --input-file '<ids.json>'`                                                                                                                 |
+| `POST kbn:/api/alerting/v2/action_policies/_bulk_snooze`              | `elastic kb alerting-v2 post-alerting-v2-action-policies-bulk-snooze --input-file '<ids-and-snooze.json>'`                                                                                                       |
+| `POST kbn:/api/alerting/v2/action_policies/_bulk_unsnooze`            | `elastic kb alerting-v2 post-alerting-v2-action-policies-bulk-unsnooze --input-file '<ids.json>'`                                                                                                                |
+| `POST kbn:/api/alerting/v2/action_policies/_bulk_update_api_key`      | `elastic kb alerting-v2 post-alerting-v2-action-policies-bulk-update-api-key --input-file '<ids.json>'`                                                                                                          |
+| `POST kbn:/api/alerting/v2/action_policies/_bulk_delete`              | `elastic kb alerting-v2 post-alerting-v2-action-policies-bulk-delete --input-file '<ids.json>'`                                                                                                                  |
+| `GET kbn:/api/workflows/connectors`                                   | `elastic kb workflows get-workflows-connectors`                                                                                                                                                                  |
+| `GET kbn:/api/workflows/schema`                                       | `elastic kb workflows get-workflows-schema --loose false`                                                                                                                                                        |
+| `POST kbn:/api/workflows/test`                                        | `elastic kb workflows post-workflows-test --input-file '<test.json>'`                                                                                                                                            |
+| `GET kbn:/api/workflows/executions/{executionId}`                     | `elastic kb workflows get-workflows-executions-executionid --execution-id '<id>'`                                                                                                                                |
+| `GET kbn:/api/workflows/executions/{executionId}/logs`                | `elastic kb workflows get-workflows-executions-executionid-logs --execution-id '<id>'`                                                                                                                           |
+| `GET kbn:/api/workflows/workflow/{id}`                                | `elastic kb workflows get-workflows-workflow-id --id '<id>'`                                                                                                                                                     |
+| `POST kbn:/api/workflows/workflow`                                    | `elastic kb workflows post-workflows-workflow --input-file '<workflow.json>'`                                                                                                                                    |
+| `PUT kbn:/api/workflows/workflow/{id}`                                | `elastic kb workflows put-workflows-workflow-id --id '<id>' --input-file '<workflow.json>'`                                                                                                                      |
+| `GET kbn:/api/actions/connector/{id}`                                 | `elastic kb connectors get-actions-connector-id --id '<id>'`                                                                                                                                                     |
 | `GET kbn:/api/alerting/rules/_find`                                   | `elastic kb alerting get-alerting-rules-find [--filter '<kql>'] [--search '<q>'] [--per-page <n>] [--page <n>] [--sort-field <field>] [--sort-order asc\|desc]`                                                  |
 | `POST kbn:/api/alerting/rule/{id}`                                    | `elastic kb alerting post-alerting-rule-id --id '<id>' --name '<name>' --rule-type-id '<type>' --consumer '<consumer>' --schedule '<json>' --params '<json>' [--tags '<json>'] [--actions '<json>'] [--enabled]` |
 | `GET kbn:/api/alerting/rule/{id}`                                     | `elastic kb alerting get-alerting-rule-id --id '<id>'`                                                                                                                                                           |
