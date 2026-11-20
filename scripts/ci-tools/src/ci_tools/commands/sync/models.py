@@ -8,12 +8,9 @@ class CopyMapping(BaseModel):
     dest: str
     exclude: list[str] = []
     preserve: list[str] = []
-    # Copy each skill directory under `source` (any depth, identified by its
-    # SKILL.md) to `dest/<frontmatter name>/` instead of mirroring the tree.
-    # For targets that need the flat `skills/<name>/` layout of the Agent
-    # Skills / Agent Plugins specs.
-    # With flatten, exclude/preserve match skill-level paths (`security/**`) or
-    # paths relative to each skill (`references/**`), never `<dest-name>/...`.
+    # Copy each skill under `source` to `dest/<frontmatter name>/` instead of
+    # mirroring the tree. exclude/preserve match paths under `source` or within a
+    # skill, never `<dest-name>/...`.
     flatten: bool = False
 
 class VersionUpdate(BaseModel):

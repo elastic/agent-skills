@@ -130,14 +130,13 @@ def find_skills(source: Path, *, exclude: list[str] | None = None) -> dict[str, 
     """
     exclude = exclude or []
     skills: dict[str, Path] = {}
-    skill_dirs: list[Path] = []
     if not source.is_dir():
         return skills
     for skill_md in sorted(source.rglob("SKILL.md")):
         if not skill_md.is_file():
             continue
         skill_dir = skill_md.parent
-        if any(parent == skill_dir or parent in skill_dir.parents for parent in skill_dirs):
+        if any(skill_dir.is_relative_to(parent) for parent in skills.values()):
             continue
         if _matches_any(str(skill_md.relative_to(source)), exclude):
             continue
@@ -147,7 +146,6 @@ def find_skills(source: Path, *, exclude: list[str] | None = None) -> dict[str, 
                 f"duplicate skill name '{name}' in {skills[name]} and {skill_dir}"
             )
         skills[name] = skill_dir
-        skill_dirs.append(skill_dir)
     return skills
 
 
@@ -196,8 +194,8 @@ def apply_copies(
     for mapping in copies:
         src = source_root / mapping.source
         dst = target_root / mapping.dest
-        copy = flatten_skills if mapping.flatten else copy_tree
-        copied, deleted = copy(src, dst, exclude=mapping.exclude, preserve=mapping.preserve)
+        copy_fn = flatten_skills if mapping.flatten else copy_tree
+        copied, deleted = copy_fn(src, dst, exclude=mapping.exclude, preserve=mapping.preserve)
         total_copied += copied
         total_deleted += deleted
     return total_copied, total_deleted
