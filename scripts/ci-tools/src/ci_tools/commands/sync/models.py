@@ -12,6 +12,8 @@ class CopyMapping(BaseModel):
     # SKILL.md) to `dest/<frontmatter name>/` instead of mirroring the tree.
     # For targets that need the flat `skills/<name>/` layout of the Agent
     # Skills / Agent Plugins specs.
+    # With flatten, exclude/preserve match skill-level paths (`security/**`) or
+    # paths relative to each skill (`references/**`), never `<dest-name>/...`.
     flatten: bool = False
 
 class VersionUpdate(BaseModel):
