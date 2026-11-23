@@ -34,3 +34,14 @@ repo = "elastic/copilot-cowork-plugin"
 source = "skills"
 dest = "skills"
 exclude = ["security/**", "observability/**"]
+
+# Agent Plugins 1.0 package: the spec requires skills/<name>/ at the plugin
+# root, so the synced tree is flattened by frontmatter name.
+[[sync.target]]
+name = "agent-plugin"
+repo = "elastic/agent-plugin"
+
+[[sync.target.copies]]
+source = "skills"
+dest = "skills"
+flatten = true

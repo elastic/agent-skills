@@ -8,6 +8,10 @@ class CopyMapping(BaseModel):
     dest: str
     exclude: list[str] = []
     preserve: list[str] = []
+    # Copy each skill under `source` to `dest/<frontmatter name>/` instead of
+    # mirroring the tree. exclude/preserve match paths under `source` or within a
+    # skill, never `<dest-name>/...`.
+    flatten: bool = False
 
 class VersionUpdate(BaseModel):
     file: str
