@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.8.0
+
+### New Skills
+
+- `skills/security/threat-hunting` (v0.2.0)
+
+### Updated Skills
+
+- `skills/cloud/provisioning` (v0.3.0)
+- `skills/elasticsearch/elasticsearch-ingest` (v0.1.3 → v0.2.0)
+- `skills/elasticsearch/elasticsearch-onboarding` (v0.3.0)
+- `skills/kibana/kibana-alerting-rules` (v0.3.0 → v0.4.0)
+- `skills/security/ml-integrations` (v0.1.0 → v0.2.0)
+
+### Generated Artifacts
+
+- Regenerated README skill table
+
 ## v0.7.0
 
 ### New Skills

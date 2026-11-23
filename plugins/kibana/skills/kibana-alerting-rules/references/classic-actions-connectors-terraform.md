@@ -5,6 +5,8 @@
 Each action references a connector by ID, an action **group**, action **params** (Mustache templates), and a per-action
 **frequency** object.
 
+Each connector type has its own minimum license — for example, Slack, email, and PagerDuty connectors require Gold.
+
 | Field                   | Purpose                                                           |
 | ----------------------- | ----------------------------------------------------------------- |
 | `id`                    | Connector ID (Slack, PagerDuty, Index, workflow, etc.)            |
