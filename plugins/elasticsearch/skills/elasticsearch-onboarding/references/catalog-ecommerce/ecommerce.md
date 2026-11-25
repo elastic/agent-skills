@@ -27,6 +27,10 @@ guide.
 
 ## 2. Index Mapping
 
+If this is a marketplace, SaaS, or B2B catalog where each company lists its own inventory, do not design this mapping
+yet. First ask whether different users or tenants see different data. When each customer must only see their own
+listings, say they need document-level security and add a keyword `tenant` field before the fields below.
+
 E-commerce indices need text fields for search, keyword fields for filtering/faceting, numeric fields for sorting/range
 filters, and nested fields for variants.
 
