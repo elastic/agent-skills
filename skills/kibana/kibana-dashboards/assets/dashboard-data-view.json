@@ -1,0 +1,544 @@
+{
+  "title": "Web traffic overview (data view)",
+  "description": "Request volume, response sizes, and client reach from the Kibana sample web logs, broken down by response code, host, and destination country. Every panel uses aggregation operations on the kibana_sample_data_logs data view, and the controls filter on its fields.",
+  "time_range": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "pinned_panels": [
+    {
+      "type": "options_list_control",
+      "width": "medium",
+      "grow": true,
+      "config": {
+        "title": "Response code",
+        "data_view_id": "90943e30-9a47-11e8-b64d-95841ca0b247",
+        "field_name": "response.keyword"
+      }
+    },
+    {
+      "type": "options_list_control",
+      "width": "medium",
+      "grow": true,
+      "config": {
+        "title": "Operating system",
+        "data_view_id": "90943e30-9a47-11e8-b64d-95841ca0b247",
+        "field_name": "machine.os.keyword"
+      }
+    },
+    {
+      "type": "options_list_control",
+      "width": "medium",
+      "grow": true,
+      "config": {
+        "title": "Destination country",
+        "data_view_id": "90943e30-9a47-11e8-b64d-95841ca0b247",
+        "field_name": "geo.dest"
+      }
+    }
+  ],
+  "panels": [
+    {
+      "title": "Key metrics",
+      "collapsed": false,
+      "grid": {
+        "y": 0
+      },
+      "panels": [
+        {
+          "type": "vis",
+          "id": "total-requests",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "data_view_reference",
+              "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "operation": "count",
+                "label": "Requests"
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "avg-bytes",
+          "grid": {
+            "x": 12,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "data_view_reference",
+              "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "operation": "average",
+                "field": "bytes",
+                "label": "Average response size",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "max-bytes",
+          "grid": {
+            "x": 24,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "data_view_reference",
+              "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "operation": "max",
+                "field": "bytes",
+                "label": "Largest response",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "unique-ips",
+          "grid": {
+            "x": 36,
+            "y": 0,
+            "w": 12,
+            "h": 5
+          },
+          "config": {
+            "type": "metric",
+            "data_source": {
+              "type": "data_view_reference",
+              "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+            },
+            "metrics": [
+              {
+                "type": "primary",
+                "operation": "unique_count",
+                "field": "clientip",
+                "label": "Unique clients"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Trends",
+      "collapsed": false,
+      "grid": {
+        "y": 1
+      },
+      "panels": [
+        {
+          "type": "vis",
+          "id": "requests-over-time",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 48,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests over time",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "visible",
+              "statistics": ["avg", "min", "max"],
+              "layout": {
+                "type": "grid"
+              }
+            },
+            "styling": {
+              "areas": {
+                "fill": "gradient"
+              }
+            },
+            "layers": [
+              {
+                "type": "area",
+                "data_source": {
+                  "type": "data_view_reference",
+                  "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+                },
+                "x": {
+                  "operation": "date_histogram",
+                  "field": "@timestamp"
+                },
+                "y": [
+                  {
+                    "operation": "count",
+                    "label": "Requests"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "bytes-over-time",
+          "grid": {
+            "x": 0,
+            "y": 10,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Bytes transferred over time",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "hidden",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "styling": {
+              "areas": {
+                "fill": "gradient"
+              }
+            },
+            "layers": [
+              {
+                "type": "area",
+                "data_source": {
+                  "type": "data_view_reference",
+                  "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+                },
+                "x": {
+                  "operation": "date_histogram",
+                  "field": "@timestamp"
+                },
+                "y": [
+                  {
+                    "operation": "sum",
+                    "field": "bytes",
+                    "label": "Bytes",
+                    "format": {
+                      "type": "bytes",
+                      "decimals": 1
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "response-codes-over-time",
+          "grid": {
+            "x": 24,
+            "y": 10,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "heatmap",
+            "title": "Requests by response code over time",
+            "data_source": {
+              "type": "data_view_reference",
+              "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+            },
+            "metric": {
+              "operation": "count"
+            },
+            "x": {
+              "operation": "date_histogram",
+              "field": "@timestamp"
+            },
+            "y": {
+              "operation": "terms",
+              "fields": ["response.keyword"],
+              "limit": 10
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "Breakdowns",
+      "collapsed": false,
+      "grid": {
+        "y": 2
+      },
+      "panels": [
+        {
+          "type": "vis",
+          "id": "response-codes",
+          "grid": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests by response code",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "hidden",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "bar_horizontal",
+                "data_source": {
+                  "type": "data_view_reference",
+                  "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+                },
+                "x": {
+                  "operation": "terms",
+                  "fields": ["response.keyword"],
+                  "limit": 10
+                },
+                "y": [
+                  {
+                    "operation": "count",
+                    "label": "Requests"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "top-hosts",
+          "grid": {
+            "x": 24,
+            "y": 0,
+            "w": 24,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Requests by host",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "hidden",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "bar_horizontal",
+                "data_source": {
+                  "type": "data_view_reference",
+                  "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+                },
+                "x": {
+                  "operation": "terms",
+                  "fields": ["host.keyword"],
+                  "limit": 10
+                },
+                "y": [
+                  {
+                    "operation": "count",
+                    "label": "Requests"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "traffic-by-country",
+          "grid": {
+            "x": 0,
+            "y": 10,
+            "w": 48,
+            "h": 10
+          },
+          "config": {
+            "type": "xy",
+            "title": "Bytes transferred by destination country",
+            "axis": {
+              "x": {
+                "title": {
+                  "visible": false
+                }
+              },
+              "y": {
+                "title": {
+                  "visible": false
+                }
+              }
+            },
+            "legend": {
+              "position": "bottom",
+              "visibility": "hidden",
+              "layout": {
+                "type": "list"
+              }
+            },
+            "layers": [
+              {
+                "type": "bar",
+                "data_source": {
+                  "type": "data_view_reference",
+                  "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+                },
+                "x": {
+                  "operation": "terms",
+                  "fields": ["geo.dest"],
+                  "limit": 10
+                },
+                "y": [
+                  {
+                    "operation": "sum",
+                    "field": "bytes",
+                    "label": "Bytes",
+                    "format": {
+                      "type": "bytes",
+                      "decimals": 1
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "vis",
+          "id": "top-urls-table",
+          "grid": {
+            "x": 0,
+            "y": 20,
+            "w": 48,
+            "h": 12
+          },
+          "config": {
+            "type": "data_table",
+            "title": "Top URLs by request count",
+            "data_source": {
+              "type": "data_view_reference",
+              "ref_id": "90943e30-9a47-11e8-b64d-95841ca0b247"
+            },
+            "metrics": [
+              {
+                "operation": "count",
+                "label": "Requests"
+              },
+              {
+                "operation": "sum",
+                "field": "bytes",
+                "label": "Bytes",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              },
+              {
+                "operation": "average",
+                "field": "bytes",
+                "label": "Average response size",
+                "format": {
+                  "type": "bytes",
+                  "decimals": 1
+                }
+              }
+            ],
+            "rows": [
+              {
+                "operation": "terms",
+                "fields": ["url.keyword"],
+                "limit": 15,
+                "rank_by": {
+                  "type": "metric",
+                  "metric_index": 0,
+                  "direction": "desc"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -196,7 +196,7 @@ project.
 
 ---
 
-### 8. Vector Database (for AI/ML Pipelines)
+### 8. Vector Store (for AI/ML Pipelines)
 
 Store and retrieve embeddings programmatically — code searches, not people.
 
@@ -231,7 +231,7 @@ Store and retrieve embeddings programmatically — code searches, not people.
 | Customer support search  | Hybrid search, synonyms                   | Aggregations for trend detection           |
 | Location-based search    | Geo-point, distance sort, geo filters     | Combined with full-text                    |
 | Log & event search       | Data streams, ILM, ES\|QL, aggregations   | Runtime fields                             |
-| Vector database          | Dense vectors, kNN/ANN (HNSW)             | Quantization, metadata filtering           |
+| Vector store             | Dense vectors, kNN/ANN (HNSW)             | Quantization, metadata filtering           |
 
 ## Non-Search Use Cases
 

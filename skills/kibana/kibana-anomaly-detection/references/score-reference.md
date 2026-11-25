@@ -117,4 +117,5 @@ number.
 
 - [anomaly-detection-functions.md](anomaly-detection-functions.md) — Function selection guide
 - [protocols/investigation.md](protocols/investigation.md) — 14-step investigation workflow
+- [investigation-queries.md](investigation-queries.md) — Search query templates
 - [worked-example.md](worked-example.md) — End-to-end investigation walkthrough

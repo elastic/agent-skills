@@ -98,10 +98,10 @@ def validate(
         "--plugin-json",
         help="Path to plugin.json (version consistency check). Repeatable.",
     ),
-    marketplace_json: Optional[Path] = typer.Option(
+    marketplace_json: Optional[list[Path]] = typer.Option(
         None,
         "--marketplace-json",
-        help="Path to marketplace.json (version consistency check)",
+        help="Path to marketplace.json (version consistency check). Repeatable.",
     ),
     tags_file: Optional[Path] = typer.Option(
         None,
@@ -137,9 +137,7 @@ def validate(
     if tags_file is not None:
         tag_check = check_tags(FileTagsProvider(tags_file), tag, initial_version)
 
-    version_files: list[Path] = list(plugin_json or [])
-    if marketplace_json is not None:
-        version_files.append(marketplace_json)
+    version_files: list[Path] = list(plugin_json or []) + list(marketplace_json or [])
     file_errors = check_version_files(m.version, version_files)
 
     result = ValidationResult(
@@ -219,10 +217,10 @@ def sync(
         "--plugin-json",
         help="Path to plugin.json to update. Repeatable.",
     ),
-    marketplace_json: Optional[Path] = typer.Option(
+    marketplace_json: Optional[list[Path]] = typer.Option(
         None,
         "--marketplace-json",
-        help="Path to marketplace.json to update",
+        help="Path to marketplace.json to update. Repeatable.",
     ),
 ) -> None:
     """Sync version from the manifest into plugin.json and/or marketplace.json."""
@@ -242,12 +240,13 @@ def sync(
             except ValueError as exc:
                 logger.warning("Skipping {}: {}", path, exc)
 
-    if marketplace_json is not None and marketplace_json.is_file():
-        try:
-            if update_marketplace_version(marketplace_json, m.version):
-                updated.append(str(marketplace_json))
-        except ValueError as exc:
-            logger.warning("Skipping {}: {}", marketplace_json, exc)
+    for path in marketplace_json or []:
+        if path.is_file():
+            try:
+                if update_marketplace_version(path, m.version):
+                    updated.append(str(path))
+            except ValueError as exc:
+                logger.warning("Skipping {}: {}", path, exc)
 
     output = SyncOutput(version=m.version, updated=updated)
     typer.echo(output.model_dump_json(indent=2))

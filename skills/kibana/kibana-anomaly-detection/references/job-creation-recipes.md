@@ -1,6 +1,6 @@
 # Job creation recipes
 
-Worked examples for creating Elastic ML anomaly detection jobs and datafeeds via Agent Builder workflow tools.
+Worked examples for creating Elastic ML anomaly detection jobs and datafeeds via ML REST APIs.
 
 > For the high-level process, see the **Manage** section of the parent `SKILL.md`. For detector function selection, see
 > [anomaly-detection-functions.md](anomaly-detection-functions.md).
@@ -10,14 +10,14 @@ Worked examples for creating Elastic ML anomaly detection jobs and datafeeds via
 ## API call sequence
 
 ```text
-PUT  _ml/anomaly_detectors/<job_id>          # 1. Define job + detectors        (ad_create_job)
-PUT  _ml/datafeeds/datafeed-<job_id>         # 2. Define datafeed (source + query) (ad_create_datafeed)
-POST _ml/anomaly_detectors/<job_id>/_open    # 3a. Open job                      (ad_open_job)
-POST _ml/datafeeds/datafeed-<job_id>/_start  # 3b. Start datafeed                (ad_manage_datafeed action=_start)
-GET  _ml/anomaly_detectors/<job_id>/results/records   # 4. Read results
+PUT  /_ml/anomaly_detectors/<job_id>          # 1. Define job + detectors
+PUT  /_ml/datafeeds/datafeed-<job_id>         # 2. Define datafeed (source + query)
+POST /_ml/anomaly_detectors/<job_id>/_open    # 3a. Open job
+POST /_ml/datafeeds/datafeed-<job_id>/_start  # 3b. Start datafeed
+POST /.ml-anomalies-*/_search                 # 4. Read results (Serverless-safe)
 ```
 
-To stop: `ad_manage_datafeed` (`action=_stop`) → `POST _ml/anomaly_detectors/<job_id>/_close`.
+To stop: `POST /_ml/datafeeds/datafeed-<job_id>/_stop` → `POST /_ml/anomaly_detectors/<job_id>/_close`.
 
 For **batch analysis on historical data**, pass `start` and `end` to the datafeed start call:
 
@@ -57,9 +57,9 @@ POST _ml/datafeeds/datafeed-revenue_over_users_api/_start
 
 **User query:** "Create an ML job to detect rare usernames in login events across logs-\*"
 
-Verify `user.name` (keyword) and `@timestamp` (date) exist via `platform.core.get_index_mapping`. Validate with
-`ad_validate_job_spec`. Then `ad_create_job` → `ad_create_datafeed` → `ad_open_job` → `ad_manage_datafeed`
-(`action=_start`).
+Verify `user.name` (keyword) and `@timestamp` (date) exist via `GET /logs-*/_mapping`. Then
+`PUT /_ml/anomaly_detectors/rare-login-usernames` → `PUT /_ml/datafeeds/datafeed-rare-login-usernames` →
+`POST /_ml/anomaly_detectors/rare-login-usernames/_open` → `POST /_ml/datafeeds/datafeed-rare-login-usernames/_start`.
 
 **Job body:**
 
@@ -176,11 +176,13 @@ Verify `destination.bytes` (numeric), `user.name` (keyword), `process.name` (key
 
 ## Retrieving results
 
-| Result type | Endpoint                                                 | Description                                                         |
-| ----------- | -------------------------------------------------------- | ------------------------------------------------------------------- |
-| Buckets     | `GET _ml/anomaly_detectors/<job_id>/results/buckets`     | Aggregate anomaly score per time bucket                             |
-| Records     | `GET _ml/anomaly_detectors/<job_id>/results/records`     | Individual anomaly records with `actual`, `typical`, `record_score` |
-| Influencers | `GET _ml/anomaly_detectors/<job_id>/results/influencers` | Entity contribution scores                                          |
-| Forecast    | `POST _ml/anomaly_detectors/<job_id>/_forecast`          | Predict future values; specify `duration` (e.g. `"10d"`)            |
+Use `POST /.ml-anomalies-*/_search` with `result_type` filters (Serverless-compatible):
 
-> Forecasts are **not supported** for population analysis jobs (`over_field_name` set).
+| Result type | `result_type` value | Description                                                         |
+| ----------- | ------------------- | ------------------------------------------------------------------- |
+| Buckets     | `bucket`            | Aggregate anomaly score per time bucket                             |
+| Records     | `record`            | Individual anomaly records with `actual`, `typical`, `record_score` |
+| Influencers | `influencer`        | Entity contribution scores                                          |
+
+Forecasts: `POST /_ml/anomaly_detectors/<job_id>/_forecast` with `duration` (e.g. `"10d"`). **Not supported** for
+population analysis jobs (`over_field_name` set).

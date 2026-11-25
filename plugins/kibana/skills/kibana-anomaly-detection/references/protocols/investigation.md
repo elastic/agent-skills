@@ -2,7 +2,8 @@
 
 Canonical workflow for root cause analysis of Elastic ML anomaly detection events.
 
-> For a worked example, see [../worked-example.md](../worked-example.md).
+> For a worked example, see [../worked-example.md](../worked-example.md). Query templates:
+> [../investigation-queries.md](../investigation-queries.md).
 
 ---
 
@@ -21,12 +22,12 @@ instead.
 
 Before beginning analysis, identify all related jobs using these signals in priority order:
 
-1. **Shared datafeed index patterns** (strongest) — Jobs reading from the same source indices monitor the same
-   underlying system.
-2. **Shared entity field names** (config signal) — Jobs that split by the same field names analyze the same entity
-   dimensions.
-3. **Shared entity values in results** (active incident) — During an active incident, find all jobs where a specific
-   entity is currently co-firing.
+1. **Shared datafeed index patterns** (strongest) — `GET /_ml/datafeeds/datafeed-{job_id}` → compare `indices` across
+   jobs via `GET /_ml/anomaly_detectors`.
+2. **Shared entity field names** (config signal) — `GET /_ml/anomaly_detectors/{job_id}` → compare `by_field_name`,
+   `over_field_name`, `partition_field_name`.
+3. **Shared entity values in results** (active incident) — `POST /.ml-anomalies-*/_search` with
+   `result_type: influencer` for co-firing entity values across jobs.
 
 ---
 
@@ -34,50 +35,44 @@ Before beginning analysis, identify all related jobs using these signals in prio
 
 ### Phase 1: Discovery
 
-**Step 1 — Discover** Call `ad_get_available_metadata` to learn available jobs, fields, and functions. Always start here
-when jobs are unknown.
+**Step 1 — Discover** Call `GET /_ml/anomaly_detectors` to list jobs. Call `GET /_ml/anomaly_detectors/{job_id}` for
+detector functions, entity fields, and `bucket_span`. Always start here when jobs are unknown.
 
-**Step 2 — Find related jobs** Use `ad_discover_jobs_by_datafeed_index` with the job of interest — it retrieves that
-job's `datafeed_config.indices`, then finds all other jobs sharing the same source index. Also use
-`ad_discover_related_jobs` to find jobs sharing entity field names (partition/by/over). Fallback: compare
-`datafeed_config.indices` manually via `ad_get_jobs`.
+**Step 2 — Find related jobs** Compare datafeed `indices` and entity field names across jobs. Jobs sharing a source
+index or entity dimension monitor the same system from different angles.
 
-**Step 3 — Scope** Use `ad_query_anomaly_timeline` with `job_id_pattern` set to the related job group (e.g.,
-`rcaeval-*`) or `*` for all jobs. Identify the incident time window and count of affected jobs. Cross-job composite
-scores reveal coordinated events.
+**Step 3 — Scope** Call `POST /.ml-anomalies-*/_search` with `result_type: bucket`, a time range, and minimum
+`anomaly_score`. Identify the incident window and count of affected jobs.
 
 ---
 
 ### Phase 2: Entity Attribution
 
 **Step 4 — Expand from alert** Extract entity values from the alert (`partition_field_value`, `by_field_value`,
-`over_field_value`). Use `ad_rca_cross_job_entity_match` to find all related jobs with anomalies for that entity. Note
-`first_anomaly` per job for chronology reconstruction.
+`over_field_value`). Search influencers across related jobs for those values.
 
-**Step 5 — Multi-job entities** Use `ad_rca_multi_job_entities` with `min_job_count=2`. Entities anomalous in 2+ jobs
-simultaneously are the strongest root cause signal — they are prime suspects. Single-job entities are likely downstream
-victims.
+**Step 5 — Multi-job entities** Aggregate influencers by entity value across jobs. Entities anomalous in **2+ jobs**
+simultaneously are the strongest root cause signal — prime suspects. Single-job entities are likely downstream victims.
 
 > Resource faults (CPU, memory, disk) affect multiple metrics → multi-job. Network faults (packet loss) affect latency
 > but not resource metrics → single-job.
 
-**Step 6 — Fingerprint** Use `ad_rca_detector_fingerprint` with the related job group as `job_id_pattern`. Understand
-which system aspects are anomalous: CPU? Latency? Error rate? Memory? The combination of anomalous detectors
-characterizes the fault type.
+**Step 6 — Fingerprint** Query records across the related job group. Understand which system aspects are anomalous: CPU?
+Latency? Error rate? Memory? The combination of anomalous detectors characterizes the fault type.
 
 ---
 
 ### Phase 3: Deep Analysis
 
-**Step 7 — Drill down per job** Use `ad_query_anomaly_records` with an exact `job_id_pattern` to examine a specific
-job's anomalies in detail, without cross-job noise.
+**Step 7 — Drill down per job** Call `POST /.ml-anomalies-*/_search` with `result_type: record` and an exact job ID to
+examine a specific job's anomalies without cross-job noise.
 
-**Step 8 — Attribute** Use `ad_query_influencers` with the related job group as `job_id_pattern` and a low `min_score`
-(25) for shared influencer discovery. Filter for `job_count > 1` to surface entities that are influencers in multiple
-co-firing jobs — the common denominator.
+**Step 8 — Attribute (critical)** Call `POST /.ml-anomalies-*/_search` with `result_type: influencer`, sort by
+**`influencer_score` descending**, and use a low minimum score (25). The entity with the highest `influencer_score` is
+the primary suspect — not the bucket `anomaly_score` alone.
 
-**Step 9 — Profile** Use `ad_rca_entity_profile` to build a complete dossier on the suspect entity: all anomalies across
-all jobs and field types, sorted by timestamp.
+**Step 9 — Profile** Query all record and influencer results for the suspect entity across jobs, sorted by timestamp, to
+build a complete dossier.
 
 **Step 10 — Characterize** Examine `multi_bucket_impact` in results:
 
@@ -88,21 +83,15 @@ all jobs and field types, sorted by timestamp.
 
 ### Phase 4: Root Cause Confirmation
 
-**Step 11 — Cascade** Use `ad_rca_correlation` sorted by timestamp. The job with the **earliest anomaly** for the
-suspect entity points toward the root cause. Reconstruct chronology: which metric became anomalous first?
+**Step 11 — Cascade** Sort record timestamps across jobs for the suspect entity. The **earliest anomaly** points toward
+the root cause. Reconstruct chronology: which metric became anomalous first?
 
-**Step 12 — Evidence** Get the source index from `ad_get_job_datafeed_config`, then call `ad_rca_source_evidence` to
-retrieve raw source documents. This shows the actual values that triggered the anomaly at the point of ingestion.
+**Step 12 — Evidence** Get source indices from `GET /_ml/datafeeds/datafeed-{job_id}`, then search source data for the
+suspect entity and time window. Raw source documents show the actual values at ingestion.
 
-**Step 13 — Log categories** _(only when `by_field_name == "mlcategory"`)_ For log categorization jobs:
-
-1. `ad_get_categories` → find the category matching the anomaly's `by_field_value` (category ID). Examine its terms,
-   regex, and examples.
-2. `ad_search_log_category_examples` twice — once for a **baseline window** (24h before anomaly), once for the **anomaly
-   window**.
-3. Compare: look for changed field values in the variable parts of the log structure (IPs, hostnames, error codes,
-   paths, credentials).
-4. Cross-reference changed entities with influencers from other related jobs to confirm root cause.
+**Step 13 — Log categories** _(only when `by_field_name == "mlcategory"`)_ Query `result_type: category_definition` for
+the job. Compare category terms and examples between baseline and anomaly windows. Cross-reference changed entities with
+influencers from related jobs.
 
 ---
 
@@ -112,41 +101,20 @@ retrieve raw source documents. This shows the actual values that triggered the a
 
 | Section                  | Content                                                       |
 | ------------------------ | ------------------------------------------------------------- |
-| **Root cause entity**    | The entity (host, service, user) responsible                  |
+| **Root cause entity**    | Entity with highest `influencer_score` and multi-job presence |
 | **Affected systems**     | Which jobs/metrics were impacted                              |
 | **Temporal progression** | Which metric became anomalous first (from Step 11)            |
-| **Fault type**           | Resource (CPU/memory/disk) / Network / Application / Pipeline |
+| **Fault type**           | Resource / Network / Application / Pipeline                   |
 | **Severity**             | `record_score` range, `multi_bucket_impact`, duration         |
 | **Recommended actions**  | Remediation steps                                             |
 
 ---
 
-## Quick Reference: Tool → Step Mapping
-
-| Tool                                 | Step |
-| ------------------------------------ | ---- |
-| `ad_get_available_metadata`          | 1    |
-| `ad_discover_jobs_by_datafeed_index` | 2    |
-| `ad_discover_related_jobs`           | 2    |
-| `ad_query_anomaly_timeline`          | 3    |
-| `ad_rca_cross_job_entity_match`      | 4    |
-| `ad_rca_multi_job_entities`          | 5    |
-| `ad_rca_detector_fingerprint`        | 6    |
-| `ad_query_anomaly_records`           | 7    |
-| `ad_query_influencers`               | 8    |
-| `ad_rca_entity_profile`              | 9    |
-| `ad_rca_correlation`                 | 11   |
-| `ad_get_job_datafeed_config`         | 12   |
-| `ad_rca_source_evidence`             | 12   |
-| `ad_get_categories`                  | 13   |
-| `ad_search_log_category_examples`    | 13   |
-
----
-
 ## Key Decision Rules
 
+- **Rank by `influencer_score` for entity attribution** — bucket `anomaly_score` is aggregate severity, not cause.
 - **Low scores across many jobs** > one high score — composite cross-job signal often indicates systemic root cause.
 - **`actual << typical` with count/low_count** → absence/outage, not just a numerically low value.
 - **Entities in 2+ jobs** → prime suspects (resource fault or systemic failure).
 - **Entities in only 1 job** → likely downstream victims or surface-level effects.
-- **`first_anomaly` chronology** → the earliest metric to become anomalous is closest to the root cause.
+- **Earliest anomaly chronology** → the earliest metric to become anomalous is closest to the root cause.

@@ -43,61 +43,41 @@ For each anomalous entity, determine:
 
 ### Phase 1 — Triage (Investigate mode)
 
-1. `ad_get_available_metadata` — identify security-relevant jobs (auth, network, process, DNS, endpoint).
-2. `ad_query_anomaly_timeline` — establish incident time window.
-3. `ad_rca_multi_job_entities` (`min_job_count=2`) — multi-job entities in security = active threat actors.
+1. `GET /_ml/anomaly_detectors` — identify security-relevant jobs (auth, network, process, DNS, endpoint).
+2. `POST /.ml-anomalies-*/_search` (`result_type: bucket`) — establish incident time window.
+3. Cross-job influencer aggregation — multi-job entities in security = active threat actors.
 
 ### Phase 2 — Entity attribution (Investigate mode)
 
-1. `ad_rca_cross_job_entity_match` — expand from single alert to full entity activity chain.
-2. `ad_query_influencers` (low `min_score`, broad `job_id_pattern`) — surface all associated entities.
-3. `ad_rca_entity_profile` — complete behavioral dossier on suspect user/host/IP.
+1. Search influencers across jobs for the alert entity — expand from single alert to full activity chain.
+2. `POST /.ml-anomalies-*/_search` (`result_type: influencer`, low score threshold) — surface all associated entities;
+   **rank by `influencer_score`**.
+3. Profile the suspect entity across all jobs and field types, sorted by timestamp.
 
 ### Phase 3 — Attack chain reconstruction (Investigate mode)
 
-1. `ad_rca_correlation` sorted by timestamp — reconstruct chronological order. First anomaly = entry point hypothesis.
-2. `ad_rca_blast_radius` — determine lateral spread: how many systems/accounts affected.
-3. `ad_rca_detector_fingerprint` — which behavioral dimensions are anomalous (auth? process? network? data volume?).
+1. Sort record timestamps across jobs — reconstruct chronological order. First anomaly = entry point hypothesis.
+2. Count affected jobs/entities — determine lateral spread.
+3. Examine which behavioral dimensions are anomalous (auth? process? network? data volume?).
 
-### Phase 4 — Evidence collection (Investigate mode)
+### Phase 4 — Evidence (Investigate mode)
 
-1. `ad_get_job_datafeed_config` → source index → `ad_rca_source_evidence` — raw forensic ground truth.
-2. For log categorization jobs: `ad_get_categories` + `ad_search_log_category_examples` — compare baseline vs. incident
-   window for changed IPs, credentials, command-line arguments, file paths.
+1. `GET /_ml/datafeeds/datafeed-{job_id}` → source index → search raw logs for the suspect entity and time window.
+2. For categorization jobs, query `result_type: category_definition` and compare baseline vs anomaly log patterns.
 
-### Phase 5 — Score validation (Explain mode)
+### Phase 5 — Score sanity (Explain mode)
 
-1. If score seems low for a suspicious pattern: `ad_rca_score_reassessment` — check renormalization drift.
-   `initial_record_score` may reveal a threat that was renormalized away.
-2. `ad_get_model_plot` — confirm actual exceeds model bounds.
+When scores seem inconsistent with threat severity:
 
-### Phase 6 — Threat report
+1. Compare `initial_record_score` vs `record_score` — renormalization may lower historical alert scores.
+2. Query `result_type: model_plot` when enabled — confirm anomaly sits outside expected bounds.
+3. Check `GET /_ml/anomaly_detectors/{job_id}/_stats` for `memory_status = hard_limit` — corrupted models produce
+   unreliable scores; fix via Troubleshoot mode before concluding false negative.
 
-- **Threat classification**: attack type + MITRE ATT&CK tactic/technique
-- **Confidence**: High/Medium/Low with reasoning
-- **Affected entities**: users, hosts, IPs, processes
-- **Attack timeline**: reconstructed from `first_anomaly` per job
-- **Evidence summary**: key anomalous values from source documents
-- **Recommended response**: containment, investigation, tuning actions
+## Rules
 
-## Security-specific rules
-
-- **Absence anomalies are high priority**: `actual << typical` on auth or process jobs = log clearing or service killing
-  = defense evasion.
-- **`initial_record_score >> record_score`**: do not dismiss. Score was renormalized after a more extreme event — the
-  original anomaly is still a valid threat indicator.
-- **Low scores across many jobs > one high score**: sophisticated attackers stay below single-job thresholds. Composite
-  cross-job signals are the primary detection mechanism.
-- **New entities**: first-seen host or user is higher priority than a known entity with a moderate score.
-- **`multi_bucket_impact ≥ 3`**: sustained shift = persistent access, beaconing, or ongoing exfiltration.
-- Run `ad_validate_ml_tool_permissions` if tools fail — permission errors are common in multi-tenant security
-  environments.
-
-## Escalation vs. tuning
-
-| Signal                                           | Action                                            |
-| ------------------------------------------------ | ------------------------------------------------- |
-| Multi-job entity + source evidence + MITRE match | Escalate as confirmed threat                      |
-| Multi-job entity + no source evidence            | Escalate for manual log review                    |
-| Single-job, explainable by operational event     | Document and tune (calendar event or custom rule) |
-| Renormalization-only score drop                  | Explain to stakeholder — use Explain mode         |
+- **High `influencer_score` on a process or user in a security job** warrants immediate deep-dive — do not dismiss
+  because bucket `anomaly_score` is moderate.
+- **Multi-job entity co-firing in security context** → assume active compromise until ruled out.
+- **Absence anomalies on auth/process indices** → investigate defense evasion (log clearing, service stop) before
+  dismissing as benign maintenance.
